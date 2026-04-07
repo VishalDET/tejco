@@ -78,7 +78,7 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$1,284,430.20</div>
+            <div className="text-2xl font-bold">₹1,284,430.20</div>
             <p className="text-xs text-muted-foreground">
               <span className="text-emerald-500 inline-flex items-center">
                 +12.5% <ArrowUpRight className="ml-1 h-3 w-3" />

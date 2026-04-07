@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -23,58 +24,94 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Order, OrderStatus } from "./types"
+import { OrderFormDialog } from "./order-form-dialog"
 
-const orders = [
+const initialOrders: Order[] = [
     {
-        id: "ORD-9281",
-        doctor: "Dr. Aris Varma",
+        id: "1",
+        orderNumber: "ORD-9281",
+        clientId: "c1",
+        clientName: "Dr. Aris Varma",
+        salesPersonId: "SP-001",
         date: "2026-03-08",
-        items: 4,
-        total: 1250.00,
         status: "Approved",
-        payment: "Paid",
+        paymentStatus: "Paid",
+        items: [{ id: "i1", productId: "p1", productName: "Surgical Blade #10", sku: "SB-010-G", quantity: 100, unitPrice: 12.50, total: 1250 }],
+        subtotal: 1250,
+        taxAmount: 225,
+        totalAmount: 1475,
+        billingAddress: "Mumbai, Maharashtra",
+        shippingAddress: "Mumbai, Maharashtra",
     },
     {
-        id: "ORD-9282",
-        doctor: "City Dental Clinic",
+        id: "2",
+        orderNumber: "ORD-9282",
+        clientId: "c2",
+        clientName: "City Dental Clinic",
         date: "2026-03-09",
-        items: 12,
-        total: 3420.50,
         status: "Pending",
-        payment: "Unpaid",
-    },
-    {
-        id: "ORD-9283",
-        doctor: "Dr. Vishal Kumar",
-        date: "2026-03-09",
-        items: 2,
-        total: 450.00,
-        status: "Packed",
-        payment: "Paid",
-    },
-    {
-        id: "ORD-9284",
-        doctor: "Metro Hospital",
-        date: "2026-03-10",
-        items: 45,
-        total: 12800.00,
-        status: "Dispatched",
-        payment: "Partial",
+        paymentStatus: "Unpaid",
+        items: [{ id: "i2", productId: "p2", productName: "Medical Gauze", sku: "MG-ST-100", quantity: 50, unitPrice: 68.41, total: 3420.5 }],
+        subtotal: 3420.5,
+        taxAmount: 615.69,
+        totalAmount: 4036.19,
+        billingAddress: "Pune, Maharashtra",
+        shippingAddress: "Pune, Maharashtra",
     },
 ]
 
-const getStatusBadge = (status: string) => {
+const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
         case "Pending": return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-none">Pending Approval</Badge>
         case "Approved": return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-none">Approved</Badge>
         case "Packed": return <Badge variant="secondary" className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-none">Packed</Badge>
         case "Dispatched": return <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100 border-none">Dispatched</Badge>
         case "Delivered": return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-none">Delivered</Badge>
+        case "Cancelled": return <Badge variant="destructive">Cancelled</Badge>
         default: return <Badge variant="outline">{status}</Badge>
     }
 }
 
 export default function OrdersPage() {
+    const router = useRouter()
+    const [orders, setOrders] = React.useState<Order[]>(initialOrders)
+    const [isDialogOpen, setIsDialogOpen] = React.useState(false)
+    const [selectedOrder, setSelectedOrder] = React.useState<Order | null>(null)
+    const [isMounted, setIsMounted] = React.useState(false)
+    const [searchQuery, setSearchQuery] = React.useState("")
+
+    React.useEffect(() => {
+        setIsMounted(true)
+    }, [])
+
+    const handleCreateOrder = () => {
+        setSelectedOrder(null)
+        setIsDialogOpen(true)
+    }
+
+    const handleEditOrder = (order: Order) => {
+        setSelectedOrder(order)
+        setIsDialogOpen(true)
+    }
+
+    const handleSaveOrder = (data: Partial<Order>) => {
+        if (selectedOrder) {
+            setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, ...data } as Order : o))
+        } else {
+            const newOrder: Order = {
+                ...data,
+                id: Math.random().toString(36).substr(2, 9),
+            } as Order
+            setOrders(prev => [newOrder, ...prev])
+        }
+    }
+
+    const filteredOrders = orders.filter(o => 
+        o.orderNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        o.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
@@ -83,7 +120,7 @@ export default function OrdersPage() {
                     <p className="text-muted-foreground">Processing and managing sales orders from clients.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button>
+                    <Button onClick={handleCreateOrder}>
                         <Plus className="mr-2 h-4 w-4" />
                         Create Order
                     </Button>
@@ -110,7 +147,12 @@ export default function OrdersPage() {
                             <div className="flex items-center gap-2">
                                 <div className="relative">
                                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                    <Input placeholder="Search orders..." className="pl-8 w-[250px]" />
+                                    <Input 
+                                        placeholder="Search orders..." 
+                                        className="pl-8 w-[250px]" 
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                    />
                                 </div>
                                 <Button variant="outline" size="icon"><Filter className="h-4 w-4" /></Button>
                             </div>
@@ -119,8 +161,8 @@ export default function OrdersPage() {
                             <Table>
                                 <TableHeader className="bg-muted/50">
                                     <TableRow>
-                                        <TableHead className="w-[100px]">Order ID</TableHead>
-                                        <TableHead>Doctor / Client</TableHead>
+                                        <TableHead className="w-[120px]">Order Number</TableHead>
+                                        <TableHead>Client / Doctor</TableHead>
                                         <TableHead>Date</TableHead>
                                         <TableHead>Items</TableHead>
                                         <TableHead className="text-right">Total Amount</TableHead>
@@ -130,43 +172,63 @@ export default function OrdersPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {orders.map((order) => (
-                                        <TableRow key={order.id}>
-                                            <TableCell className="font-medium text-primary">{order.id}</TableCell>
-                                            <TableCell>{order.doctor}</TableCell>
-                                            <TableCell>{order.date}</TableCell>
-                                            <TableCell>{order.items}</TableCell>
-                                            <TableCell className="text-right font-semibold">${order.total.toFixed(2)}</TableCell>
-                                            <TableCell>{getStatusBadge(order.status)}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="outline" className={order.payment === "Paid" ? "text-emerald-500 border-emerald-200" : "text-amber-500 border-amber-200"}>
-                                                    {order.payment}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger
-                                                        render={
-                                                            <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                                                        }
-                                                    />
-                                                    <DropdownMenuContent align="end">
-                                                        <DropdownMenuItem className="gap-2"><Eye className="h-4 w-4" /> View Details</DropdownMenuItem>
-                                                        <DropdownMenuItem className="gap-2"><FileDown className="h-4 w-4" /> Download PDF</DropdownMenuItem>
-                                                        <DropdownMenuItem className="gap-2"><Printer className="h-4 w-4" /> Print Challan</DropdownMenuItem>
-                                                        <DropdownMenuSeparator />
-                                                        <DropdownMenuItem className="text-destructive uppercase text-[10px] font-bold">Cancel Order</DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                                    {filteredOrders.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">
+                                                No orders found matching your search.
                                             </TableCell>
                                         </TableRow>
-                                    ))}
+                                    ) : (
+                                        filteredOrders.map((order) => (
+                                            <TableRow key={order.id}>
+                                                <TableCell className="font-medium text-primary">{order.orderNumber}</TableCell>
+                                                <TableCell>{order.clientName}</TableCell>
+                                                <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                                                <TableCell>{order.items.length} items</TableCell>
+                                                <TableCell className="text-right font-semibold">₹{order.totalAmount.toLocaleString()}</TableCell>
+                                                <TableCell>{getStatusBadge(order.status)}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline" className={order.paymentStatus === "Paid" ? "text-emerald-500 border-emerald-200" : "text-amber-500 border-amber-200"}>
+                                                        {order.paymentStatus}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger
+                                                            render={
+                                                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                                                            }
+                                                        />
+                                                        <DropdownMenuContent align="end">
+                                                            <DropdownMenuItem className="gap-2" onClick={() => handleEditOrder(order)}>
+                                                                <Edit className="h-4 w-4" /> Edit Order
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem className="gap-2" onClick={() => router.push(`/sales/orders/${order.id}`)}>
+                                                                <Eye className="h-4 w-4" /> View Details
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem className="gap-2"><FileDown className="h-4 w-4" /> Download PDF</DropdownMenuItem>
+                                                            <DropdownMenuItem className="gap-2"><Printer className="h-4 w-4" /> Print Challan</DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem className="text-destructive uppercase text-[10px] font-bold">Cancel Order</DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
                                 </TableBody>
                             </Table>
                         </CardContent>
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            <OrderFormDialog 
+                open={isDialogOpen}
+                onOpenChange={setIsDialogOpen}
+                order={selectedOrder}
+                onSave={handleSaveOrder}
+            />
         </div>
     )
 }

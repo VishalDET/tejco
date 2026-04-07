@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
     ColumnDef,
     ColumnFiltersState,
@@ -13,8 +14,9 @@ import {
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Plus, Search, Filter, Download } from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Plus, Search, Filter, Download, Loader2, AlertCircle } from "lucide-react"
 
+import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -37,58 +39,44 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
-const data: Product[] = [
-    {
-        id: "1",
-        name: "Surgical Blade #10",
-        sku: "SB-010-G",
-        category: "Surgical Instruments",
-        variants: 5,
-        price: 12.50,
-        stock: 1250,
-        status: "Active",
-    },
-    {
-        id: "2",
-        name: "Medical Gauze (Sterile)",
-        sku: "MG-ST-100",
-        category: "Consumables",
-        variants: 2,
-        price: 4.20,
-        stock: 8500,
-        status: "Active",
-    },
-    {
-        id: "3",
-        name: "N-95 Respirator Mask",
-        sku: "MSK-N95-FL",
-        category: "Personal Protection",
-        variants: 1,
-        price: 3.50,
-        stock: 120,
-        status: "Low Stock",
-    },
-    {
-        id: "4",
-        name: "Latex Gloves (Box 100)",
-        sku: "GLV-LTX-M",
-        category: "Consumables",
-        variants: 3,
-        price: 18.90,
-        stock: 450,
-        status: "Active",
-    },
-    {
-        id: "5",
-        name: "Titanium Bone Plate",
-        sku: "TBP-7-HOLE",
-        category: "Orthopedic Implants",
-        variants: 12,
-        price: 245.00,
-        stock: 15,
-        status: "Active",
-    },
-]
+// --- API Types ---
+interface ApiVariant {
+    variantId: number
+    productId: number
+    variantName: string
+    skuSuffix: string
+    purchasePrice: number
+    sellingPrice: number
+    initialQuantity: number
+    currentQuantity: number
+    reorderLevel: number
+    status: boolean
+}
+
+interface ApiProduct {
+    productId: number
+    productName: string
+    baseSKU: string
+    productTaggingNo: string
+    barcodeNumber: string
+    categoryId: number
+    subcategoryId: number
+    brand: string
+    unit: string
+    description: string
+    hasVariants: boolean
+    status: boolean
+    variants: ApiVariant[]
+}
+
+interface ApiResponse {
+    statusCode: number
+    success: boolean
+    message: string
+    data: ApiProduct[]
+    totalCount: number
+    error: any
+}
 
 export type Product = {
     id: string
@@ -138,7 +126,7 @@ export const columns: ColumnDef<Product>[] = [
             const amount = parseFloat(row.getValue("price"))
             const formatted = new Intl.NumberFormat("en-US", {
                 style: "currency",
-                currency: "USD",
+                currency: "INR",
             }).format(amount)
             return <div className="text-right font-medium">{formatted}</div>
         },
@@ -189,8 +177,8 @@ export const columns: ColumnDef<Product>[] = [
                             Copy product ID
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>View details</DropdownMenuItem>
-                        <DropdownMenuItem>Edit product</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/${row.original.id}`}>View details</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/${row.original.id}`}>Edit product</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             )
@@ -199,13 +187,62 @@ export const columns: ColumnDef<Product>[] = [
 ]
 
 export default function ProductListPage() {
+    const [products, setProducts] = React.useState<Product[]>([])
+    const [isLoading, setIsLoading] = React.useState(true)
+    const [error, setError] = React.useState<string | null>(null)
+
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = React.useState({})
 
+    React.useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                setIsLoading(true)
+                const response = await apiClient.get<ApiResponse>("/api/Product/GetAll")
+                
+                if (response.success && response.data) {
+                    const mappedProducts: Product[] = response.data.map(p => {
+                        const totalStock = p.variants.reduce((sum, v) => sum + v.currentQuantity, 0)
+                        const minReorderLevel = p.variants.length > 0 ? Math.min(...p.variants.map(v => v.reorderLevel)) : 0
+                        
+                        // Determine status
+                        let status: Product["status"] = p.status ? "Active" : "Inactive"
+                        if (p.status && totalStock <= minReorderLevel && totalStock > 0) {
+                            status = "Low Stock"
+                        } else if (p.status && totalStock === 0) {
+                            status = "Inactive"
+                        }
+
+                        return {
+                            id: p.productId.toString(),
+                            name: p.productName,
+                            sku: p.baseSKU,
+                            category: p.brand || "General", // Using brand as category fallback since name isn't in API
+                            variants: p.variants.length,
+                            price: p.variants.length > 0 ? p.variants[0].sellingPrice : 0,
+                            stock: totalStock,
+                            status: status
+                        }
+                    })
+                    setProducts(mappedProducts)
+                } else {
+                    setError(response.message || "Failed to fetch products")
+                }
+            } catch (err: any) {
+                console.error("Error fetching products:", err)
+                setError(err.message || "An unexpected error occurred")
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        fetchProducts()
+    }, [])
+
     const table = useReactTable({
-        data,
+        data: products,
         columns,
         onSortingChange: setSorting,
         onColumnFiltersChange: setColumnFilters,
@@ -235,7 +272,7 @@ export default function ProductListPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export
                     </Button>
-                    <Button>
+                    <Button render={<Link href="/inventory/products/add" />} nativeButton={false}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Product
                     </Button>
@@ -261,6 +298,12 @@ export default function ProductListPage() {
                             />
                         </div>
                         <div className="flex items-center gap-2">
+                            {isLoading && (
+                                <div className="flex items-center text-sm text-muted-foreground mr-4">
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Loading...
+                                </div>
+                            )}
                             <DropdownMenu>
                                 <DropdownMenuTrigger
                                     render={
@@ -293,7 +336,17 @@ export default function ProductListPage() {
                         </div>
                     </div>
                     <div className="rounded-md border">
-                        <Table>
+                        {error ? (
+                            <div className="flex flex-col items-center justify-center p-8 text-center bg-destructive/5 rounded-md border border-destructive/20 border-dashed">
+                                <AlertCircle className="h-10 w-10 text-destructive mb-3" />
+                                <h3 className="font-semibold text-destructive">Failed to load products</h3>
+                                <p className="text-sm text-muted-foreground mb-4">{error}</p>
+                                <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                                    Try Again
+                                </Button>
+                            </div>
+                        ) : (
+                            <Table>
                             <TableHeader className="bg-muted/50">
                                 {table.getHeaderGroups().map((headerGroup) => (
                                     <TableRow key={headerGroup.id}>
@@ -334,7 +387,8 @@ export default function ProductListPage() {
                                     </TableRow>
                                 )}
                             </TableBody>
-                        </Table>
+                            </Table>
+                        )}
                     </div>
                     <div className="flex items-center justify-end space-x-2 py-4">
                         <div className="flex-1 text-sm text-muted-foreground">

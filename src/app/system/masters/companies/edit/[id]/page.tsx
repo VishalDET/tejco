@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, X, Plus, Trash2, Building2, MapPin, UserPlus } from "lucide-react"
+import { useRouter, useParams } from "next/navigation"
+import { ArrowLeft, Save, X, Plus, Trash2, Building2, MapPin, UserPlus, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
@@ -21,7 +21,7 @@ import { toast } from "sonner"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ContactPerson = {
-    id: number // local-only key
+    id: number // local-only key for UI
     name: string
     mobile: string
     email: string
@@ -30,17 +30,34 @@ type ContactPerson = {
 }
 
 type OfficeLocation = {
-    id: number // local-only key
+    id: number // local-only key for UI
     locationName: string
     address: string
     contactNo: string
 }
 
+type CompanyDetail = {
+    companyId: number
+    registeredName: string
+    registrationNumber: string
+    panNumber: string
+    corporateWebsite: string
+    mainContactNumber: string
+    registeredAddress: string
+    defaultShippingAddress: string
+    officeLocations: OfficeLocation[]
+    contactPersons: ContactPerson[]
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AddCompanyPage() {
+export default function EditCompanyPage() {
     const router = useRouter()
-    const [isLoading, setIsLoading] = React.useState(false)
+    const params = useParams()
+    const id = params.id as string
+
+    const [isLoading, setIsLoading] = React.useState(true)
+    const [isSaving, setIsSaving] = React.useState(false)
 
     // Form State
     const [registeredName, setRegisteredName] = React.useState("")
@@ -52,22 +69,41 @@ export default function AddCompanyPage() {
     const [defaultShippingAddress, setDefaultShippingAddress] = React.useState("")
 
     // Dynamic Lists
-    const [contactPersons, setContactPersons] = React.useState<ContactPerson[]>([
-        { id: Date.now(), name: "", mobile: "", email: "", designation: "", role: "" }
-    ])
+    const [contactPersons, setContactPersons] = React.useState<ContactPerson[]>([])
+    const [officeLocations, setOfficeLocations] = React.useState<OfficeLocation[]>([])
 
-    const [officeLocations, setOfficeLocations] = React.useState<OfficeLocation[]>([
-        { id: Date.now() + 1, locationName: "Head Office", address: "", contactNo: "" }
-    ])
+    // Load initial data
+    React.useEffect(() => {
+        async function fetchCompany() {
+            try {
+                const data = await apiClient.get<CompanyDetail>(`/api/SystemMasters/companies/${id}`)
+                setRegisteredName(data.registeredName || "")
+                setRegistrationNumber(data.registrationNumber || "")
+                setPanNumber(data.panNumber || "")
+                setCorporateWebsite(data.corporateWebsite || "")
+                setMainContactNumber(data.mainContactNumber || "")
+                setRegisteredAddress(data.registeredAddress || "")
+                setDefaultShippingAddress(data.defaultShippingAddress || "")
+                
+                // Map incoming arrays to include local IDs for React keys
+                setContactPersons(data.contactPersons?.map(cp => ({ ...cp, id: Math.random() })) || [])
+                setOfficeLocations(data.officeLocations?.map(ol => ({ ...ol, id: Math.random() })) || [])
+            } catch (err: unknown) {
+                toast.error("Failed to load company data")
+                router.back()
+            } finally {
+                setIsLoading(false)
+            }
+        }
+        if (id) fetchCompany()
+    }, [id, router])
 
     const addContact = () => {
         setContactPersons(prev => [...prev, { id: Date.now(), name: "", mobile: "", email: "", designation: "", role: "" }])
     }
 
     const removeContact = (id: number) => {
-        if (contactPersons.length > 1) {
-            setContactPersons(prev => prev.filter(c => c.id !== id))
-        }
+        setContactPersons(prev => prev.filter(c => c.id !== id))
     }
 
     const updateContact = (id: number, field: keyof ContactPerson, value: string) => {
@@ -79,9 +115,7 @@ export default function AddCompanyPage() {
     }
 
     const removeLocation = (id: number) => {
-        if (officeLocations.length > 1) {
-            setOfficeLocations(prev => prev.filter(l => l.id !== id))
-        }
+        setOfficeLocations(prev => prev.filter(l => l.id !== id))
     }
 
     const updateLocation = (id: number, field: keyof OfficeLocation, value: string) => {
@@ -92,10 +126,10 @@ export default function AddCompanyPage() {
 
     async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
         e.preventDefault()
-        setIsLoading(true)
+        setIsSaving(true)
 
         const payload = {
-            companyId: 0,
+            companyId: parseInt(id),
             registeredName,
             registrationNumber,
             panNumber,
@@ -108,18 +142,25 @@ export default function AddCompanyPage() {
         }
 
         try {
-            await apiClient.post("/api/SystemMasters/companies", payload)
-            toast.success("Company registered successfully!")
-            router.push("/system/masters/companies")
+            await apiClient.put(`/api/SystemMasters/companies/${id}`, payload)
+            toast.success("Company updated successfully!")
+            router.push(`/system/masters/companies/${id}`)
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
-            toast.error(`Failed to register company: ${message}`)
+            toast.error(`Failed to update company: ${message}`)
         } finally {
-            setIsLoading(false)
+            setIsSaving(false)
         }
     }
 
-    // ─── UI ───────────────────────────────────────────────────────────────────
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-muted-foreground animate-pulse">Loading company profile...</p>
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-10">
@@ -128,8 +169,8 @@ export default function AddCompanyPage() {
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Register Company</h1>
-                    <p className="text-muted-foreground">Add a new legal entity with multiple contacts and locations.</p>
+                    <h1 className="text-3xl font-bold tracking-tight">Edit Company</h1>
+                    <p className="text-muted-foreground">Modify your legal entity details and structures.</p>
                 </div>
             </div>
 
@@ -142,14 +183,12 @@ export default function AddCompanyPage() {
                                 <Building2 className="h-5 w-5 text-primary" />
                                 Legal Details
                             </CardTitle>
-                            <CardDescription>Official registration and identity information.</CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-6">
                             <div className="grid gap-2">
                                 <Label htmlFor="registeredName">Registered Name <span className="text-destructive">*</span></Label>
                                 <Input
                                     id="registeredName"
-                                    placeholder="Tejco Surgical Instruments Pvt Ltd"
                                     required
                                     value={registeredName}
                                     onChange={e => setRegisteredName(e.target.value)}
@@ -160,7 +199,6 @@ export default function AddCompanyPage() {
                                     <Label htmlFor="registrationNumber">Registration Number <span className="text-destructive">*</span></Label>
                                     <Input
                                         id="registrationNumber"
-                                        placeholder="CIN / Reg No"
                                         required
                                         value={registrationNumber}
                                         onChange={e => setRegistrationNumber(e.target.value)}
@@ -170,7 +208,6 @@ export default function AddCompanyPage() {
                                     <Label htmlFor="panNumber">PAN Number <span className="text-destructive">*</span></Label>
                                     <Input
                                         id="panNumber"
-                                        placeholder="ABCDE1234F"
                                         required
                                         value={panNumber}
                                         onChange={e => setPanNumber(e.target.value)}
@@ -183,7 +220,6 @@ export default function AddCompanyPage() {
                                     <Input
                                         id="corporateWebsite"
                                         type="url"
-                                        placeholder="https://www.tejco.com"
                                         value={corporateWebsite}
                                         onChange={e => setCorporateWebsite(e.target.value)}
                                     />
@@ -192,7 +228,6 @@ export default function AddCompanyPage() {
                                     <Label htmlFor="mainContactNumber">Main Contact Number <span className="text-destructive">*</span></Label>
                                     <Input
                                         id="mainContactNumber"
-                                        placeholder="+91-8048963382"
                                         required
                                         value={mainContactNumber}
                                         onChange={e => setMainContactNumber(e.target.value)}
@@ -203,7 +238,6 @@ export default function AddCompanyPage() {
                                 <Label htmlFor="registeredAddress">Registered Address <span className="text-destructive">*</span></Label>
                                 <Textarea
                                     id="registeredAddress"
-                                    placeholder="Full office address..."
                                     rows={2}
                                     required
                                     value={registeredAddress}
@@ -214,7 +248,6 @@ export default function AddCompanyPage() {
                                 <Label htmlFor="defaultShippingAddress">Default Shipping Address</Label>
                                 <Textarea
                                     id="defaultShippingAddress"
-                                    placeholder="Same as registered address if blank..."
                                     rows={2}
                                     value={defaultShippingAddress}
                                     onChange={e => setDefaultShippingAddress(e.target.value)}
@@ -226,13 +259,10 @@ export default function AddCompanyPage() {
                     {/* Contact Persons */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <div className="grid gap-1">
-                                <CardTitle className="flex items-center gap-2">
-                                    <UserPlus className="h-5 w-5 text-blue-600" />
-                                    Contact Persons
-                                </CardTitle>
-                                <CardDescription>Add primary contact persons for this company.</CardDescription>
-                            </div>
+                            <CardTitle className="flex items-center gap-2 text-lg text-blue-600">
+                                <UserPlus className="h-5 w-5" />
+                                Contact Persons
+                            </CardTitle>
                             <Button type="button" variant="outline" size="sm" onClick={addContact}>
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Person
@@ -243,23 +273,20 @@ export default function AddCompanyPage() {
                                 <div key={contact.id} className="relative grid gap-4 p-4 border rounded-lg bg-muted/30">
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Person #{index + 1}</span>
-                                        {contactPersons.length > 1 && (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                                onClick={() => removeContact(contact.id)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        )}
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                            onClick={() => removeContact(contact.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="grid gap-2">
                                             <Label>Full Name <span className="text-destructive">*</span></Label>
                                             <Input
-                                                placeholder="John Doe"
                                                 required
                                                 value={contact.name}
                                                 onChange={e => updateContact(contact.id, "name", e.target.value)}
@@ -268,7 +295,6 @@ export default function AddCompanyPage() {
                                         <div className="grid gap-2">
                                             <Label>Mobile <span className="text-destructive">*</span></Label>
                                             <Input
-                                                placeholder="+91..."
                                                 required
                                                 value={contact.mobile}
                                                 onChange={e => updateContact(contact.id, "mobile", e.target.value)}
@@ -278,7 +304,6 @@ export default function AddCompanyPage() {
                                             <Label>Email</Label>
                                             <Input
                                                 type="email"
-                                                placeholder="john@example.com"
                                                 value={contact.email}
                                                 onChange={e => updateContact(contact.id, "email", e.target.value)}
                                             />
@@ -286,7 +311,6 @@ export default function AddCompanyPage() {
                                         <div className="grid gap-2">
                                             <Label>Designation</Label>
                                             <Input
-                                                placeholder="CEO / Manager"
                                                 value={contact.designation}
                                                 onChange={e => updateContact(contact.id, "designation", e.target.value)}
                                             />
@@ -294,7 +318,6 @@ export default function AddCompanyPage() {
                                         <div className="grid gap-2">
                                             <Label>Role</Label>
                                             <Input
-                                                placeholder="Admin / Staff"
                                                 value={contact.role}
                                                 onChange={e => updateContact(contact.id, "role", e.target.value)}
                                             />
@@ -308,13 +331,10 @@ export default function AddCompanyPage() {
                     {/* Office Locations */}
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <div className="grid gap-1">
-                                <CardTitle className="flex items-center gap-2">
-                                    <MapPin className="h-5 w-5 text-emerald-600" />
-                                    Office Locations
-                                </CardTitle>
-                                <CardDescription>Add branches or warehouse addresses.</CardDescription>
-                            </div>
+                            <CardTitle className="flex items-center gap-2 text-lg text-emerald-600">
+                                <MapPin className="h-5 w-5" />
+                                Office Locations
+                            </CardTitle>
                             <Button type="button" variant="outline" size="sm" onClick={addLocation}>
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Location
@@ -325,23 +345,20 @@ export default function AddCompanyPage() {
                                 <div key={loc.id} className="relative grid gap-4 p-4 border rounded-lg bg-muted/30">
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Location #{index + 1}</span>
-                                        {officeLocations.length > 1 && (
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                                onClick={() => removeLocation(loc.id)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        )}
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                                            onClick={() => removeLocation(loc.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="grid gap-2">
                                             <Label>Location Name <span className="text-destructive">*</span></Label>
                                             <Input
-                                                placeholder="e.g. Mumbai Warehouse"
                                                 required
                                                 value={loc.locationName}
                                                 onChange={e => updateLocation(loc.id, "locationName", e.target.value)}
@@ -350,7 +367,6 @@ export default function AddCompanyPage() {
                                         <div className="grid gap-2">
                                             <Label>Contact Number</Label>
                                             <Input
-                                                placeholder="+91..."
                                                 value={loc.contactNo}
                                                 onChange={e => updateLocation(loc.id, "contactNo", e.target.value)}
                                             />
@@ -359,7 +375,6 @@ export default function AddCompanyPage() {
                                     <div className="grid gap-2">
                                         <Label>Full Address <span className="text-destructive">*</span></Label>
                                         <Textarea
-                                            placeholder="House No, Street, City, State, PIN"
                                             rows={2}
                                             required
                                             value={loc.address}
@@ -377,9 +392,9 @@ export default function AddCompanyPage() {
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isLoading} className="px-8 font-semibold">
+                        <Button type="submit" disabled={isSaving} className="px-8 font-semibold">
                             <Save className="mr-2 h-4 w-4" />
-                            {isLoading ? "Saving..." : "Save Company"}
+                            {isSaving ? "Updating..." : "Update Company"}
                         </Button>
                     </div>
                 </div>

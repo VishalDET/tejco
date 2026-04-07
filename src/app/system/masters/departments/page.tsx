@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
     ColumnDef,
     flexRender,
@@ -117,7 +118,7 @@ export default function DepartmentsPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Departments</h1>
                     <p className="text-muted-foreground">Define and organize departmental structure for each branch.</p>
                 </div>
-                <Button>
+                <Button render={<Link href="/system/masters/departments/add" />} nativeButton={false}>
                     <Plus className="mr-2 h-4 w-4" />
                     Add Department
                 </Button>

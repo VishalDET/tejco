@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { usePathname } from "next/navigation"
 import {
     LayoutDashboard,
     Package,
@@ -20,6 +21,7 @@ import {
     Search,
     Bell,
     Plus,
+    Megaphone,
 } from "lucide-react"
 
 import {
@@ -98,6 +100,15 @@ const data = {
             ],
         },
         {
+            title: "Marketing",
+            url: "#",
+            icon: Megaphone,
+            items: [
+                { title: "Campaigns", url: "/marketing" },
+                { title: "Templates", url: "/marketing/templates" },
+            ],
+        },
+        {
             title: "Intelligence",
             url: "#",
             icon: BarChart3,
@@ -120,12 +131,14 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+    const pathname = usePathname()
+
     return (
         <Sidebar collapsible="icon" {...props}>
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+                        <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground border-b">
                             <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                                 <Boxes className="size-4" />
                             </div>
@@ -139,39 +152,45 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarHeader>
             <SidebarContent>
                 <SidebarMenu>
-                    {data.navMain.map((item) => (
-                        <Collapsible
-                            key={item.title}
-                            defaultOpen={item.isActive}
-                            className="group/collapsible"
-                            render={<SidebarMenuItem />}
-                        >
-                            <CollapsibleTrigger
-                                render={
-                                    <SidebarMenuButton tooltip={item.title}>
-                                        {item.icon && <item.icon />}
-                                        <span>{item.title}</span>
-                                        {item.items && (
-                                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                                        )}
-                                    </SidebarMenuButton>
-                                }
-                            />
-                            {item.items && (
-                                <CollapsibleContent>
-                                    <SidebarMenuSub>
-                                        {item.items.map((subItem) => (
-                                            <SidebarMenuSubItem key={subItem.title}>
-                                                <SidebarMenuSubButton href={subItem.url}>
-                                                    <span>{subItem.title}</span>
-                                                </SidebarMenuSubButton>
-                                            </SidebarMenuSubItem>
-                                        ))}
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                            )}
-                        </Collapsible>
-                    ))}
+                    {data.navMain.map((item) => {
+                        const isActive =
+                            item.url === pathname ||
+                            (item.items?.some((subItem) => pathname?.startsWith(subItem.url)));
+
+                        return (
+                            <Collapsible
+                                key={item.title}
+                                defaultOpen={isActive}
+                                className="group/collapsible"
+                                render={<SidebarMenuItem />}
+                            >
+                                <CollapsibleTrigger
+                                    render={
+                                        <SidebarMenuButton tooltip={item.title} className="group/trigger">
+                                            {item.icon && <item.icon />}
+                                            <span>{item.title}</span>
+                                            {item.items && (
+                                                <ChevronRight className="ml-auto transition-transform duration-200 group-data-[panel-open]/trigger:rotate-90 group-data-[state=open]/trigger:rotate-90 group-data-open/trigger:rotate-90 group-data-[state=open]/collapsible:rotate-90" />
+                                            )}
+                                        </SidebarMenuButton>
+                                    }
+                                />
+                                {item.items && (
+                                    <CollapsibleContent>
+                                        <SidebarMenuSub>
+                                            {item.items.map((subItem) => (
+                                                <SidebarMenuSubItem key={subItem.title}>
+                                                    <SidebarMenuSubButton href={subItem.url}>
+                                                        <span>{subItem.title}</span>
+                                                    </SidebarMenuSubButton>
+                                                </SidebarMenuSubItem>
+                                            ))}
+                                        </SidebarMenuSub>
+                                    </CollapsibleContent>
+                                )}
+                            </Collapsible>
+                        )
+                    })}
                 </SidebarMenu>
             </SidebarContent>
             <SidebarFooter>

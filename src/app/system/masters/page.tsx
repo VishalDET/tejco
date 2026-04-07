@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Building2, GitBranch, LayoutGrid, ArrowRight } from "lucide-react"
+import { Building2, GitBranch, LayoutGrid, ArrowRight, Layers } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,6 +32,14 @@ const masters = [
         count: "8 Departments",
         color: "bg-amber-500/10 text-amber-600",
     },
+    {
+        title: "Categories",
+        description: "Manage product/service categories and their respective subcategories.",
+        icon: Layers,
+        href: "/system/masters/categories",
+        count: "12 Categories",
+        color: "bg-violet-500/10 text-violet-600",
+    },
 ]
 
 export default function MastersPage() {
@@ -54,7 +62,7 @@ export default function MastersPage() {
                         </CardHeader>
                         <CardContent className="flex items-center justify-between">
                             <span className="text-sm font-medium">{master.count}</span>
-                            <Button variant="ghost" size="sm" render={<Link href={master.href} />} className="group-hover:translate-x-1 transition-transform">
+                            <Button variant="ghost" size="sm" render={<Link href={master.href} />} nativeButton={false} className="group-hover:translate-x-1 transition-transform">
                                 Manage <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                         </CardContent>
