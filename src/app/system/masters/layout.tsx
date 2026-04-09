@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Building2, GitBranch, LayoutGrid, Layers, ChevronRight } from "lucide-react"
+import { Building2, GitBranch, LayoutGrid, Layers, ChevronRight, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -26,6 +26,11 @@ const navigation = [
         name: "Categories",
         href: "/system/masters/categories",
         icon: Layers,
+    },
+    {
+        name: "Users & Employees",
+        href: "/system/masters/users",
+        icon: Users,
     },
 ]
 
