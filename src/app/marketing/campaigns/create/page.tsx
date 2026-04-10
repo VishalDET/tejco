@@ -99,7 +99,7 @@ export default function CreateCampaignPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="audience">Target Audience</Label>
-                <Select value={audienceId} onValueChange={setAudienceId}>
+                <Select value={audienceId} onValueChange={(val) => setAudienceId(val ?? "")}>
                   <SelectTrigger id="audience">
                     <SelectValue placeholder="Select an audience segment" />
                   </SelectTrigger>
@@ -120,7 +120,7 @@ export default function CreateCampaignPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="template">WhatsApp Template</Label>
-                <Select value={templateId} onValueChange={setTemplateId}>
+                <Select value={templateId} onValueChange={(val) => setTemplateId(val ?? "")}>
                   <SelectTrigger id="template">
                     <SelectValue placeholder="Select an approved template" />
                   </SelectTrigger>
