@@ -151,7 +151,7 @@ export default function RawMaterialsPage() {
                         <CardTitle className="text-sm font-medium">Monthly Usage</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">$12,450</div>
+                        <div className="text-2xl font-bold">12,450</div>
                         <p className="text-xs text-muted-foreground">Material cost this month</p>
                     </CardContent>
                 </Card>

@@ -5,7 +5,7 @@
  */
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://localhost:44382"
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://tejco.digitaledgetech.in/api"
 
 // Bypass TLS certificate verification for local development on the server
 // This is necessary because Node.js rejects self-signed certificates by default.
@@ -50,7 +50,7 @@ async function request<T>(
     } catch {
       // ignore parse errors
     }
-    
+
     const error = new Error(message) as any
     error.status = res.status
     error.info = data

@@ -11,6 +11,7 @@
 import { apiClient } from "./api-client"
 import type { Client, ClientDelivery } from "@/app/stakeholders/clients/types"
 import type { Vendor } from "@/app/supply-chain/vendors/types"
+import type { Warehouse, ApiWarehouse } from "@/app/supply-chain/warehouse/types"
 
 // ---------------------------------------------------------------------------
 // Payload types — shapes expected by the backend
@@ -133,6 +134,73 @@ export const productsApi = {
 
   /** DELETE /api/Products/{id} */
   remove: (id: string) => apiClient.delete<void>(`/api/Products/${id}`),
+}
+
+// ---------------------------------------------------------------------------
+// Warehouses  →  /api/Warehouse
+// ---------------------------------------------------------------------------
+
+export function mapApiWarehouse(raw: ApiWarehouse): Warehouse {
+  return {
+    id: String(raw.warehouseId),
+    name: raw.warehouseName,
+    address: raw.address,
+    contactPerson: raw.contactPerson,
+    contactNumber: raw.contactNumber,
+    status: raw.status ? "Active" : "Inactive",
+    locations: [],
+  }
+}
+
+export const warehousesApi = {
+  /** GET /api/Warehouse/GetAll — fetch all warehouses */
+  getAll: async (): Promise<Warehouse[]> => {
+    try {
+      // Backend might return a wrapped response like Product
+      const raw = await apiClient.get<any>("/api/Warehouse/GetAll")
+      if (Array.isArray(raw)) return raw.map(mapApiWarehouse)
+      if (raw?.data && Array.isArray(raw.data)) return raw.data.map(mapApiWarehouse)
+      return []
+    } catch (err) {
+      console.error("Failed to fetch warehouses:", err)
+      return []
+    }
+  },
+
+  /** GET /api/Warehouse/{id} */
+  getById: async (id: string): Promise<Warehouse> => {
+    const raw = await apiClient.get<ApiWarehouse>(`/api/Warehouse/${id}`)
+    return mapApiWarehouse(raw)
+  },
+
+  /** POST /api/Warehouse */
+  create: (data: Partial<Warehouse>) => {
+    const payload = {
+      warehouseId: 0,
+      warehouseName: data.name,
+      address: data.address,
+      contactPerson: data.contactPerson,
+      contactNumber: data.contactNumber,
+      status: data.status === "Active",
+    }
+    return apiClient.post<any>("/api/Warehouse", payload)
+  },
+
+  /** PUT /api/Warehouse/{id} */
+  update: (id: string, data: Partial<Warehouse>) => {
+    const payload = {
+      warehouseId: parseInt(id),
+      warehouseName: data.name,
+      address: data.address,
+      contactPerson: data.contactPerson,
+      contactNumber: data.contactNumber,
+      status: data.status === "Active",
+    }
+    return apiClient.put<any>(`/api/Warehouse/${id}`, payload)
+  },
+
+  /** DELETE /api/Warehouse/{id} */
+  remove: (id: string) => apiClient.delete<void>(`/api/Warehouse/${id}`),
 }
 
 // ---------------------------------------------------------------------------

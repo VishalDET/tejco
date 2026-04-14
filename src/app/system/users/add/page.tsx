@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, X } from "lucide-react"
+import { ArrowLeft, Lock, Save, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -151,6 +151,63 @@ export default function AddUserPage() {
                             <div className="grid gap-2">
                                 <Label htmlFor="handlerId">Handler (ID)</Label>
                                 <Input id="handlerId" placeholder="Enter superior/handler ID" />
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center gap-2">
+                                <Lock className="h-5 w-5 text-primary" />
+                                <CardTitle>Authentication Credentials</CardTitle>
+                            </div>
+                            <CardDescription>
+                                Account security settings and system access levels.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="username">Username</Label>
+                                    <Input id="username" placeholder="j.doe" required />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="role">User Role</Label>
+                                    <Select>
+                                        <SelectTrigger id="role">
+                                            <SelectValue placeholder="Select role" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="admin">Administrator</SelectItem>
+                                            <SelectItem value="manager">Manager</SelectItem>
+                                            <SelectItem value="operator">System Operator</SelectItem>
+                                            <SelectItem value="viewer">Viewer</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="password">Password</Label>
+                                    <Input id="password" type="password" placeholder="••••••••" required />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                                    <Input id="confirmPassword" type="password" placeholder="••••••••" required />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="status">Account Status</Label>
+                                <Select defaultValue="active">
+                                    <SelectTrigger id="status">
+                                        <SelectValue placeholder="Select status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="active">Active</SelectItem>
+                                        <SelectItem value="inactive">Inactive</SelectItem>
+                                        <SelectItem value="suspended">Suspended</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </CardContent>
                     </Card>
