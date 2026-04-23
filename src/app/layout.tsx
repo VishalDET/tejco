@@ -7,7 +7,11 @@ import { TopNav } from "@/components/top-nav"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Toaster } from "@/components/ui/sonner"
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+})
 
 export const metadata: Metadata = {
   title: "Tejco ERP | Inventory & Management System",
@@ -21,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} min-h-screen bg-background antialiased`}>
+      <body className={`${inter.variable} min-h-screen bg-background antialiased font-sans`}>
         <TooltipProvider>
           <SidebarProvider>
             <AppSidebar />

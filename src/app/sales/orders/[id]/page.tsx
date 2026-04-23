@@ -19,8 +19,8 @@ async function getOrder(id: string): Promise<Order | null> {
     status: "Approved",
     paymentStatus: "Paid",
     items: [
-      { id: "i1", productId: "p1", productName: "Surgical Blade #10", sku: "SB-010-G", quantity: 100, unitPrice: 12.50, total: 1250 },
-      { id: "i2", productId: "p2", productName: "Medical Gauze (Sterile)", sku: "MG-ST-100", quantity: 50, unitPrice: 68.41, total: 3420.5 }
+      { id: "i1", productId: "p1", productName: "Surgical Blade #10", sku: "SB-010-G", quantity: 100, unitPrice: 12.50, total: 1250, gstRate: 18 },
+      { id: "i2", productId: "p2", productName: "Medical Gauze (Sterile)", sku: "MG-ST-100", quantity: 50, unitPrice: 68.41, total: 3420.5, gstRate: 18 }
     ],
     subtotal: 4670.5,
     taxAmount: 840.69,

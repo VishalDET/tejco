@@ -163,7 +163,7 @@ export default function MarketingDashboardPage() {
                           <div className="text-base">{campaign.name}</div>
                         </Link>
                         <div className="text-xs text-muted-foreground font-normal mt-1">
-                          Created: {new Date(campaign.createdAt).toLocaleDateString()}
+                          Created: {new Date(campaign.createdAt).toLocaleDateString("en-GB")}
                         </div>
                       </TableCell>
                       <TableCell>

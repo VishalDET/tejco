@@ -85,6 +85,8 @@ const data = {
             url: "#",
             icon: ShoppingCart,
             items: [
+                { title: "Quotations", url: "/sales/quotations" },
+                { title: "Proforma Invoices", url: "/sales/proforma-invoices" },
                 { title: "Orders", url: "/sales/orders" },
                 { title: "Invoices", url: "/sales/invoices" },
                 { title: "Challans", url: "/sales/challans" },

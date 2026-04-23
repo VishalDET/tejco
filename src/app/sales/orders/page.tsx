@@ -37,7 +37,7 @@ const initialOrders: Order[] = [
         date: "2026-03-08",
         status: "Approved",
         paymentStatus: "Paid",
-        items: [{ id: "i1", productId: "p1", productName: "Surgical Blade #10", sku: "SB-010-G", quantity: 100, unitPrice: 12.50, total: 1250 }],
+        items: [{ id: "i1", productId: "p1", productName: "Surgical Blade #10", sku: "SB-010-G", quantity: 100, unitPrice: 12.50, total: 1250, gstRate: 18 }],
         subtotal: 1250,
         taxAmount: 225,
         totalAmount: 1475,
@@ -52,10 +52,10 @@ const initialOrders: Order[] = [
         date: "2026-03-09",
         status: "Pending",
         paymentStatus: "Unpaid",
-        items: [{ id: "i2", productId: "p2", productName: "Medical Gauze", sku: "MG-ST-100", quantity: 50, unitPrice: 68.41, total: 3420.5 }],
+        items: [{ id: "i2", productId: "p2", productName: "Medical Gauze", sku: "MG-ST-100", quantity: 50, unitPrice: 68.41, total: 3420.5, gstRate: 12 }],
         subtotal: 3420.5,
-        taxAmount: 615.69,
-        totalAmount: 4036.19,
+        taxAmount: 410.46,
+        totalAmount: 3830.96,
         billingAddress: "Pune, Maharashtra",
         shippingAddress: "Pune, Maharashtra",
     },
@@ -83,6 +83,20 @@ export default function OrdersPage() {
 
     React.useEffect(() => {
         setIsMounted(true)
+        
+        // Handle conversion from Proforma
+        const urlParams = new URLSearchParams(window.location.search)
+        if (urlParams.get("convert") === "true") {
+            const sourceData = localStorage.getItem("convert_source_data")
+            if (sourceData) {
+                const parsed = JSON.parse(sourceData)
+                setSelectedOrder(parsed)
+                setIsDialogOpen(true)
+                // Clean up URL and storage
+                window.history.replaceState({}, "", window.location.pathname)
+                localStorage.removeItem("convert_source_data")
+            }
+        }
     }, [])
 
     const handleCreateOrder = () => {
@@ -183,7 +197,7 @@ export default function OrdersPage() {
                                             <TableRow key={order.id}>
                                                 <TableCell className="font-medium text-primary">{order.orderNumber}</TableCell>
                                                 <TableCell>{order.clientName}</TableCell>
-                                                <TableCell>{new Date(order.date).toLocaleDateString()}</TableCell>
+                                                <TableCell>{new Date(order.date).toLocaleDateString("en-GB")}</TableCell>
                                                 <TableCell>{order.items.length} items</TableCell>
                                                 <TableCell className="text-right font-semibold">₹{order.totalAmount.toLocaleString()}</TableCell>
                                                 <TableCell>{getStatusBadge(order.status)}</TableCell>

@@ -27,7 +27,7 @@ export function DeliveryChallan({ transfer }: PrintTemplateProps) {
             <span className="font-bold">Challan No:</span>
             <span>{transfer.transferId}</span>
             <span className="font-bold">Date:</span>
-            <span>{new Date(transfer.date).toLocaleDateString()}</span>
+            <span>{new Date(transfer.date).toLocaleDateString("en-GB")}</span>
             <span className="font-bold">Status:</span>
             <span className="uppercase">{transfer.status}</span>
           </div>
@@ -146,7 +146,7 @@ export function GatePass({ transfer }: PrintTemplateProps) {
             </div>
             <div className="space-y-1">
                 <p className="font-bold uppercase text-slate-400 text-[8px]">Date & Time</p>
-                <p className="font-medium">{new Date(transfer.date).toLocaleDateString()} | _________</p>
+                <p className="font-medium">{new Date(transfer.date).toLocaleDateString("en-GB")} | _________</p>
             </div>
             <div className="space-y-1">
                 <p className="font-bold uppercase text-slate-400 text-[8px]">From Warehouse</p>

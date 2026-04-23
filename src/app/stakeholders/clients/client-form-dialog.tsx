@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Client, ClientContact } from "./types"
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -10,7 +10,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { clientsApi } from "@/lib/api"
-import { Loader2, Plus, Trash2, UserPlus, Users } from "lucide-react"
+import { Loader2, Plus, Trash2, UserPlus, Users, Mail, Phone, Building2, Hospital, Stethoscope, Building, MapPin, Globe, Map } from "lucide-react"
+import { Client, ClientContact, ClientBranch, ClientType, Address } from "./types"
+
+const emptyAddress: Address = {
+  street1: "",
+  street2: "",
+  city: "",
+  state: "",
+  pincode: "",
+  country: "India"
+}
 
 interface ClientFormDialogProps {
   open: boolean
@@ -25,7 +35,15 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setForm(client ?? { contacts: [] })
+    setForm(client ?? { 
+      contacts: [], 
+      branches: [], 
+      clientType: "Clinic",
+      hasBranches: false,
+      status: "Lead",
+      billingAddress: { ...emptyAddress },
+      shippingAddress: { ...emptyAddress }
+    })
     setError(null)
   }, [client, open])
 
@@ -54,6 +72,81 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
     }))
   }
 
+  const addBranch = () => {
+    const newBranch: ClientBranch = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: "",
+      address: { ...emptyAddress },
+      contacts: []
+    }
+    setForm(prev => ({ ...prev, branches: [...(prev.branches || []), newBranch] }))
+  }
+
+  const removeBranch = (id: string) => {
+    setForm(prev => ({ ...prev, branches: (prev.branches || []).filter(b => b.id !== id) }))
+  }
+
+  const updateBranch = (id: string, field: keyof ClientBranch, value: any) => {
+    setForm(prev => ({
+      ...prev,
+      branches: (prev.branches || []).map(b => b.id === id ? { ...b, [field]: value } : b)
+    }))
+  }
+
+  const addBranchContact = (branchId: string) => {
+    const newContact: ClientContact = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: "",
+      designation: "",
+      email: "",
+      phone: ""
+    }
+    setForm(prev => ({
+      ...prev,
+      branches: (prev.branches || []).map(b => 
+        b.id === branchId ? { ...b, contacts: [...(b.contacts || []), newContact] } : b
+      )
+    }))
+  }
+
+  const removeBranchContact = (branchId: string, contactId: string) => {
+    setForm(prev => ({
+      ...prev,
+      branches: (prev.branches || []).map(b => 
+        b.id === branchId ? { ...b, contacts: (b.contacts || []).filter(c => c.id !== contactId) } : b
+      )
+    }))
+  }
+
+  const updateBranchContact = (branchId: string, contactId: string, field: keyof ClientContact, value: string) => {
+    setForm(prev => ({
+      ...prev,
+      branches: (prev.branches || []).map(b => 
+        b.id === branchId ? { 
+          ...b, 
+          contacts: (b.contacts || []).map(c => c.id === contactId ? { ...c, [field]: value } : c) 
+        } : b
+      )
+    }))
+  }
+
+  const setAddress = (type: "billing" | "shipping", field: keyof Address, value: string) => {
+    const addrField = type === "billing" ? "billingAddress" : "shippingAddress"
+    setForm(prev => ({
+      ...prev,
+      [addrField]: { ...(prev[addrField] || emptyAddress), [field]: value }
+    }))
+  }
+
+  const setBranchAddress = (branchId: string, field: keyof Address, value: string) => {
+    setForm(prev => ({
+      ...prev,
+      branches: (prev.branches || []).map(b => 
+        b.id === branchId ? { ...b, address: { ...(b.address || emptyAddress), [field]: value } } : b
+      )
+    }))
+  }
+
   const handleSave = async () => {
     if (!form.name) return
 
@@ -62,18 +155,12 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
 
     try {
       if (!client) {
-        // ── CREATE: call POST /api/Clients with the required payload ──
-        await clientsApi.create({
-          clientId: 0,                         // 0 = new record
-          clientName: form.name ?? "",
-          billingAddress: form.billingAddress || form.address || "",
-          shippingAddress: form.shippingAddress || form.address || "",
-          gstin: form.gstin ?? "",
-          contactPerson: form.contactPerson || form.name || "",
-          contactNumber: form.phone ?? "",
-        })
+        // ── CREATE ──
+        await clientsApi.create(form)
+      } else {
+        // ── UPDATE ──
+        await clientsApi.update(client.id, form)
       }
-      // TODO: wire PUT /api/Clients/{id} for edit once backend is ready
 
       onSave(form)
     } catch (err) {
@@ -128,21 +215,185 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   </Select>
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="clientType">Client Type</Label>
+                  <Select value={form.clientType ?? "Clinic"} onValueChange={(v) => set("clientType", v as ClientType)}>
+                    <SelectTrigger id="clientType">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Clinic">Clinic</SelectItem>
+                      <SelectItem value="Doctor">Doctor</SelectItem>
+                      <SelectItem value="Hospital">Hospital</SelectItem>
+                      <SelectItem value="Retail">Retail</SelectItem>
+                      <SelectItem value="Others">Others</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contactPerson">Primary Contact Person</Label>
+                  <Input id="contactPerson" placeholder="Dr. John Doe" value={form.contactPerson ?? ""} onChange={(e) => set("contactPerson", e.target.value)} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input id="email" className="pl-9" type="email" placeholder="john@example.com" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input id="phone" className="pl-9" placeholder="+91 99999 99999" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              {(form.clientType === "Hospital" || form.clientType === "Clinic") && (
+                <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
+                  <div className="flex-1">
+                    <Label className="text-sm font-bold">Does this {form.clientType.toLowerCase()} have multiple branches?</Label>
+                    <p className="text-xs text-muted-foreground">Toggle to add and manage different branch locations.</p>
+                  </div>
+                  <Button 
+                    variant={form.hasBranches ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => set("hasBranches", !form.hasBranches)}
+                  >
+                    {form.hasBranches ? "Yes, Manage Branches" : "No Branches"}
+                  </Button>
+                </div>
+              )}
             </div>
+
+            {form.hasBranches && (form.clientType === "Hospital" || form.clientType === "Clinic") && (
+              <>
+                <Separator />
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Branch Locations</h3>
+                    <Button type="button" variant="outline" size="sm" onClick={addBranch} className="gap-2">
+                      <Plus className="h-4 w-4" /> Add Branch
+                    </Button>
+                  </div>
+
+                  {(form.branches || []).length === 0 ? (
+                    <div className="text-center py-6 border-2 border-dashed rounded-lg text-muted-foreground bg-muted/30">
+                      <p className="text-sm">No branches added yet.</p>
+                      <Button type="button" variant="link" size="sm" onClick={addBranch}>Click here to add branches</Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {(form.branches || []).map((branch) => (
+                        <div key={branch.id} className="relative p-5 border rounded-xl bg-slate-50/50 space-y-4 group">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="absolute top-3 right-3 h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removeBranch(branch.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                          
+                          <div className="space-y-2">
+                            <Label className="text-xs font-bold text-slate-700">Branch Name</Label>
+                            <Input className="h-9" placeholder="e.g. South Mumbai Hub" value={branch.name} onChange={(e) => updateBranch(branch.id, "name", e.target.value)} />
+                          </div>
+
+                          <div className="space-y-3">
+                            <Label className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                              <MapPin className="h-3 w-3" /> Branch Address
+                            </Label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Input className="h-8 text-xs col-span-2" placeholder="Street Address 1" value={branch.address?.street1 || ""} onChange={(e) => setBranchAddress(branch.id, "street1", e.target.value)} />
+                              <Input className="h-8 text-xs col-span-2" placeholder="Street Address 2 (Optional)" value={branch.address?.street2 || ""} onChange={(e) => setBranchAddress(branch.id, "street2", e.target.value)} />
+                              <Input className="h-8 text-xs" placeholder="City" value={branch.address?.city || ""} onChange={(e) => setBranchAddress(branch.id, "city", e.target.value)} />
+                              <Input className="h-8 text-xs" placeholder="State" value={branch.address?.state || ""} onChange={(e) => setBranchAddress(branch.id, "state", e.target.value)} />
+                              <Input className="h-8 text-xs" placeholder="Pincode" value={branch.address?.pincode || ""} onChange={(e) => setBranchAddress(branch.id, "pincode", e.target.value)} />
+                              <Input className="h-8 text-xs" placeholder="Country" value={branch.address?.country || "India"} onChange={(e) => setBranchAddress(branch.id, "country", e.target.value)} />
+                            </div>
+                          </div>
+
+                          <div className="space-y-3 pt-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-xs font-bold text-slate-700">Branch Contacts</Label>
+                              <Button variant="ghost" size="sm" className="h-7 text-[10px] font-black uppercase text-primary" onClick={() => addBranchContact(branch.id)}>
+                                + Add Contact
+                              </Button>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              {(branch.contacts || []).map(contact => (
+                                <div key={contact.id} className="grid grid-cols-2 gap-2 p-3 bg-white border rounded-lg relative group/contact">
+                                   <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white border shadow-sm opacity-0 group-contact-hover:opacity-100"
+                                    onClick={() => removeBranchContact(branch.id, contact.id)}
+                                  >
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                  <Input className="h-7 text-[10px]" placeholder="Name" value={contact.name} onChange={(e) => updateBranchContact(branch.id, contact.id, "name", e.target.value)} />
+                                  <Input className="h-7 text-[10px]" placeholder="Title" value={contact.designation} onChange={(e) => updateBranchContact(branch.id, contact.id, "designation", e.target.value)} />
+                                  <Input className="h-7 text-[10px]" placeholder="Email" value={contact.email} onChange={(e) => updateBranchContact(branch.id, contact.id, "email", e.target.value)} />
+                                  <Input className="h-7 text-[10px]" placeholder="Phone" value={contact.phone} onChange={(e) => updateBranchContact(branch.id, contact.id, "phone", e.target.value)} />
+                                </div>
+                              ))}
+                              {branch.contacts?.length === 0 && (
+                                <p className="text-[10px] text-center text-slate-400 italic py-2">No branch specific contacts.</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             <Separator />
 
             {/* Addresses */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Addresses</h3>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="billingAddress">Billing Address</Label>
-                  <Textarea id="billingAddress" placeholder="Full billing address..." rows={2} value={form.billingAddress ?? form.address ?? ""} onChange={(e) => set("billingAddress", e.target.value)} />
+            <div className="space-y-6">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Address Management</h3>
+              
+              {/* Billing Address */}
+              <div className="p-4 border rounded-xl bg-slate-50/30 space-y-4">
+                <Label className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                  <Building2 className="h-3 w-3" /> Billing Address
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input className="h-9 col-span-2" placeholder="Street Address 1" value={form.billingAddress?.street1 || ""} onChange={(e) => setAddress("billing", "street1", e.target.value)} />
+                  <Input className="h-9 col-span-2" placeholder="Street Address 2 (Optional)" value={form.billingAddress?.street2 || ""} onChange={(e) => setAddress("billing", "street2", e.target.value)} />
+                  <Input className="h-9" placeholder="City" value={form.billingAddress?.city || ""} onChange={(e) => setAddress("billing", "city", e.target.value)} />
+                  <Input className="h-9" placeholder="State" value={form.billingAddress?.state || ""} onChange={(e) => setAddress("billing", "state", e.target.value)} />
+                  <Input className="h-9" placeholder="Pincode" value={form.billingAddress?.pincode || ""} onChange={(e) => setAddress("billing", "pincode", e.target.value)} />
+                  <Input className="h-9" placeholder="Country" value={form.billingAddress?.country || "India"} onChange={(e) => setAddress("billing", "country", e.target.value)} />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shippingAddress">Shipping Address</Label>
-                  <Textarea id="shippingAddress" placeholder="Full shipping address..." rows={2} value={form.shippingAddress ?? form.address ?? ""} onChange={(e) => set("shippingAddress", e.target.value)} />
+                <Button variant="link" size="sm" className="h-auto p-0 text-[10px] h-6" onClick={() => set("shippingAddress", { ...(form.billingAddress || emptyAddress) })}>
+                  Copy to Shipping Address
+                </Button>
+              </div>
+
+              {/* Shipping Address */}
+              <div className="p-4 border rounded-xl bg-slate-50/30 space-y-4">
+                <Label className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                  <MapPin className="h-3 w-3" /> Shipping Address
+                </Label>
+                <div className="grid grid-cols-2 gap-3">
+                   <Input className="h-9 col-span-2" placeholder="Street Address 1" value={form.shippingAddress?.street1 || ""} onChange={(e) => setAddress("shipping", "street1", e.target.value)} />
+                  <Input className="h-9 col-span-2" placeholder="Street Address 2 (Optional)" value={form.shippingAddress?.street2 || ""} onChange={(e) => setAddress("shipping", "street2", e.target.value)} />
+                  <Input className="h-9" placeholder="City" value={form.shippingAddress?.city || ""} onChange={(e) => setAddress("shipping", "city", e.target.value)} />
+                  <Input className="h-9" placeholder="State" value={form.shippingAddress?.state || ""} onChange={(e) => setAddress("shipping", "state", e.target.value)} />
+                  <Input className="h-9" placeholder="Pincode" value={form.shippingAddress?.pincode || ""} onChange={(e) => setAddress("shipping", "pincode", e.target.value)} />
+                  <Input className="h-9" placeholder="Country" value={form.shippingAddress?.country || "India"} onChange={(e) => setAddress("shipping", "country", e.target.value)} />
                 </div>
               </div>
             </div>

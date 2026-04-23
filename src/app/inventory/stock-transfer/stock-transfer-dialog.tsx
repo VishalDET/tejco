@@ -70,7 +70,7 @@ export function StockTransferDialog({ open, onOpenChange, transfer, onSave }: St
 
     const addItem = () => {
         const newItem: TransferItem = {
-            id: crypto.randomUUID().slice(0, 8),
+            id: Math.random().toString(36).substring(2, 9).slice(0, 8),
             productId: "",
             productName: "",
             sku: "",

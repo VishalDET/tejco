@@ -86,7 +86,7 @@ export function StockTransferView({ transfer }: StockTransferViewProps) {
             </div>
             <p className="text-muted-foreground flex items-center gap-2">
                 <Calendar className="h-3.5 w-3.5" /> 
-                Transfer initiated on {isMounted ? new Date(transfer.date).toLocaleDateString() : transfer.date}
+                Transfer initiated on {isMounted ? new Date(transfer.date).toLocaleDateString("en-GB") : transfer.date}
             </p>
           </div>
         </div>

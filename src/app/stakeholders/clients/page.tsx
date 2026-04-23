@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Search, MoreHorizontal, UserRound, Pencil, Trash2, ExternalLink } from "lucide-react"
+import { Plus, Search, MoreHorizontal, UserRound, Pencil, Trash2, ExternalLink, Mail, Phone } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -69,19 +69,22 @@ export default function ClientsPage() {
         return prev.map((c) => c.id === selectedClient.id ? { ...c, ...data } as Client : c)
       }
       const newClient: Client = {
-        id: `cli-${crypto.randomUUID().slice(0, 6)}`,
+        id: `cli-${Math.random().toString(36).substring(2, 9).slice(0, 6)}`,
         joinedDate: new Date().toISOString(),
         name: data.name ?? "",
-        contactPerson: data.name ?? "",
+        contactPerson: data.contactPerson ?? data.name ?? "",
         company: data.company ?? "",
         email: data.email ?? "",
         phone: data.phone ?? "",
         status: data.status ?? "Lead",
+        clientType: data.clientType ?? "Clinic",
+        hasBranches: data.hasBranches ?? false,
+        branches: data.branches ?? [],
         address: data.address ?? "",
-        billingAddress: data.address ?? "",
-        shippingAddress: data.address ?? "",
+        billingAddress: data.billingAddress ?? data.address ?? "",
+        shippingAddress: data.shippingAddress ?? data.address ?? "",
         gstin: data.gstin,
-        contacts: [],
+        contacts: data.contacts ?? [],
       }
       return [newClient, ...prev]
     })
@@ -130,10 +133,9 @@ export default function ClientsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Client</TableHead>
-                <TableHead>Company</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Joined</TableHead>
+                <TableHead className="pl-6">Client Info</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Contact Detail</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
@@ -158,23 +160,47 @@ export default function ClientsPage() {
                 </TableRow>
               ) : (
                 filtered.map((client) => (
-                  <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell className="pl-6 font-medium">
-                      <button
-                        className="hover:underline hover:text-primary text-left transition-colors"
-                        onClick={() => router.push(`/stakeholders/clients/${client.id}`)}
-                      >
-                        {client.name}
-                      </button>
-                      <div className="text-xs text-muted-foreground">{client.email}</div>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{client.company}</TableCell>
-                    <TableCell className="text-muted-foreground">{client.phone}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {new Date(client.joinedDate).toLocaleDateString()}
+                   <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50">
+                    <TableCell className="pl-6 py-4">
+                      <div className="flex flex-col">
+                        <button
+                          className="font-bold text-slate-900 hover:text-primary text-left transition-colors text-sm"
+                          onClick={() => router.push(`/stakeholders/clients/${client.id}`)}
+                        >
+                          {client.name}
+                        </button>
+                        <span className="text-[11px] text-slate-500 font-medium">{client.company}</span>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(client.status)}>{client.status}</Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="w-fit text-[10px] font-bold py-0 h-5 border-slate-200">
+                          {client.clientType}
+                        </Badge>
+                        {client.hasBranches && (
+                          <span className="text-[9px] font-black text-primary/70 uppercase">
+                            {client.branches?.length || 0} Branches Found
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col text-xs gap-0.5">
+                        <div className="flex items-center gap-1.5 text-slate-600">
+                          <Phone className="h-3 w-3" /> {client.phone}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-slate-400">
+                          <Mail className="h-3 w-3" /> {client.email}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={statusVariant(client.status)}
+                        className="rounded-full px-3 text-[10px] font-bold uppercase tracking-wider"
+                      >
+                        {client.status}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-right pr-6">
                       <DropdownMenu>

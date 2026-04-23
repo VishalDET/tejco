@@ -9,6 +9,7 @@ export interface OrderItem {
   quantity: number
   unitPrice: number
   total: number
+  gstRate: number
 }
 
 export interface Order {

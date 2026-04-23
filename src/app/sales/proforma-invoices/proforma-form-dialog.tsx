@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Order, OrderItem, OrderStatus, PaymentStatus } from "./types"
+import { SalesDocument, SalesDocumentItem, SalesDocumentStatus } from "../types"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -11,53 +11,54 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Loader2, Plus, Trash2, ShoppingCart, Calculator } from "lucide-react"
+import { Loader2, Plus, Trash2, Receipt, Calculator } from "lucide-react"
 import { ClientSelector } from "@/components/sales/client-selector"
 import { ProductSelector } from "@/components/sales/product-selector"
 
-interface OrderFormDialogProps {
+interface ProformaFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  order: Order | null
-  onSave: (data: Partial<Order>) => void
+  proforma: SalesDocument | null
+  onSave: (data: Partial<SalesDocument>) => void
 }
 
 const GST_RATES = [0, 5, 12, 18, 28]
 
-export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderFormDialogProps) {
-  const [form, setForm] = useState<Partial<Order>>({})
+export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: ProformaFormDialogProps) {
+  const [form, setForm] = useState<Partial<SalesDocument>>({})
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
-    if (order) {
-      setForm(order)
+    if (proforma) {
+      setForm(proforma)
     } else {
+      const year = new Date().getFullYear()
+      const random = Math.floor(1000 + Math.random() * 9000)
       setForm({
-        orderNumber: `SO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        number: `PI-${year}-${random}`,
         date: new Date().toISOString().split('T')[0],
-        status: "Pending",
-        paymentStatus: "Unpaid",
+        status: "Draft",
         items: [],
         subtotal: 0,
         taxAmount: 0,
         totalAmount: 0,
       })
     }
-  }, [order, open])
+  }, [proforma, open])
 
-  const calculateTotals = (items: OrderItem[]) => {
+  const calculateTotals = (items: SalesDocumentItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0)
-    const taxAmount = items.reduce((sum, item) => sum + ((item.total || 0) * ((item.gstRate || 0) / 100)), 0)
+    const taxAmount = items.reduce((sum, item) => sum + ((item.total || 0) * (item.gstRate / 100)), 0)
     const totalAmount = subtotal + taxAmount
     return { subtotal, taxAmount, totalAmount }
   }
 
-  const set = (field: keyof Order, value: any) => {
+  const set = (field: keyof SalesDocument, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
   const onProductSelect = (product: any, variant: any) => {
-    const newItem: OrderItem = {
+    const newItem: SalesDocumentItem = {
       id: Math.random().toString(36).substring(2, 9).slice(0, 8),
       productId: product.productId.toString(),
       productName: product.productName,
@@ -65,17 +66,17 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
       quantity: 1,
       unitPrice: variant.sellingPrice,
       total: variant.sellingPrice,
-      gstRate: 18, // Default
+      gstRate: 18,
     }
     const newItems = [...(form.items || []), newItem]
     const totals = calculateTotals(newItems)
     setForm(prev => ({ ...prev, items: newItems, ...totals }))
   }
 
-  const updateItem = (id: string, field: keyof OrderItem, value: any) => {
+  const updateItem = (id: string, field: keyof SalesDocumentItem, value: any) => {
     const newItems = (form.items || []).map(item => {
       if (item.id === id) {
-        const updatedItem = { ...item, [field]: value } as OrderItem
+        const updatedItem = { ...item, [field]: value } as SalesDocumentItem
         if (field === "quantity" || field === "unitPrice") {
           updatedItem.total = (updatedItem.quantity || 0) * (updatedItem.unitPrice || 0)
         }
@@ -96,7 +97,6 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
   const handleSave = async () => {
     if (!form.clientId || (form.items || []).length === 0) return
     setIsSaving(true)
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 800))
     onSave(form)
     setIsSaving(false)
@@ -105,70 +105,51 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[95vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-6 border-b bg-emerald-50/50">
-          <DialogTitle className="text-xl flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5 text-emerald-600" />
-            {order ? "Edit Sales Order" : "Create New Sales Order"}
+      <DialogContent className="sm:max-w-5xl max-h-[95vh] flex flex-col p-0 overflow-hidden text-slate-900">
+        <DialogHeader className="p-6 border-b bg-primary/5">
+          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+            <Receipt className="h-5 w-5 text-primary" />
+            {proforma ? "Edit Proforma Invoice" : "Create Proforma Invoice"}
           </DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="flex-1 p-6">
           <div className="space-y-6 pb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>Order Number</Label>
-                <Input value={form.orderNumber} disabled className="bg-muted border-slate-200" />
+                <Label className="font-semibold text-slate-700">Proforma Number</Label>
+                <Input value={form.number} disabled className="bg-slate-50 border-slate-200" />
               </div>
               <div className="space-y-2">
-                <Label>Order Date</Label>
+                <Label className="font-semibold text-slate-700">Date</Label>
                 <Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} className="border-slate-200" />
-              </div>
-              <div className="space-y-2">
-                <Label>Target Delivery</Label>
-                <Input type="date" value={form.deliveryDate} onChange={(e) => set("deliveryDate", e.target.value)} className="border-slate-200" />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
-                <Label>Client / Doctor *</Label>
+                <Label className="font-semibold text-slate-700">Client / Doctor *</Label>
                 <ClientSelector 
-                    selectedClientId={form.clientId} 
-                    onSelect={(c) => {
-                        set("clientId", c.id)
-                        set("clientName", c.name)
-                        set("billingAddress", c.billingAddress)
-                        set("shippingAddress", c.shippingAddress)
-                    }} 
+                  selectedClientId={form.clientId} 
+                  onSelect={(c) => {
+                    set("clientId", c.id)
+                    set("clientName", c.name)
+                    set("billingAddress", c.billingAddress)
+                    set("shippingAddress", c.shippingAddress)
+                  }} 
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select value={form.status} onValueChange={(v) => set("status", v as OrderStatus)}>
-                    <SelectTrigger className="border-slate-200"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Pending">Pending</SelectItem>
-                      <SelectItem value="Approved">Approved</SelectItem>
-                      <SelectItem value="Packed">Packed</SelectItem>
-                      <SelectItem value="Dispatched">Dispatched</SelectItem>
-                      <SelectItem value="Delivered">Delivered</SelectItem>
-                      <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Payment</Label>
-                  <Select value={form.paymentStatus} onValueChange={(v) => set("paymentStatus", v as PaymentStatus)}>
-                    <SelectTrigger className="border-slate-200"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Unpaid">Unpaid</SelectItem>
-                      <SelectItem value="Partial">Partial</SelectItem>
-                      <SelectItem value="Paid">Paid</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label className="font-semibold text-slate-700">Status</Label>
+                <Select value={form.status} onValueChange={(v) => set("status", v as SalesDocumentStatus)}>
+                  <SelectTrigger className="border-slate-200"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Issued">Issued</SelectItem>
+                    <SelectItem value="Converted to Sales Order">Converted to Sales Order</SelectItem>
+                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -176,7 +157,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
 
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Ordered Items</h3>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Line Items</h3>
                 <ProductSelector onSelect={onProductSelect} />
               </div>
 
@@ -184,26 +165,26 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead className="w-[30%] font-bold text-slate-700">Product</TableHead>
-                      <TableHead className="font-bold text-slate-700">SKU</TableHead>
-                      <TableHead className="w-[10%] text-center font-bold text-slate-700">Qty</TableHead>
-                      <TableHead className="w-[12%] text-right font-bold text-slate-700">Price</TableHead>
-                      <TableHead className="w-[12%] text-center font-bold text-slate-700">GST %</TableHead>
-                      <TableHead className="w-[15%] text-right font-bold text-slate-700">Total</TableHead>
+                      <TableHead className="w-[30%] text-slate-700 font-bold">Product</TableHead>
+                      <TableHead className="text-slate-700 font-bold">SKU</TableHead>
+                      <TableHead className="w-[10%] text-center text-slate-700 font-bold">Qty</TableHead>
+                      <TableHead className="w-[12%] text-right text-slate-700 font-bold">Price</TableHead>
+                      <TableHead className="w-[12%] text-center text-slate-700 font-bold">GST</TableHead>
+                      <TableHead className="w-[15%] text-right text-slate-700 font-bold">Total</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(form.items || []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-slate-400 italic">
-                          No items in this order. Use "Add Product" to select items.
+                        <TableCell colSpan={7} className="h-32 text-center text-slate-400 italic">
+                          Start adding products to generate the proforma invoice.
                         </TableCell>
                       </TableRow>
                     ) : (
                       (form.items || []).map((item) => (
                         <TableRow key={item.id} className="hover:bg-slate-50/50">
-                          <TableCell className="font-medium text-slate-900">{item.productName}</TableCell>
+                          <TableCell className="font-medium text-slate-800">{item.productName}</TableCell>
                           <TableCell className="text-xs font-mono text-slate-500">{item.sku}</TableCell>
                           <TableCell>
                             <Input 
@@ -224,7 +205,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                           </TableCell>
                           <TableCell>
                             <Select 
-                              value={(item.gstRate ?? 18).toString()} 
+                              value={item.gstRate.toString()} 
                               onValueChange={(v) => v && updateItem(item.id, "gstRate", parseInt(v))}
                             >
                               <SelectTrigger className="h-8 border-slate-200"><SelectValue /></SelectTrigger>
@@ -243,7 +224,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                               variant="ghost" 
                               size="icon" 
                               onClick={() => removeItem(item.id)}
-                              className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -259,52 +240,52 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-slate-700">Billing Address</Label>
+                  <Label className="font-semibold text-slate-700 text-sm">Billing Address</Label>
                   <Textarea 
                     placeholder="Full billing address..." 
                     rows={2} 
                     value={form.billingAddress} 
                     onChange={(e) => set("billingAddress", e.target.value)} 
-                    className="border-slate-200"
+                    className="border-slate-200 min-h-[100px]"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-slate-700">Shipping Address</Label>
+                  <Label className="font-semibold text-slate-700 text-sm">Shipping Address</Label>
                   <Textarea 
                     placeholder="Full shipping address..." 
                     rows={2} 
                     value={form.shippingAddress} 
                     onChange={(e) => set("shippingAddress", e.target.value)} 
-                    className="border-slate-200"
+                    className="border-slate-200 min-h-[100px]"
                   />
                 </div>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200 p-8 rounded-2xl space-y-4 shadow-sm">
-                <div className="flex justify-between text-slate-500 text-sm italic">
-                  <span>Subtotal</span>
-                  <span className="text-slate-900 font-medium">₹{form.subtotal?.toLocaleString()}</span>
+              <div className="bg-slate-900 text-white p-8 rounded-2xl space-y-4 shadow-xl shadow-slate-200">
+                <div className="flex justify-between text-slate-400 text-sm">
+                  <span>Subtotal Amount</span>
+                  <span className="text-white font-medium">₹{form.subtotal?.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-slate-500 text-sm italic">
-                  <span>Taxes (Multiple GST)</span>
-                  <span className="text-emerald-600 font-medium">+ ₹{form.taxAmount?.toLocaleString()}</span>
+                <div className="flex justify-between text-slate-400 text-sm">
+                  <span>Applicable GST</span>
+                  <span className="text-emerald-400 font-medium">+ ₹{form.taxAmount?.toLocaleString()}</span>
                 </div>
-                <Separator className="bg-slate-200" />
-                <div className="flex justify-between font-bold text-xl items-baseline pt-2">
-                  <span className="text-slate-700">Final Order Total</span>
-                  <span className="text-emerald-700 tracking-tight font-extrabold text-3xl">₹{form.totalAmount?.toLocaleString()}</span>
+                <Separator className="bg-slate-800" />
+                <div className="flex justify-between font-bold text-xl items-baseline">
+                  <span className="text-slate-200">Grand Total</span>
+                  <span className="text-white tracking-tight font-extrabold text-3xl">₹{form.totalAmount?.toLocaleString()}</span>
                 </div>
-                <div className="pt-4 flex items-center gap-2 text-[10px] text-slate-400 uppercase tracking-widest font-bold opacity-75">
+                <div className="pt-4 flex items-center justify-center gap-2 text-[10px] text-slate-500 uppercase tracking-widest font-bold">
                   <Calculator className="h-3 w-3" />
-                  Real-time synchronization active
+                  Tax Verified & Dynamic Total
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2 pt-4">
-              <Label className="text-sm font-semibold text-slate-700">Order Notes / Commission Details</Label>
+            <div className="space-y-2 pt-6">
+              <Label className="font-semibold text-slate-700 text-sm">Payment Instructions / Notes</Label>
               <Textarea 
-                placeholder="Any specific order instructions, sales person notes..." 
+                placeholder="Bank details, advance payment requirements, etc..." 
                 value={form.notes} 
                 onChange={(e) => set("notes", e.target.value)} 
                 className="border-slate-200"
@@ -315,11 +296,11 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
 
         <DialogFooter className="p-6 border-t bg-slate-50 gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isSaving} className="text-slate-500">Cancel</Button>
-          <Button onClick={handleSave} disabled={!form.clientId || (form.items || []).length === 0 || isSaving} className="min-w-[160px] bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={handleSave} disabled={!form.clientId || (form.items || []).length === 0 || isSaving} className="min-w-[160px] bg-primary hover:bg-primary/90">
             {isSaving ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
             ) : (
-              order ? "Update Sales Order" : "Generate Final Order"
+              proforma ? "Update Proforma" : "Generate Proforma"
             )}
           </Button>
         </DialogFooter>

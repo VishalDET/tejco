@@ -76,7 +76,7 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
               <h1 className="text-3xl font-bold tracking-tight">{order.orderNumber}</h1>
               {getStatusBadge(order.status)}
             </div>
-            <p className="text-muted-foreground">Order placed on {new Date(order.date).toLocaleDateString()} for {order.clientName}</p>
+            <p className="text-muted-foreground">Order placed on {new Date(order.date).toLocaleDateString("en-GB")} for {order.clientName}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -179,7 +179,7 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
                 </div>
                 <div>
                   <div className="text-sm font-semibold">{order.status}</div>
-                  <div className="text-xs text-muted-foreground">Updated {new Date(order.date).toLocaleDateString()}</div>
+                  <div className="text-xs text-muted-foreground">Updated {new Date(order.date).toLocaleDateString("en-GB")}</div>
                 </div>
               </div>
               <Separator />

@@ -192,7 +192,7 @@ export default function StockTransferPage() {
                                                         <Badge variant="outline" className="font-normal">{transfer.destinationWarehouseId}</Badge>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell>{isMounted ? new Date(transfer.date).toLocaleDateString() : transfer.date}</TableCell>
+                                                <TableCell>{isMounted ? new Date(transfer.date).toLocaleDateString("en-GB") : transfer.date}</TableCell>
                                                 <TableCell>{transfer.items.length} products</TableCell>
                                                 <TableCell>{getStatusBadge(transfer.status)}</TableCell>
                                                 <TableCell className="text-right">
