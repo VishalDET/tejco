@@ -19,14 +19,15 @@ import {
     MoreHorizontal,
     Plus,
     Search,
-    UserPlus,
-    Mail,
     Shield,
     Clock,
     Filter,
     Download,
+    Loader2,
+    AlertCircle,
 } from "lucide-react"
 
+import { apiClient, usersApi, systemMastersApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import {
     DropdownMenu,
@@ -37,6 +38,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import {
     Table,
@@ -46,9 +48,41 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+
+// ─── API Types ────────────────────────────────────────────────────────────────
+
+type ApiUser = {
+    userId: number
+    firstName: string
+    lastName: string
+    gender: string
+    employeeId: string
+    email: string
+    phone: string
+    companyId: number
+    branchId: number
+    departmentId: number
+    role: string
+    handlerId: number
+    status: string
+    lastLogin: string | null
+    imageUrl: string | null
+    passwordHash: string | null
+    createdAt: string
+    updatedAt: string | null
+}
 
 const data: User[] = [
     {
@@ -95,6 +129,25 @@ export type User = {
     status: "Active" | "Inactive" | "Pending"
     lastLogin: string
     image?: string
+    companyName?: string
+    departmentName?: string
+}
+
+function mapApiUser(u: ApiUser, companies: any[], departments: any[]): User {
+    const company = companies.find(c => (c.id || c.companyId) === u.companyId)
+    const department = departments.find(d => (d.id || d.departmentId) === u.departmentId)
+
+    return {
+        id: String(u.userId),
+        name: `${u.firstName} ${u.lastName}`.trim(),
+        email: u.email,
+        role: u.role,
+        status: (u.status as User["status"]) || "Active",
+        lastLogin: u.lastLogin ? new Date(u.lastLogin).toLocaleString() : "Never",
+        image: u.imageUrl || undefined,
+        companyName: company?.name || company?.registeredName || `ID: ${u.companyId}`,
+        departmentName: department?.name || `ID: ${u.departmentId}`,
+    }
 }
 
 export const columns: ColumnDef<User>[] = [
@@ -116,6 +169,16 @@ export const columns: ColumnDef<User>[] = [
                 </div>
             )
         },
+    },
+    {
+        accessorKey: "companyName",
+        header: "Company",
+        cell: ({ row }) => <span className="text-sm">{row.getValue("companyName")}</span>,
+    },
+    {
+        accessorKey: "departmentName",
+        header: "Department",
+        cell: ({ row }) => <Badge variant="outline" className="font-normal">{row.getValue("departmentName")}</Badge>,
     },
     {
         accessorKey: "role",
@@ -160,7 +223,9 @@ export const columns: ColumnDef<User>[] = [
     {
         id: "actions",
         enableHiding: false,
-        cell: ({ row }) => {
+        cell: ({ row, table }) => {
+            const user = row.original
+            const meta = table.options.meta as { onDelete: (id: string) => void }
             return (
                 <DropdownMenu>
                     <DropdownMenuTrigger
@@ -183,7 +248,12 @@ export const columns: ColumnDef<User>[] = [
  
                         <DropdownMenuItem>Edit permissions</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">Deactivate user</DropdownMenuItem>
+                        <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => meta.onDelete(user.id)}
+                        >
+                            Delete user
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             )
@@ -193,10 +263,49 @@ export const columns: ColumnDef<User>[] = [
 
 export default function UsersPage() {
     const router = useRouter()
+    const [data, setData] = React.useState<User[]>([])
+    const [loading, setLoading] = React.useState(true)
+    const [error, setError] = React.useState<string | null>(null)
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = React.useState({})
+
+    const [isDeleting, setIsDeleting] = React.useState(false)
+    const [userToDelete, setUserToDelete] = React.useState<string | null>(null)
+
+    React.useEffect(() => {
+        async function loadData() {
+            try {
+                const [usersRaw, companies, departments] = await Promise.all([
+                    usersApi.getAll(),
+                    systemMastersApi.getCompanies(),
+                    systemMastersApi.getDepartments()
+                ])
+                setData(usersRaw.map(u => mapApiUser(u, companies, departments)))
+            } catch (err: any) {
+                setError(err.message)
+            } finally {
+                setLoading(false)
+            }
+        }
+        loadData()
+    }, [])
+
+    const handleDelete = async () => {
+        if (!userToDelete) return
+        setIsDeleting(true)
+        try {
+            await usersApi.remove(userToDelete)
+            setData(prev => prev.filter(u => u.id !== userToDelete))
+            toast.success("User deleted successfully")
+            setUserToDelete(null)
+        } catch (err: any) {
+            toast.error(`Failed to delete user: ${err.message}`)
+        } finally {
+            setIsDeleting(false)
+        }
+    }
 
     const table = useReactTable({
         data,
@@ -215,6 +324,9 @@ export default function UsersPage() {
             columnVisibility,
             rowSelection,
         },
+        meta: {
+            onDelete: (id: string) => setUserToDelete(id),
+        }
     })
 
     return (
@@ -236,126 +348,164 @@ export default function UsersPage() {
                 </div>
             </div>
 
+            {error && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Failed to load users</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+
             <Card className="shadow-sm">
                 <CardHeader>
                     <CardTitle className="text-lg">Staff Directory</CardTitle>
                     <CardDescription>A list of all users and employees with system access.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex items-center justify-between py-4 gap-4">
-                        <div className="relative flex-1 max-w-sm">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Search users..."
-                                value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-                                onChange={(event) =>
-                                    table.getColumn("name")?.setFilterValue(event.target.value)
-                                }
-                                className="pl-8"
-                            />
+                    {loading ? (
+                        <div className="flex items-center justify-center py-12 text-muted-foreground gap-2">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            <span>Loading users…</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <DropdownMenu>
-                                <DropdownMenuTrigger
-                                    render={
-                                        <Button variant="outline" size="sm" className="hidden lg:flex">
-                                            <Filter className="mr-2 h-4 w-4" />
-                                            View
-                                        </Button>
-                                    }
-                                />
-                                <DropdownMenuContent align="end" className="w-[150px]">
-                                    <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-                                    <DropdownMenuSeparator />
-                                    {table
-                                        .getAllColumns()
-                                        .filter((column) => column.getCanHide())
-                                        .map((column) => {
-                                            return (
-                                                <DropdownMenuCheckboxItem
-                                                    key={column.id}
-                                                    className="capitalize"
-                                                    checked={column.getIsVisible()}
-                                                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    ) : (
+                        <>
+                            <div className="flex items-center justify-between py-4 gap-4">
+                                <div className="relative flex-1 max-w-sm">
+                                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search users..."
+                                        value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
+                                        onChange={(event) =>
+                                            table.getColumn("name")?.setFilterValue(event.target.value)
+                                        }
+                                        className="pl-8"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger
+                                            render={
+                                                <Button variant="outline" size="sm" className="hidden lg:flex">
+                                                    <Filter className="mr-2 h-4 w-4" />
+                                                    View
+                                                </Button>
+                                            }
+                                        />
+                                        <DropdownMenuContent align="end" className="w-[150px]">
+                                            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            {table
+                                                .getAllColumns()
+                                                .filter((column) => column.getCanHide())
+                                                .map((column) => {
+                                                    return (
+                                                        <DropdownMenuCheckboxItem
+                                                            key={column.id}
+                                                            className="capitalize"
+                                                            checked={column.getIsVisible()}
+                                                            onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                                                        >
+                                                            {column.id}
+                                                        </DropdownMenuCheckboxItem>
+                                                    )
+                                                })}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            </div>
+                            <div className="rounded-md border">
+                                <Table>
+                                    <TableHeader className="bg-muted/50">
+                                        {table.getHeaderGroups().map((headerGroup) => (
+                                            <TableRow key={headerGroup.id}>
+                                                {headerGroup.headers.map((header) => {
+                                                    return (
+                                                        <TableHead key={header.id}>
+                                                            {header.isPlaceholder
+                                                                ? null
+                                                                : flexRender(
+                                                                    header.column.columnDef.header,
+                                                                    header.getContext()
+                                                                )}
+                                                        </TableHead>
+                                                    )
+                                                })}
+                                            </TableRow>
+                                        ))}
+                                    </TableHeader>
+                                    <TableBody>
+                                        {table.getRowModel().rows?.length ? (
+                                            table.getRowModel().rows.map((row) => (
+                                                <TableRow
+                                                    key={row.id}
+                                                    data-state={row.getIsSelected() && "selected"}
                                                 >
-                                                    {column.id}
-                                                </DropdownMenuCheckboxItem>
-                                            )
-                                        })}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
-                    </div>
-                    <div className="rounded-md border">
-                        <Table>
-                            <TableHeader className="bg-muted/50">
-                                {table.getHeaderGroups().map((headerGroup) => (
-                                    <TableRow key={headerGroup.id}>
-                                        {headerGroup.headers.map((header) => {
-                                            return (
-                                                <TableHead key={header.id}>
-                                                    {header.isPlaceholder
-                                                        ? null
-                                                        : flexRender(
-                                                            header.column.columnDef.header,
-                                                            header.getContext()
-                                                        )}
-                                                </TableHead>
-                                            )
-                                        })}
-                                    </TableRow>
-                                ))}
-                            </TableHeader>
-                            <TableBody>
-                                {table.getRowModel().rows?.length ? (
-                                    table.getRowModel().rows.map((row) => (
-                                        <TableRow
-                                            key={row.id}
-                                            data-state={row.getIsSelected() && "selected"}
-                                        >
-                                            {row.getVisibleCells().map((cell) => (
-                                                <TableCell key={cell.id}>
-                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                    {row.getVisibleCells().map((cell) => (
+                                                        <TableCell key={cell.id}>
+                                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                        </TableCell>
+                                                    ))}
+                                                </TableRow>
+                                            ))
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={columns.length} className="h-24 text-center">
+                                                    No users found.
                                                 </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={columns.length} className="h-24 text-center">
-                                            No users found.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    <div className="flex items-center justify-end space-x-2 py-4">
-                        <div className="flex-1 text-sm text-muted-foreground">
-                            {table.getFilteredSelectedRowModel().rows.length} of{" "}
-                            {table.getFilteredRowModel().rows.length} row(s) selected.
-                        </div>
-                        <div className="space-x-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => table.previousPage()}
-                                disabled={!table.getCanPreviousPage()}
-                            >
-                                Previous
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => table.nextPage()}
-                                disabled={!table.getCanNextPage()}
-                            >
-                                Next
-                            </Button>
-                        </div>
-                    </div>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            <div className="flex items-center justify-end space-x-2 py-4">
+                                <div className="flex-1 text-sm text-muted-foreground">
+                                    {table.getFilteredSelectedRowModel().rows.length} of{" "}
+                                    {table.getFilteredRowModel().rows.length} row(s) selected.
+                                </div>
+                                <div className="space-x-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => table.previousPage()}
+                                        disabled={!table.getCanPreviousPage()}
+                                    >
+                                        Previous
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => table.nextPage()}
+                                        disabled={!table.getCanNextPage()}
+                                    >
+                                        Next
+                                    </Button>
+                                </div>
+                            </div>
+                        </>
+                    )}
                 </CardContent>
             </Card>
+
+            <Dialog open={!!userToDelete} onOpenChange={() => !isDeleting && setUserToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Are you absolutely sure?</DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone. This will permanently delete the user account
+                            and remove their data from our servers.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setUserToDelete(null)} disabled={isDeleting}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Delete User
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

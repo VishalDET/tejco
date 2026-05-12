@@ -5,11 +5,13 @@ export interface OrderItem {
   id: string
   productId: string
   productName: string
+  name?: string
   sku: string
   quantity: number
   unitPrice: number
   total: number
   gstRate: number
+  imageUrl?: string
 }
 
 export interface Order {

@@ -2,33 +2,19 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit, RefreshCw } from "lucide-react"
+import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit, RefreshCw, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Skeleton } from "@/components/ui/skeleton"
+import { quotationsApi } from "@/lib/api"
 import { SalesDocument, SalesDocumentStatus } from "../types"
+import { Quotation } from "./types"
 import { QuotationFormDialog } from "./quotation-form-dialog"
-
-const initialQuotations: SalesDocument[] = [
-  {
-    id: "q1",
-    number: "QUO-2024-1021",
-    clientId: "c1",
-    clientName: "Dr. Aris Varma",
-    date: "2024-03-01",
-    validUntil: "2024-03-15",
-    status: "Issued",
-    items: [],
-    subtotal: 5000,
-    taxAmount: 900,
-    totalAmount: 5900,
-    billingAddress: "Mumbai",
-    shippingAddress: "Mumbai",
-  }
-]
+import { toast } from "sonner"
 
 const getStatusBadge = (status: SalesDocumentStatus) => {
   switch (status) {
@@ -42,138 +28,206 @@ const getStatusBadge = (status: SalesDocumentStatus) => {
 
 export default function QuotationsPage() {
   const router = useRouter()
-  const [quotations, setQuotations] = React.useState<SalesDocument[]>(initialQuotations)
+  const [quotations, setQuotations] = React.useState<Quotation[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
-  const [selectedQuotation, setSelectedQuotation] = React.useState<SalesDocument | null>(null)
+  const [selectedQuotation, setSelectedQuotation] = React.useState<Quotation | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
+
+  const fetchQuotations = async (silent = false) => {
+    if (!silent) setIsLoading(true)
+    else setIsRefreshing(true)
+    
+    try {
+      const data = await quotationsApi.getAll()
+      setQuotations(data)
+    } catch (error) {
+      console.error("Failed to fetch quotations:", error)
+      toast.error("Failed to load quotations. Please try again.")
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchQuotations()
+  }, [])
 
   const handleCreate = () => {
     setSelectedQuotation(null)
     setIsDialogOpen(true)
   }
 
-  const handleConvertToProforma = (q: SalesDocument) => {
-    // 1. Mark quotation as converted
-    setQuotations(prev => prev.map(item => 
-      item.id === q.id ? { ...item, status: "Converted to Proforma" } as SalesDocument : item
-    ))
-
-    // 2. Store data for proforma pre-fill
+  const handleConvertToProforma = (q: Quotation) => {
     localStorage.setItem("convert_source_data", JSON.stringify({
       ...q,
       sourceId: q.id,
-      number: "", // New number will be generated
+      number: "", 
       status: "Draft",
       date: new Date().toISOString().split('T')[0]
     }))
-
-    // 3. Redirect to proforma invoices page
     router.push("/sales/proforma-invoices?convert=true")
   }
 
-  const handleEdit = (q: SalesDocument) => {
+  const handleEdit = (q: Quotation) => {
     setSelectedQuotation(q)
     setIsDialogOpen(true)
   }
 
-  const handleSave = (data: Partial<SalesDocument>) => {
+  const handleSave = (data: Partial<Quotation>) => {
     if (selectedQuotation) {
-      setQuotations(prev => prev.map(o => o.id === selectedQuotation.id ? { ...o, ...data } as SalesDocument : o))
+      setQuotations(prev => prev.map(o => o.id === selectedQuotation.id ? { ...o, ...data } as Quotation : o))
     } else {
-      const newQuo: SalesDocument = {
+      const newQuo: Quotation = {
         ...data,
         id: Math.random().toString(36).substr(2, 9),
-      } as SalesDocument
+      } as Quotation
       setQuotations(prev => [newQuo, ...prev])
     }
+    // After saving, we should ideally re-fetch or the dialog should handle the API call
+    fetchQuotations(true)
   }
 
   const filtered = quotations.filter(o => 
     o.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+    o.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (o.notes && o.notes.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Quotations</h1>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">Quotations</h1>
           <p className="text-muted-foreground">Manage and track product quotations sent to clients.</p>
         </div>
-        <Button onClick={handleCreate} className="gap-2">
-          <Plus className="h-4 w-4" /> Create Quotation
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            onClick={() => fetchQuotations(true)} 
+            disabled={isLoading || isRefreshing}
+            className="hover:rotate-180 transition-transform duration-500"
+          >
+            {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </Button>
+          <Button onClick={handleCreate} className="gap-2 shadow-md hover:shadow-lg transition-all duration-200">
+            <Plus className="h-4 w-4" /> Create Quotation
+          </Button>
+        </div>
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-          <div>
-            <CardTitle className="text-lg">Quotation History</CardTitle>
+      <Card className="shadow-xl border-none ring-1 ring-slate-200 overflow-hidden">
+        <CardHeader className="bg-slate-50/50 flex flex-row items-center justify-between space-y-0 pb-6">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-semibold">Quotation History</CardTitle>
             <CardDescription>A list of all quotes generated for doctors and hospitals.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input 
                 placeholder="Search quotations..." 
-                className="pl-8 w-[250px]" 
+                className="pl-9 w-[200px] md:w-[300px] bg-white/50 backdrop-blur-sm border-slate-200 focus:bg-white transition-all duration-200" 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            <Button variant="outline" size="icon" className="md:flex hidden">
+              <Filter className="h-4 w-4" />
+            </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
-            <TableHeader className="bg-muted/50">
-              <TableRow>
-                <TableHead className="w-[150px]">Quo Number</TableHead>
-                <TableHead>Client / Doctor</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Validity</TableHead>
-                <TableHead className="text-right">Total Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader className="bg-slate-50/80 border-b">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-[180px] py-4 px-6 font-semibold">Quotation Number</TableHead>
+                <TableHead className="py-4 font-semibold">Client / Doctor</TableHead>
+                <TableHead className="py-4 font-semibold">Date</TableHead>
+                <TableHead className="py-4 font-semibold">Validity</TableHead>
+                <TableHead className="text-right py-4 font-semibold">Total Amount</TableHead>
+                <TableHead className="py-4 font-semibold">Status</TableHead>
+                <TableHead className="text-right py-4 px-6 font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="px-6"><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                    <TableCell className="px-6"><Skeleton className="h-8 w-8 ml-auto rounded-full" /></TableCell>
+                  </TableRow>
+                ))
+              ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground italic">
-                    No quotations found.
+                  <TableCell colSpan={7} className="h-64 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <div className="p-4 bg-slate-50 rounded-full mb-2">
+                        <Search className="h-8 w-8 opacity-20" />
+                      </div>
+                      <p className="text-lg font-medium">No quotations found</p>
+                      <p className="text-sm">Try adjusting your search or create a new quotation.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
                 filtered.map((q) => (
-                  <TableRow key={q.id}>
-                    <TableCell className="font-medium text-primary">{q.number}</TableCell>
-                    <TableCell>{q.clientName}</TableCell>
-                    <TableCell>{new Date(q.date).toLocaleDateString("en-GB")}</TableCell>
-                    <TableCell>{q.validUntil ? new Date(q.validUntil).toLocaleDateString("en-GB") : "-"}</TableCell>
-                    <TableCell className="text-right font-semibold">₹{q.totalAmount.toLocaleString()}</TableCell>
+                  <TableRow key={q.id} className="group hover:bg-slate-50/50 transition-colors duration-200">
+                    <TableCell className="font-bold text-primary py-4 px-6">
+                      {q.number}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-900">{q.clientName}</span>
+                        {q.notes && <span className="text-xs text-muted-foreground line-clamp-1">{q.notes}</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-slate-600 font-medium">{new Date(q.date).toLocaleDateString("en-GB")}</TableCell>
+                    <TableCell className="text-slate-600 font-medium">{q.validUntil ? new Date(q.validUntil).toLocaleDateString("en-GB") : "-"}</TableCell>
+                    <TableCell className="text-right py-4">
+                      <div className="flex flex-col items-end">
+                        <span className="font-bold text-slate-900">₹{q.totalAmount.toLocaleString()}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Incl. GST</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{getStatusBadge(q.status)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right py-4 px-6">
                       <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>} />
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Quotation Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEdit(q)} className="gap-2">
-                            <Edit className="h-4 w-4" /> Edit
+                        <DropdownMenuTrigger 
+                          render={
+                            <Button variant="ghost" size="icon" className="rounded-full hover:bg-white hover:shadow-sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end" className="w-48 shadow-xl border-slate-200">
+                          <DropdownMenuLabel className="text-xs font-bold uppercase text-slate-500 tracking-wider">Management</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleEdit(q)} className="gap-2 cursor-pointer">
+                            <Edit className="h-4 w-4 text-slate-500" /> Edit Quotation
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => router.push(`/sales/quotations/${q.id}`)} className="gap-2">
-                            <Eye className="h-4 w-4" /> View Details
+                          <DropdownMenuItem onClick={() => router.push(`/sales/quotations/${q.id}`)} className="gap-2 cursor-pointer">
+                            <Eye className="h-4 w-4 text-slate-500" /> View Detailed View
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs font-bold uppercase text-slate-500 tracking-wider">Operations</DropdownMenuLabel>
                           {q.status !== "Converted to Proforma" && (
                             <DropdownMenuItem 
-                              className="gap-2 text-primary font-medium" 
+                              className="gap-2 text-primary font-semibold cursor-pointer focus:text-primary focus:bg-primary/5" 
                               onClick={() => handleConvertToProforma(q)}
                             >
                               <RefreshCw className="h-4 w-4" /> Convert to Proforma
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem className="gap-2"><FileDown className="h-4 w-4" /> Export PDF</DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2"><Printer className="h-4 w-4" /> Print</DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2 cursor-pointer"><FileDown className="h-4 w-4 text-slate-500" /> Export as PDF</DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2 cursor-pointer"><Printer className="h-4 w-4 text-slate-500" /> Print Document</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

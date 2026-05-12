@@ -16,7 +16,8 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react"
-import { SalesDocument, SalesDocumentStatus } from "@/app/sales/types"
+import { SalesDocumentStatus } from "@/app/sales/types"
+import { Quotation } from "@/app/sales/quotations/types"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 interface QuotationDetailsViewProps {
-  quotation: SalesDocument
+  quotation: Quotation
 }
 
 export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
@@ -110,41 +111,65 @@ export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
                     <TableHead className="text-right">Total</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
-                  {quotation.items.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <div className="font-medium">{item.productName}</div>
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-slate-500">{item.sku}</TableCell>
-                      <TableCell className="text-center">{item.quantity}</TableCell>
-                      <TableCell className="text-right">₹{item.unitPrice.toLocaleString()}</TableCell>
-                      <TableCell className="text-center">{item.gstRate}%</TableCell>
-                      <TableCell className="text-right font-medium">₹{item.total.toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
+                  <TableBody>
+                    {quotation.items.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            {item.imageUrl && (
+                              <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0">
+                                <img src={item.imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-medium text-slate-900">{item.productName}</div>
+                              <div className="text-xs text-slate-500">{item.name}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-slate-500">{item.sku}</TableCell>
+                        <TableCell className="text-center font-medium">{item.quantity}</TableCell>
+                        <TableCell className="text-right">₹{item.unitPrice.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-center text-slate-500">{item.gstRate}%</TableCell>
+                        <TableCell className="text-right font-bold text-slate-900">₹{item.total.toLocaleString("en-IN")}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
               </Table>
 
               <div className="mt-8 flex justify-end">
                 <div className="w-80 space-y-3 bg-slate-50 p-6 rounded-xl border border-slate-100">
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">Subtotal</span>
-                    <span className="font-medium">₹{quotation.subtotal.toLocaleString()}</span>
+                    <span className="font-medium">₹{quotation.subtotal.toLocaleString("en-IN")}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-slate-500">Calculated Tax</span>
-                    <span className="text-blue-600 font-medium">+ ₹{quotation.taxAmount.toLocaleString()}</span>
+                    <span className="text-blue-600 font-medium">+ ₹{quotation.taxAmount.toLocaleString("en-IN")}</span>
                   </div>
                   <Separator className="bg-slate-200" />
                   <div className="flex justify-between font-bold text-lg pt-2">
                     <span className="text-slate-700">Grand Total</span>
-                    <span className="text-primary text-2xl tracking-tight">₹{quotation.totalAmount.toLocaleString()}</span>
+                    <span className="text-primary text-2xl tracking-tight">₹{quotation.totalAmount.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* Subject Card */}
+          {quotation.subject && (
+            <Card className="shadow-sm border-slate-200">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-slate-400">Quotation Subject</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-lg font-semibold text-slate-800 leading-snug">
+                  {quotation.subject}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Notes Card */}
           <Card className="shadow-sm border-slate-200">
@@ -152,6 +177,17 @@ export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
               <CardTitle>Terms & Conditions</CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                  <Label className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Validity Period</Label>
+                  <div className="text-sm font-medium mt-1">{quotation.validityDays} Days</div>
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Estimated Delivery</Label>
+                  <div className="text-sm font-medium mt-1">{quotation.deliveryTime || "TBD"}</div>
+                </div>
+              </div>
+              <Separator className="mb-6" />
               <div className="space-y-4">
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Notes to Client</h4>
@@ -205,11 +241,22 @@ export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
               <div>
                 <Label className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Account / Doctor</Label>
                 <div className="text-sm font-bold text-slate-800 mt-1">{quotation.clientName}</div>
+                {quotation.clientMobileNo && (
+                  <div className="text-xs text-slate-500 mt-0.5">{quotation.clientMobileNo}</div>
+                )}
+              </div>
+              <Separator className="bg-slate-50" />
+              <div>
+                <Label className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Sales Representative</Label>
+                <div className="text-sm font-bold text-slate-800 mt-1">{quotation.salesPersonName || "N/A"}</div>
+                {quotation.salesPersonCell && (
+                  <div className="text-xs text-slate-500 mt-0.5">{quotation.salesPersonCell}</div>
+                )}
               </div>
               <Separator className="bg-slate-50" />
               <div>
                 <Label className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Validity</Label>
-                <div className="text-sm font-medium text-blue-600 mt-1">Valid until {quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString("en-GB") : 'N/A'}</div>
+                <div className="text-sm font-medium text-blue-600 mt-1">Valid until {quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString("en-GB") : 'N/A'} ({quotation.validityDays} days)</div>
               </div>
               <Separator className="bg-slate-50" />
               <div>

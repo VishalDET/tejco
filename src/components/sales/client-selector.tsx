@@ -33,8 +33,8 @@ export function ClientSelector({ selectedClientId, onSelect }: ClientSelectorPro
   }, [open, clients.length])
 
   const filteredClients = clients.filter((client) =>
-    client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    client.company.toLowerCase().includes(searchQuery.toLowerCase())
+    (client.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (client.company || "").toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   const handleSelect = (client: Client) => {

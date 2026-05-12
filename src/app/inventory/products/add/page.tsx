@@ -24,19 +24,28 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
-import { warehousesApi } from "@/lib/api"
+import { warehousesApi, productsApi } from "@/lib/api"
 import type { Warehouse } from "@/app/supply-chain/warehouse/types"
 
 export default function AddProductPage() {
     const router = useRouter()
     const [isLoading, setIsLoading] = React.useState(false)
     const [name, setName] = React.useState("")
+    const [baseSKU, setBaseSKU] = React.useState("")
+    const [description, setDescription] = React.useState("")
+    const [brand, setBrand] = React.useState("")
+    const [unit, setUnit] = React.useState("PCS")
     const [category, setCategory] = React.useState("")
     const [subcategory, setSubcategory] = React.useState("")
     const [taggingNo, setTaggingNo] = React.useState("")
     const [warehouses, setWarehouses] = React.useState<Warehouse[]>([])
     // Placeholder for product ID used in barcode generation
-    const [tempProdId] = React.useState(() => Math.floor(1000 + Math.random() * 9000).toString())
+    const [tempProdId, setTempProdId] = React.useState("0000")
+    
+    // Generate a random product ID only on the client to avoid hydration mismatch
+    React.useEffect(() => {
+        setTempProdId(Math.floor(1000 + Math.random() * 9000).toString())
+    }, [])
 
     // Fetch warehouses on mount
     React.useEffect(() => {
@@ -50,7 +59,7 @@ export default function AddProductPage() {
     // Dynamic state for variants
     const [variants, setVariants] = React.useState([
         { 
-            id: Date.now(), 
+            id: 1, 
             name: "Default", 
             sku_suffix: "-DEF", 
             salesPrice: "", 
@@ -138,17 +147,48 @@ export default function AddProductPage() {
         event.preventDefault()
         setIsLoading(true)
 
-        // Log the final data to see structure
-        console.log("Submitting product with variants:", {
-            name, category, subcategory, taggingNo, variants
-        })
+        const payload = {
+            productId: 0,
+            productName: name,
+            baseSKU: baseSKU,
+            productTaggingNo: taggingNo,
+            barcodeNumber: tempProdId, // Using the generated base ID
+            categoryId: parseInt(category) || 0,
+            subcategoryId: parseInt(subcategory) || 0,
+            brand: brand,
+            unit: unit,
+            description: description,
+            hasVariants: variants.length > 0,
+            status: true,
+            variants: variants.map(v => ({
+                variantId: 0,
+                productId: 0,
+                variantName: v.name,
+                skuSuffix: v.sku_suffix,
+                purchasePrice: parseFloat(v.costPrice) || 0,
+                sellingPrice: parseFloat(v.salesPrice) || 0,
+                initialQuantity: parseInt(v.stock) || 0,
+                currentQuantity: parseInt(v.stock) || 0,
+                reorderLevel: 5, // Default
+                status: true,
+                gstPercentage: parseInt(v.gstPercentage) || 0,
+                warehouseId: parseInt(v.warehouseId) || 0,
+                rackLocation: v.rackLocation,
+                barcodeNumber: v.barcode,
+                variantImage: v.image || ""
+            }))
+        }
 
-        // Simulate API call
-        setTimeout(() => {
-            setIsLoading(false)
+        try {
+            await productsApi.create(payload)
             toast.success("Product created successfully with " + variants.length + " variants")
             router.push("/inventory/products")
-        }, 1000)
+        } catch (error) {
+            console.error("Error creating product:", error)
+            toast.error("Failed to create product. Please try again.")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -192,12 +232,24 @@ export default function AddProductPage() {
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="sku">Base SKU</Label>
-                                        <Input id="sku" placeholder="e.g., SB-010" required />
+                                        <Input 
+                                            id="sku" 
+                                            placeholder="e.g., SB-010" 
+                                            required 
+                                            value={baseSKU}
+                                            onChange={(e) => setBaseSKU(e.target.value)}
+                                        />
                                     </div>
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="description">Description</Label>
-                                    <Textarea id="description" placeholder="Technical specifications and usage details..." rows={3} />
+                                    <Textarea 
+                                        id="description" 
+                                        placeholder="Technical specifications and usage details..." 
+                                        rows={3} 
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                    />
                                 </div>
                             </CardContent>
                         </Card>
@@ -238,6 +290,31 @@ export default function AddProductPage() {
                                             <SelectItem value="232">Gauze</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="brand">Brand</Label>
+                                        <Input
+                                            id="brand"
+                                            value={brand}
+                                            onChange={(e) => setBrand(e.target.value)}
+                                            placeholder="e.g., Tejco"
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="unit">Unit</Label>
+                                        <Select value={unit} onValueChange={(val) => setUnit(val || "PCS")}>
+                                            <SelectTrigger id="unit">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="PCS">Pieces (PCS)</SelectItem>
+                                                <SelectItem value="BOX">Box</SelectItem>
+                                                <SelectItem value="PKT">Packet</SelectItem>
+                                                <SelectItem value="SET">Set</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                 </div>
                                 <div className="grid gap-2 pt-2 border-t">
                                     <Label htmlFor="taggingNo">Product Tagging No.</Label>
@@ -439,7 +516,7 @@ export default function AddProductPage() {
                                                     <svg viewBox="0 0 100 40" className="w-full h-full" preserveAspectRatio="none">
                                                         {/* Simple dummy barcode effect */}
                                                         {Array.from({length: 20}).map((_, i) => (
-                                                            <rect key={i} x={i * 5} y="0" width={Math.random() * 3 + 1} height="40" fill="black" />
+                                                            <rect key={i} x={i * 5} y="0" width={((i * 7) % 3) + 1.5} height="40" fill="black" />
                                                         ))}
                                                     </svg>
                                                 </div>

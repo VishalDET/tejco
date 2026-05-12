@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
+import Link from "next/link"
 import {
     LayoutDashboard,
     Package,
@@ -138,6 +139,68 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const pathname = usePathname()
 
+    function NavMainItem({ item, pathname }: { item: any; pathname: string | null }) {
+        const isActive =
+            item.url === pathname ||
+            (item.items?.some((subItem: any) => pathname === subItem.url));
+
+        const [open, setOpen] = React.useState(isActive)
+
+        // Sync open state when path changes externally (e.g. navigation)
+        React.useEffect(() => {
+            if (isActive) setOpen(true)
+        }, [isActive])
+
+        if (!item.items) {
+            return (
+                <SidebarMenuItem>
+                    <SidebarMenuButton
+                        tooltip={item.title}
+                        isActive={isActive}
+                        render={<Link href={item.url} />}
+                    >
+                        {item.icon && <item.icon />}
+                        <span>{item.title}</span>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+            )
+        }
+
+        return (
+            <Collapsible
+                key={item.title}
+                open={open}
+                onOpenChange={setOpen}
+                className="group/collapsible"
+                render={<SidebarMenuItem />}
+            >
+                <CollapsibleTrigger
+                    render={
+                        <SidebarMenuButton tooltip={item.title} className="group/trigger">
+                            {item.icon && <item.icon />}
+                            <span>{item.title}</span>
+                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[panel-open]/trigger:rotate-90 group-data-[state=open]/trigger:rotate-90 group-data-open/trigger:rotate-90 group-data-[state=open]/collapsible:rotate-90" />
+                        </SidebarMenuButton>
+                    }
+                />
+                <CollapsibleContent>
+                    <SidebarMenuSub>
+                        {item.items.map((subItem: any) => (
+                            <SidebarMenuSubItem key={subItem.title}>
+                                <SidebarMenuSubButton
+                                    isActive={pathname === subItem.url}
+                                    render={<Link href={subItem.url} />}
+                                >
+                                    <span>{subItem.title}</span>
+                                </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                        ))}
+                    </SidebarMenuSub>
+                </CollapsibleContent>
+            </Collapsible>
+        )
+    }
+
     return (
         <Sidebar collapsible="icon" {...props}>
             <SidebarHeader>
@@ -157,45 +220,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarHeader>
             <SidebarContent>
                 <SidebarMenu>
-                    {data.navMain.map((item) => {
-                        const isActive =
-                            item.url === pathname ||
-                            (item.items?.some((subItem) => pathname?.startsWith(subItem.url)));
-
-                        return (
-                            <Collapsible
-                                key={item.title}
-                                defaultOpen={isActive}
-                                className="group/collapsible"
-                                render={<SidebarMenuItem />}
-                            >
-                                <CollapsibleTrigger
-                                    render={
-                                        <SidebarMenuButton tooltip={item.title} className="group/trigger">
-                                            {item.icon && <item.icon />}
-                                            <span>{item.title}</span>
-                                            {item.items && (
-                                                <ChevronRight className="ml-auto transition-transform duration-200 group-data-[panel-open]/trigger:rotate-90 group-data-[state=open]/trigger:rotate-90 group-data-open/trigger:rotate-90 group-data-[state=open]/collapsible:rotate-90" />
-                                            )}
-                                        </SidebarMenuButton>
-                                    }
-                                />
-                                {item.items && (
-                                    <CollapsibleContent>
-                                        <SidebarMenuSub>
-                                            {item.items.map((subItem) => (
-                                                <SidebarMenuSubItem key={subItem.title}>
-                                                    <SidebarMenuSubButton href={subItem.url}>
-                                                        <span>{subItem.title}</span>
-                                                    </SidebarMenuSubButton>
-                                                </SidebarMenuSubItem>
-                                            ))}
-                                        </SidebarMenuSub>
-                                    </CollapsibleContent>
-                                )}
-                            </Collapsible>
-                        )
-                    })}
+                    {data.navMain.map((item) => (
+                        <NavMainItem key={item.title} item={item} pathname={pathname} />
+                    ))}
                 </SidebarMenu>
             </SidebarContent>
             <SidebarFooter>

@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, X, Plus, Trash2, Layers, Tags } from "lucide-react"
+import { useRouter, useParams } from "next/navigation"
+import { ArrowLeft, Save, X, Plus, Trash2, Layers, Tags, Loader2 } from "lucide-react"
 
 import { categoriesApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -29,6 +29,7 @@ import { toast } from "sonner"
 
 type SubcategoryRow = {
     id: string          // local key only
+    dbId: number        // backend ID
     subcategoryName: string
     description: string
     subcategories: SubcategoryRow[]
@@ -42,11 +43,11 @@ type SubcategoryItemProps = {
     index: number
     onAdd: (parentId: string) => void
     onRemove: (id: string) => void
-    onUpdate: (id: string, field: keyof Omit<SubcategoryRow, "id" | "subcategories">, value: string) => void
+    onUpdate: (id: string, field: keyof Omit<SubcategoryRow, "id" | "dbId" | "subcategories">, value: string) => void
 }
 
 function SubcategoryItem({ sub, level, index, onAdd, onRemove, onUpdate }: SubcategoryItemProps) {
-    const maxLevels = 4 // Cat (0) -> Sub (1) -> Sub (2) -> Sub (3) -> Sub (4)
+    const maxLevels = 4
 
     return (
         <div className={`relative grid gap-3 p-4 border rounded-lg bg-muted/20 mt-2 ${level > 1 ? "ml-6 border-l-4 border-l-primary/30" : ""}`}>
@@ -98,7 +99,7 @@ function SubcategoryItem({ sub, level, index, onAdd, onRemove, onUpdate }: Subca
                 <div className="grid gap-1.5">
                     <Label className="text-[11px] font-medium text-muted-foreground">Description</Label>
                     <Input
-                        placeholder="Optional details"
+                        placeholder="Short description..."
                         value={sub.description}
                         onChange={e => onUpdate(sub.id, "description", e.target.value)}
                         className="h-9"
@@ -125,99 +126,149 @@ function SubcategoryItem({ sub, level, index, onAdd, onRemove, onUpdate }: Subca
     )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Main Page Component ──────────────────────────────────────────────────────
 
-export default function AddCategoryPage() {
+export default function EditCategoryPage() {
     const router = useRouter()
-    const [isLoading, setIsLoading] = React.useState(false)
+    const { id } = useParams()
+    
+    const [isLoading, setIsLoading] = React.useState(true)
+    const [isSaving, setIsSaving] = React.useState(false)
 
-    // Category fields
     const [categoryName, setCategoryName] = React.useState("")
     const [description, setDescription] = React.useState("")
     const [status, setStatus] = React.useState(true)
+    const [subcategories, setSubcategories] = React.useState<SubcategoryRow[]>([])
 
-    // Subcategory rows
-    const [subcategories, setSubcategories] = React.useState<SubcategoryRow[]>([
-        { id: `root-${Date.now()}`, subcategoryName: "", description: "", subcategories: [] },
-    ])
+    React.useEffect(() => {
+        const fetchCategory = async () => {
+            try {
+                const res = await categoriesApi.getById(id as string)
+                const data = res.data || res
+                
+                setCategoryName(data.categoryName || "")
+                setDescription(data.description || "")
+                setStatus(data.status ?? true)
+                
+                // Map subcategories recursively
+                const mapIncomingSubs = (subs: any[]): SubcategoryRow[] => {
+                    return (subs || []).map(s => ({
+                        id: Math.random().toString(36).substr(2, 9),
+                        dbId: s.subcategoryId,
+                        subcategoryName: s.subcategoryName,
+                        description: s.description || "",
+                        subcategories: mapIncomingSubs(s.subcategories)
+                    }))
+                }
+                
+                setSubcategories(mapIncomingSubs(data.subcategories))
+            } catch (err: any) {
+                toast.error(`Failed to load category: ${err.message}`)
+                router.push("/system/masters/categories")
+            } finally {
+                setIsLoading(false)
+            }
+        }
+        fetchCategory()
+    }, [id, router])
+
+    // ─── Helpers ───────────────────────────────────────────────────────────────
 
     const addSubcategory = (parentId?: string) => {
-        const newSub = { id: `sub-${Date.now()}`, subcategoryName: "", description: "", subcategories: [] }
-        
-        if (!parentId) {
-            setSubcategories(prev => [...prev, newSub])
-            return
+        const newSub: SubcategoryRow = {
+            id: Math.random().toString(36).substr(2, 9),
+            dbId: 0,
+            subcategoryName: "",
+            description: "",
+            subcategories: []
         }
 
-        const addToNested = (list: SubcategoryRow[]): SubcategoryRow[] => {
-            return list.map(sub => {
-                if (sub.id === parentId) {
-                    return { ...sub, subcategories: [...sub.subcategories, newSub] }
-                }
-                return { ...sub, subcategories: addToNested(sub.subcategories) }
-            })
+        if (!parentId) {
+            setSubcategories(prev => [...prev, newSub])
+        } else {
+            const addToNested = (list: SubcategoryRow[]): SubcategoryRow[] => {
+                return list.map(item => {
+                    if (item.id === parentId) {
+                        return { ...item, subcategories: [...item.subcategories, newSub] }
+                    }
+                    if (item.subcategories.length > 0) {
+                        return { ...item, subcategories: addToNested(item.subcategories) }
+                    }
+                    return item
+                })
+            }
+            setSubcategories(prev => addToNested(prev))
         }
-        setSubcategories(prev => addToNested(prev))
     }
 
     const removeSubcategory = (id: string) => {
         const removeFromNested = (list: SubcategoryRow[]): SubcategoryRow[] => {
             return list
-                .filter(sub => sub.id !== id)
-                .map(sub => ({ ...sub, subcategories: removeFromNested(sub.subcategories) }))
+                .filter(item => item.id !== id)
+                .map(item => ({
+                    ...item,
+                    subcategories: removeFromNested(item.subcategories)
+                }))
         }
         setSubcategories(prev => removeFromNested(prev))
     }
 
-    const updateSubcategory = (id: string, field: keyof Omit<SubcategoryRow, "id" | "subcategories">, value: string) => {
-        const updateInNested = (list: SubcategoryRow[]): SubcategoryRow[] => {
-            return list.map(sub => {
-                if (sub.id === id) {
-                    return { ...sub, [field]: value }
+    const updateSubcategory = (id: string, field: keyof Omit<SubcategoryRow, "id" | "dbId" | "subcategories">, value: string) => {
+        const updateNested = (list: SubcategoryRow[]): SubcategoryRow[] => {
+            return list.map(item => {
+                if (item.id === id) {
+                    return { ...item, [field]: value }
                 }
-                return { ...sub, subcategories: updateInNested(sub.subcategories) }
+                if (item.subcategories.length > 0) {
+                    return { ...item, subcategories: updateNested(item.subcategories) }
+                }
+                return item
             })
         }
-        setSubcategories(prev => updateInNested(prev))
+        setSubcategories(prev => updateNested(prev))
     }
 
-    // ─── Submit ───────────────────────────────────────────────────────────────
+    const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        setIsSaving(true)
 
-    async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault()
-        setIsLoading(true)
-
-        const mapSubcategories = (list: SubcategoryRow[]): any => {
+        const mapSubcategoriesForPayload = (list: SubcategoryRow[], parentSubId: number = 0): any => {
             return list.map(s => ({
-                subcategoryId: 0,
-                categoryId: 0,
-                parentSubcategoryId: 0,
+                subcategoryId: s.dbId,
+                categoryId: Number(id),
+                parentSubcategoryId: parentSubId,
                 subcategoryName: s.subcategoryName,
                 description: s.description,
-                subcategories: mapSubcategories(s.subcategories)
+                subcategories: mapSubcategoriesForPayload(s.subcategories, s.dbId)
             }))
         }
 
         const payload = {
-            categoryId: 0,
+            categoryId: Number(id),
             categoryName,
             description,
             status,
-            subcategories: mapSubcategories(subcategories),
+            subcategories: mapSubcategoriesForPayload(subcategories),
         }
 
         try {
-            await categoriesApi.create(payload)
-            toast.success("Category created successfully!")
+            await categoriesApi.update(id as string, payload)
+            toast.success("Category updated successfully!")
             router.push("/system/masters/categories")
         } catch (err: any) {
-            toast.error(`Failed to create category: ${err.message || "Something went wrong"}`)
+            toast.error(`Failed to update category: ${err.message || "Something went wrong"}`)
         } finally {
-            setIsLoading(false)
+            setIsSaving(false)
         }
     }
 
-    // ─── UI ───────────────────────────────────────────────────────────────────
+    if (isLoading) {
+        return (
+            <div className="flex h-[60vh] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
+    }
 
     return (
         <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-10">
@@ -227,9 +278,9 @@ export default function AddCategoryPage() {
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Add Category</h1>
+                    <h1 className="text-3xl font-bold tracking-tight">Edit Category</h1>
                     <p className="text-muted-foreground">
-                        Create a new product category and define its sub-classifications.
+                        Update classification details and manage nested sub-categories.
                     </p>
                 </div>
             </div>
@@ -243,9 +294,6 @@ export default function AddCategoryPage() {
                                 <Layers className="h-5 w-5 text-primary" />
                                 Category Details
                             </CardTitle>
-                            <CardDescription>
-                                Main classification for your products or services.
-                            </CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-6">
                             <div className="grid gap-2">
@@ -295,7 +343,7 @@ export default function AddCategoryPage() {
                                     Subcategories
                                 </CardTitle>
                                 <CardDescription>
-                                    Define specific types or groups within this category.
+                                    Manage nested hierarchies for this category.
                                 </CardDescription>
                             </div>
                             <Button type="button" variant="outline" size="sm" onClick={() => addSubcategory()}>
@@ -306,7 +354,7 @@ export default function AddCategoryPage() {
                         <CardContent className="grid gap-4 pt-4">
                             {subcategories.length === 0 ? (
                                 <p className="text-sm text-muted-foreground text-center py-6">
-                                    No subcategories added yet. Click &quot;Add Subcategory&quot; to begin.
+                                    No subcategories defined.
                                 </p>
                             ) : (
                                 subcategories.map((sub, index) => (
@@ -326,13 +374,13 @@ export default function AddCategoryPage() {
 
                     {/* Action buttons */}
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => router.back()} disabled={isSaving}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isLoading} className="px-8 font-semibold">
-                            <Save className="mr-2 h-4 w-4" />
-                            {isLoading ? "Saving..." : "Save Category"}
+                        <Button type="submit" disabled={isSaving} className="px-8 font-semibold">
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                            {isSaving ? "Updating..." : "Update Category"}
                         </Button>
                     </div>
                 </div>

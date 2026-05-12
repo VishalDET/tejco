@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Save, X, Loader2 } from "lucide-react"
+import { useRouter, useParams } from "next/navigation"
+import { ArrowLeft, Save, X, Loader2, AlertCircle } from "lucide-react"
 
 import { apiClient, usersApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,6 @@ import {
     Card,
     CardContent,
     CardDescription,
-    CardFooter,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
@@ -24,6 +23,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { toast } from "sonner"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 // --- Types ---
 type MasterItem = {
@@ -31,10 +31,42 @@ type MasterItem = {
     name: string
 }
 
-export default function AddUserPage() {
+type ApiUser = {
+    userId: number
+    firstName: string
+    lastName: string
+    gender: string
+    employeeId: string
+    email: string
+    phone: string
+    companyId: number
+    branchId: number
+    departmentId: number
+    role: string
+    handlerId: number
+    status: string
+    lastLogin: string | null
+    imageUrl: string | null
+    passwordHash: string | null
+    createdAt: string
+    updatedAt: string | null
+}
+
+type ApiResponse<T> = {
+    statusCode: number
+    success: boolean
+    message: string
+    data: T
+}
+
+export default function EditUserPage() {
     const router = useRouter()
+    const params = useParams()
+    const userId = params.id as string
+
     const [isLoading, setIsLoading] = React.useState(false)
     const [isFetching, setIsFetching] = React.useState(true)
+    const [error, setError] = React.useState<string | null>(null)
 
     // Master Data
     const [companies, setCompanies] = React.useState<MasterItem[]>([])
@@ -55,41 +87,62 @@ export default function AddUserPage() {
         role: "User",
         handlerId: "",
         status: "Active",
-        password: "",
+        password: "", // Optional in edit
     })
 
+    const [originalUser, setOriginalUser] = React.useState<ApiUser | null>(null)
+
     React.useEffect(() => {
-        async function fetchMasterData() {
+        async function fetchData() {
             try {
-                const [comps, brs] = await Promise.all([
+                const [comps, brs, userRes] = await Promise.all([
                     apiClient.get<MasterItem[]>("/api/SystemMasters/companies"),
                     apiClient.get<MasterItem[]>("/api/SystemMasters/branches"),
+                    usersApi.getById(userId)
                 ])
                 
                 setCompanies(comps.map(c => ({ id: c.id, name: c.name || (c as any).registeredName })))
                 setBranches(brs.map(b => ({ id: b.id, name: b.name })))
-                // Mocking departments for now as there's no clear API yet, or using static list if none
                 setDepartments([
-                    { id: "admin", name: "Administration" },
-                    { id: "sales", name: "Sales" },
-                    { id: "inventory", name: "Inventory" },
-                    { id: "manufacturing", name: "Manufacturing" },
+                    { id: "1", name: "Administration" },
+                    { id: "2", name: "Sales" },
+                    { id: "3", name: "Inventory" },
+                    { id: "4", name: "Manufacturing" },
                 ])
-            } catch (err) {
-                toast.error("Failed to load organizational data")
+
+                const userData = userRes.data || userRes // Handle if wrapped in data or not
+                setOriginalUser(userData)
+                setFormData({
+                    firstName: userData.firstName,
+                    lastName: userData.lastName,
+                    gender: userData.gender,
+                    employeeId: userData.employeeId,
+                    email: userData.email,
+                    phone: userData.phone,
+                    companyId: String(userData.companyId),
+                    branchId: String(userData.branchId),
+                    departmentId: String(userData.departmentId),
+                    role: userData.role,
+                    handlerId: String(userData.handlerId),
+                    status: userData.status,
+                    password: "", // Don't show password hash
+                })
+            } catch (err: any) {
+                setError(err.message || "Failed to load data")
+                toast.error("Failed to load user details")
             } finally {
                 setIsFetching(false)
             }
         }
-        fetchMasterData()
-    }, [])
+        fetchData()
+    }, [userId])
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
 
         const payload = {
-            userId: 0,
+            ...originalUser,
             firstName: formData.firstName,
             lastName: formData.lastName,
             gender: formData.gender,
@@ -102,35 +155,59 @@ export default function AddUserPage() {
             role: formData.role,
             handlerId: parseInt(formData.handlerId) || 0,
             status: formData.status,
-            lastLogin: new Date().toISOString(),
-            imageUrl: "",
-            passwordHash: formData.password,
-            createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         }
 
+        // Only update password if provided
+        if (formData.password) {
+            (payload as any).passwordHash = formData.password
+        }
+
         try {
-            await usersApi.create(payload)
-            toast.success("User created successfully")
+            await usersApi.update(userId, payload)
+            toast.success("User updated successfully")
             router.push("/system/masters/users")
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
-            toast.error(`Failed to create user: ${message}`)
+            toast.error(`Failed to update user: ${message}`)
         } finally {
             setIsLoading(false)
         }
     }
 
+    if (isFetching) {
+        return (
+            <div className="flex h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
+    }
+
+    if (error) {
+        return (
+            <div className="max-w-4xl mx-auto mt-10">
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+                <Button variant="outline" className="mt-4" onClick={() => router.back()}>
+                    <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
+                </Button>
+            </div>
+        )
+    }
+
     return (
-        <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+        <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="icon" onClick={() => router.back()}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Add User / Employee</h1>
-                        <p className="text-muted-foreground">Fill in the details to create a new system user and link them to organizational units.</p>
+                        <h1 className="text-3xl font-bold tracking-tight">Edit User / Employee</h1>
+                        <p className="text-muted-foreground">Modify details for {formData.firstName} {formData.lastName}.</p>
                     </div>
                 </div>
             </div>
@@ -150,7 +227,6 @@ export default function AddUserPage() {
                                     <Label htmlFor="firstName">First Name</Label>
                                     <Input 
                                         id="firstName" 
-                                        placeholder="Enter first name" 
                                         required 
                                         value={formData.firstName}
                                         onChange={(e) => setFormData({...formData, firstName: e.target.value})}
@@ -160,7 +236,6 @@ export default function AddUserPage() {
                                     <Label htmlFor="lastName">Last Name</Label>
                                     <Input 
                                         id="lastName" 
-                                        placeholder="Enter last name" 
                                         required 
                                         value={formData.lastName}
                                         onChange={(e) => setFormData({...formData, lastName: e.target.value})}
@@ -189,7 +264,6 @@ export default function AddUserPage() {
                                     <Label htmlFor="employeeId">Employee ID</Label>
                                     <Input 
                                         id="employeeId" 
-                                        placeholder="EMP-000" 
                                         required 
                                         value={formData.employeeId}
                                         onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
@@ -213,7 +287,6 @@ export default function AddUserPage() {
                                     <Input 
                                         id="email" 
                                         type="email" 
-                                        placeholder="email@tejco.com" 
                                         required 
                                         value={formData.email}
                                         onChange={(e) => setFormData({...formData, email: e.target.value})}
@@ -224,7 +297,6 @@ export default function AddUserPage() {
                                     <Input 
                                         id="phone" 
                                         type="tel" 
-                                        placeholder="+91 XXXXX XXXXX" 
                                         required 
                                         value={formData.phone}
                                         onChange={(e) => setFormData({...formData, phone: e.target.value})}
@@ -240,7 +312,7 @@ export default function AddUserPage() {
                                         onValueChange={(val) => setFormData({...formData, companyId: val ?? ""})}
                                     >
                                         <SelectTrigger id="company">
-                                            <SelectValue placeholder={isFetching ? "Loading..." : "Select company"} />
+                                            <SelectValue placeholder="Select company" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {companies.map(c => (
@@ -258,7 +330,7 @@ export default function AddUserPage() {
                                             onValueChange={(val) => setFormData({...formData, branchId: val ?? ""})}
                                         >
                                             <SelectTrigger id="location">
-                                                <SelectValue placeholder={isFetching ? "Loading..." : "Select branch"} />
+                                                <SelectValue placeholder="Select branch" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {branches.map(b => (
@@ -310,7 +382,6 @@ export default function AddUserPage() {
                                     <Label htmlFor="handlerId">Handler (ID)</Label>
                                     <Input 
                                         id="handlerId" 
-                                        placeholder="Enter superior/handler ID" 
                                         value={formData.handlerId}
                                         onChange={(e) => setFormData({...formData, handlerId: e.target.value})}
                                     />
@@ -329,12 +400,11 @@ export default function AddUserPage() {
                         <CardContent className="grid gap-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="password">Password <span className="text-destructive">*</span></Label>
+                                    <Label htmlFor="password">Change Password</Label>
                                     <Input 
                                         id="password" 
                                         type="password" 
-                                        placeholder="Set initial password"
-                                        required
+                                        placeholder="Leave blank to keep current"
                                         value={formData.password}
                                         onChange={(e) => setFormData({...formData, password: e.target.value})}
                                     />
@@ -364,9 +434,9 @@ export default function AddUserPage() {
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isLoading || isFetching}>
+                        <Button type="submit" disabled={isLoading}>
                             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            {isLoading ? "Saving..." : "Create User / Employee"}
+                            {isLoading ? "Saving..." : "Update User / Employee"}
                         </Button>
                     </div>
                 </div>

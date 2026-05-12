@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Search, Bell, Plus, User, LogOut, Settings as SettingsIcon } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -15,8 +16,30 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { toast } from "sonner"
 
 export function TopNav() {
+    const router = useRouter()
+    const [user, setUser] = React.useState<any>(null)
+
+    React.useEffect(() => {
+        const storedUser = localStorage.getItem("tejco_user")
+        if (storedUser) {
+            setUser(JSON.parse(storedUser))
+        }
+    }, [])
+
+    const handleLogout = () => {
+        localStorage.removeItem("tejco_auth_token")
+        localStorage.removeItem("tejco_user")
+        toast.success("Logged out successfully")
+        router.push("/login")
+    }
+
+    const userName = user ? `${user.firstName} ${user.lastName}` : "Admin User"
+    const userEmail = user ? user.email : "admin@tejco.com"
+    const userInitials = user ? `${user.firstName?.[0]}${user.lastName?.[0]}` : "AD"
+
     return (
         <header className="sticky top-0 z-30 flex h-16 w-full shrink-0 items-center justify-between border-b bg-background px-4 sm:px-6">
             <div className="flex items-center gap-4">
@@ -45,8 +68,8 @@ export function TopNav() {
                         render={
                             <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                                 <Avatar className="h-8 w-8">
-                                    <AvatarImage src="/avatars/01.png" alt="@admin" />
-                                    <AvatarFallback>AD</AvatarFallback>
+                                    <AvatarImage src={user?.imageUrl} alt={userName} />
+                                    <AvatarFallback>{userInitials}</AvatarFallback>
                                 </Avatar>
                             </Button>
                         }
@@ -54,12 +77,12 @@ export function TopNav() {
                     <DropdownMenuContent className="w-56" align="end">
                         <DropdownMenuLabel className="font-normal">
                             <div className="flex flex-col space-y-1">
-                                <p className="text-sm font-medium leading-none">Admin User</p>
-                                <p className="text-xs leading-none text-muted-foreground">admin@tejco.com</p>
+                                <p className="text-sm font-medium leading-none">{userName}</p>
+                                <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
                             </div>
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => router.push("/system/profile")}>
                             <User className="mr-2 h-4 w-4" />
                             <span>Profile</span>
                         </DropdownMenuItem>
@@ -68,7 +91,7 @@ export function TopNav() {
                             <span>Settings</span>
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-destructive">
+                        <DropdownMenuItem className="text-destructive" onClick={handleLogout}>
                             <LogOut className="mr-2 h-4 w-4" />
                             <span>Log out</span>
                         </DropdownMenuItem>

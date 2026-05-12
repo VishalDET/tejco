@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { SalesDocument, SalesDocumentItem, SalesDocumentStatus } from "../types"
+import { Quotation } from "./types"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -14,18 +15,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Plus, Trash2, FileText, Calculator } from "lucide-react"
 import { ClientSelector } from "@/components/sales/client-selector"
 import { ProductSelector } from "@/components/sales/product-selector"
+import { quotationsApi, serializeAddress } from "@/lib/api"
+import { toast } from "sonner"
 
 interface QuotationFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  quotation: SalesDocument | null
-  onSave: (data: Partial<SalesDocument>) => void
+  quotation: Quotation | null
+  onSave: (data: Partial<Quotation>) => void
 }
 
 const GST_RATES = [0, 5, 12, 18, 28]
 
 export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: QuotationFormDialogProps) {
-  const [form, setForm] = useState<Partial<SalesDocument>>({})
+  const [form, setForm] = useState<Partial<Quotation>>({})
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -37,11 +40,16 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
       setForm({
         number: `QUO-${year}-${random}`,
         date: new Date().toISOString().split('T')[0],
+        validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         status: "Draft",
         items: [],
         subtotal: 0,
         taxAmount: 0,
         totalAmount: 0,
+        validityDays: 7,
+        deliveryTime: "10-15 Working Days",
+        salesPersonName: "Ravi Kumar",
+        salesPersonCell: "+91-8888888888"
       })
     }
   }, [quotation, open])
@@ -53,7 +61,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     return { subtotal, taxAmount, totalAmount }
   }
 
-  const set = (field: keyof SalesDocument, value: any) => {
+  const set = (field: keyof Quotation, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -62,11 +70,13 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
       id: Math.random().toString(36).substring(2, 9).slice(0, 8),
       productId: product.productId.toString(),
       productName: product.productName,
+      name: variant.variantName,
       sku: `${product.baseSKU}${variant.skuSuffix}`,
       quantity: 1,
       unitPrice: variant.sellingPrice,
       total: variant.sellingPrice,
-      gstRate: 18, // Default GST
+      gstRate: variant.gstPercentage ?? 18,
+      imageUrl: product.imageUrl || "" 
     }
     const newItems = [...(form.items || []), newItem]
     const totals = calculateTotals(newItems)
@@ -97,11 +107,52 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
   const handleSave = async () => {
     if (!form.clientId || (form.items || []).length === 0) return
     setIsSaving(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800))
-    onSave(form)
-    setIsSaving(false)
-    onOpenChange(false)
+    
+    try {
+      // Map frontend state to API payload
+      const payload = {
+        quotationId: quotation?.id && !isNaN(parseInt(quotation.id)) ? parseInt(quotation.id) : 0,
+        quotationNumber: form.number || "",
+        quotationDate: new Date(form.date || new Date()).toISOString(),
+        clientName: form.clientName || "",
+        clientAddress: form.billingAddress || "",
+        clientMobileNo: quotation?.clientMobileNo || "", 
+        subject: form.subject || form.notes || "", 
+        gstinNo: form.gstinNo || "",
+        validityDays: form.validityDays || 7,
+        deliveryTime: form.deliveryTime || "7-10 Days",
+        salesPersonName: form.salesPersonName || "Admin",
+        salesPersonCell: form.salesPersonCell || "",
+        createdAt: new Date().toISOString(),
+        updatedAt: null,
+        items: (form.items || []).map(item => ({
+          quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
+          quotationId: quotation?.id && !isNaN(parseInt(quotation.id)) ? parseInt(quotation.id) : 0,
+          productName: item.productName || "",
+          itemName: item.name || "",
+          imageUrl: (item as any).imageUrl || "",
+          price: item.unitPrice || 0,
+          gstPercentage: item.gstRate || 0,
+          quantity: item.quantity || 0
+        }))
+      }
+
+      if (quotation?.id && !isNaN(parseInt(quotation.id))) {
+        await quotationsApi.update(quotation.id, payload)
+        toast.success("Quotation updated successfully")
+      } else {
+        await quotationsApi.create(payload)
+        toast.success("Quotation created successfully")
+      }
+      
+      onSave(form)
+      onOpenChange(false)
+    } catch (error) {
+      console.error("Failed to save quotation:", error)
+      toast.error("Failed to save quotation. Please try again.")
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -120,15 +171,15 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <Label>Quotation Number</Label>
-                <Input value={form.number} disabled className="bg-muted" />
+                <Input value={form.number || ""} disabled className="bg-muted" />
               </div>
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+                <Input type="date" value={form.date || ""} onChange={(e) => set("date", e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Valid Until</Label>
-                <Input type="date" value={form.validUntil} onChange={(e) => set("validUntil", e.target.value)} />
+                <Input type="date" value={form.validUntil || ""} onChange={(e) => set("validUntil", e.target.value)} />
               </div>
             </div>
 
@@ -140,8 +191,9 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   onSelect={(c) => {
                     set("clientId", c.id)
                     set("clientName", c.name)
-                    set("billingAddress", c.billingAddress)
-                    set("shippingAddress", c.shippingAddress)
+                    set("billingAddress", serializeAddress(c.billingAddress))
+                    set("shippingAddress", serializeAddress(c.shippingAddress))
+                    set("gstinNo", c.gstin)
                   }} 
                 />
               </div>
@@ -196,7 +248,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                             <Input 
                               type="number" 
                               min="1" 
-                              value={item.quantity} 
+                              value={item.quantity ?? ""} 
                               onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 0)}
                               className="h-8 text-center"
                             />
@@ -204,7 +256,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                           <TableCell>
                             <Input 
                               type="number" 
-                              value={item.unitPrice} 
+                              value={item.unitPrice ?? ""} 
                               onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
                               className="h-8 text-right"
                             />
@@ -251,7 +303,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   <Textarea 
                     placeholder="Full billing address..." 
                     rows={2} 
-                    value={form.billingAddress} 
+                    value={form.billingAddress || ""} 
                     onChange={(e) => set("billingAddress", e.target.value)} 
                   />
                 </div>
@@ -260,7 +312,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   <Textarea 
                     placeholder="Full shipping address..." 
                     rows={2} 
-                    value={form.shippingAddress} 
+                    value={form.shippingAddress || ""} 
                     onChange={(e) => set("shippingAddress", e.target.value)} 
                   />
                 </div>
@@ -291,7 +343,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
               <Label>Notes / Terms & Conditions</Label>
               <Textarea 
                 placeholder="Validity period, payment terms, or other instructions..." 
-                value={form.notes} 
+                value={form.notes || ""} 
                 onChange={(e) => set("notes", e.target.value)} 
               />
             </div>

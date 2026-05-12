@@ -18,8 +18,9 @@ import {
     AlertCircle,
 } from "lucide-react"
 
-import { apiClient } from "@/lib/api-client"
+import { apiClient, categoriesApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -37,8 +38,16 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 
 // ─── API response types ───────────────────────────────────────────────────────
 
@@ -67,12 +76,23 @@ export type Category = {
     status: "Active" | "Inactive"
 }
 
+function countSubcategories(subs: any[]): number {
+    if (!subs) return 0
+    let count = subs.length
+    subs.forEach(s => {
+        if (s.subcategories) {
+            count += countSubcategories(s.subcategories)
+        }
+    })
+    return count
+}
+
 function mapApiCategory(c: ApiCategory): Category {
     return {
         id: String(c.categoryId),
         name: c.categoryName,
         description: c.description,
-        subcategoriesCount: c.subcategories?.length ?? 0,
+        subcategoriesCount: countSubcategories(c.subcategories),
         status: c.status ? "Active" : "Inactive",
     }
 }
@@ -109,27 +129,34 @@ export const columns: ColumnDef<Category>[] = [
     {
         id: "actions",
         enableHiding: false,
-        cell: ({ row }) => {
+        cell: ({ row, table }) => {
+            const category = row.original
+            const meta = table.options.meta as { onDelete: (id: string) => void }
             return (
                 <DropdownMenu>
                     <DropdownMenuTrigger
                         render={
                             <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         }
                     />
                     <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => window.location.href = `/system/masters/categories/${row.original.id}`}>
-                            View details
+                        <DropdownMenuItem 
+                            onClick={() => window.location.href = `/system/masters/categories/${category.id}/edit`}
+                        >
+                            Edit category
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.id)}>
-                            Copy ID
-                        </DropdownMenuItem>
+                        <DropdownMenuItem>View products</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>Edit details</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Deactivate</DropdownMenuItem>
+                        <DropdownMenuItem 
+                            className="text-destructive"
+                            onClick={() => meta.onDelete(category.id)}
+                        >
+                            Delete category
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             )
@@ -143,20 +170,44 @@ export default function CategoriesPage() {
     const [data, setData] = React.useState<Category[]>([])
     const [loading, setLoading] = React.useState(true)
     const [error, setError] = React.useState<string | null>(null)
+    
+    const [isDeleting, setIsDeleting] = React.useState(false)
+    const [categoryToDelete, setCategoryToDelete] = React.useState<string | null>(null)
 
     React.useEffect(() => {
-        apiClient
-            .get<ApiCategory[]>("/api/Category/GetAll")
-            .then((res) => setData(res.map(mapApiCategory)))
+        categoriesApi
+            .getAll()
+            .then(res => {
+                const data = Array.isArray(res) ? res : (res as any).data || []
+                setData(data.map(mapApiCategory))
+            })
             .catch((err: Error) => setError(err.message))
             .finally(() => setLoading(false))
     }, [])
+
+    const handleDelete = async () => {
+        if (!categoryToDelete) return
+        setIsDeleting(true)
+        try {
+            await categoriesApi.remove(categoryToDelete)
+            setData(prev => prev.filter(c => c.id !== categoryToDelete))
+            toast.success("Category deleted successfully")
+            setCategoryToDelete(null)
+        } catch (err: any) {
+            toast.error(`Failed to delete category: ${err.message}`)
+        } finally {
+            setIsDeleting(false)
+        }
+    }
 
     const table = useReactTable({
         data,
         columns,
         getCoreRowModel: getCoreRowModel(),
         getPaginationRowModel: getPaginationRowModel(),
+        meta: {
+            onDelete: (id: string) => setCategoryToDelete(id),
+        }
     })
 
     return (
@@ -237,6 +288,27 @@ export default function CategoriesPage() {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog open={!!categoryToDelete} onOpenChange={() => !isDeleting && setCategoryToDelete(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Are you absolutely sure?</DialogTitle>
+                        <DialogDescription>
+                            This action cannot be undone. This will permanently delete the category
+                            and all its nested subcategories.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCategoryToDelete(null)} disabled={isDeleting}>
+                            Cancel
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={isDeleting}>
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Delete Category
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

@@ -31,11 +31,14 @@ async function request<T>(
     console.log(`[apiClient] Fetching: ${API_BASE_URL}${path}`)
   }
 
+  const token = typeof window !== "undefined" ? localStorage.getItem("tejco_auth_token") : null
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -46,6 +49,7 @@ async function request<T>(
     let data = null
     try {
       data = await res.json()
+      console.error(`[apiClient] Error ${res.status} on ${path}:`, data)
       message = data?.message ?? data?.title ?? message
     } catch {
       // ignore parse errors
