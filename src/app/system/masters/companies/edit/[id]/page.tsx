@@ -18,24 +18,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ContactPerson = {
-    id: number // local-only key for UI
-    name: string
-    mobile: string
-    email: string
-    designation: string
-    role: string
-}
-
-type OfficeLocation = {
-    id: number // local-only key for UI
-    locationName: string
-    address: string
-    contactNo: string
-}
-
 type CompanyDetail = {
     companyId: number
     registeredName: string
@@ -44,9 +26,6 @@ type CompanyDetail = {
     corporateWebsite: string
     mainContactNumber: string
     registeredAddress: string
-    defaultShippingAddress: string
-    officeLocations: OfficeLocation[]
-    contactPersons: ContactPerson[]
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -66,11 +45,6 @@ export default function EditCompanyPage() {
     const [corporateWebsite, setCorporateWebsite] = React.useState("")
     const [mainContactNumber, setMainContactNumber] = React.useState("")
     const [registeredAddress, setRegisteredAddress] = React.useState("")
-    const [defaultShippingAddress, setDefaultShippingAddress] = React.useState("")
-
-    // Dynamic Lists
-    const [contactPersons, setContactPersons] = React.useState<ContactPerson[]>([])
-    const [officeLocations, setOfficeLocations] = React.useState<OfficeLocation[]>([])
 
     // Load initial data
     React.useEffect(() => {
@@ -83,11 +57,6 @@ export default function EditCompanyPage() {
                 setCorporateWebsite(data.corporateWebsite || "")
                 setMainContactNumber(data.mainContactNumber || "")
                 setRegisteredAddress(data.registeredAddress || "")
-                setDefaultShippingAddress(data.defaultShippingAddress || "")
-                
-                // Map incoming arrays to include local IDs for React keys
-                setContactPersons(data.contactPersons?.map(cp => ({ ...cp, id: Math.random() })) || [])
-                setOfficeLocations(data.officeLocations?.map(ol => ({ ...ol, id: Math.random() })) || [])
             } catch (err: unknown) {
                 toast.error("Failed to load company data")
                 router.back()
@@ -98,29 +67,6 @@ export default function EditCompanyPage() {
         if (id) fetchCompany()
     }, [id, router])
 
-    const addContact = () => {
-        setContactPersons(prev => [...prev, { id: Date.now(), name: "", mobile: "", email: "", designation: "", role: "" }])
-    }
-
-    const removeContact = (id: number) => {
-        setContactPersons(prev => prev.filter(c => c.id !== id))
-    }
-
-    const updateContact = (id: number, field: keyof ContactPerson, value: string) => {
-        setContactPersons(prev => prev.map(c => c.id === id ? { ...c, [field]: value } : c))
-    }
-
-    const addLocation = () => {
-        setOfficeLocations(prev => [...prev, { id: Date.now(), locationName: "", address: "", contactNo: "" }])
-    }
-
-    const removeLocation = (id: number) => {
-        setOfficeLocations(prev => prev.filter(l => l.id !== id))
-    }
-
-    const updateLocation = (id: number, field: keyof OfficeLocation, value: string) => {
-        setOfficeLocations(prev => prev.map(l => l.id === id ? { ...l, [field]: value } : l))
-    }
 
     // ─── Submit ───────────────────────────────────────────────────────────────
 
@@ -136,9 +82,6 @@ export default function EditCompanyPage() {
             corporateWebsite,
             mainContactNumber,
             registeredAddress,
-            defaultShippingAddress,
-            officeLocations: officeLocations.map(({ id, ...rest }) => rest),
-            contactPersons: contactPersons.map(({ id, ...rest }) => rest),
         }
 
         try {
@@ -238,151 +181,12 @@ export default function EditCompanyPage() {
                                 <Label htmlFor="registeredAddress">Registered Address <span className="text-destructive">*</span></Label>
                                 <Textarea
                                     id="registeredAddress"
-                                    rows={2}
+                                    rows={3}
                                     required
                                     value={registeredAddress}
                                     onChange={e => setRegisteredAddress(e.target.value)}
                                 />
                             </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="defaultShippingAddress">Default Shipping Address</Label>
-                                <Textarea
-                                    id="defaultShippingAddress"
-                                    rows={2}
-                                    value={defaultShippingAddress}
-                                    onChange={e => setDefaultShippingAddress(e.target.value)}
-                                />
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Contact Persons */}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="flex items-center gap-2 text-lg text-blue-600">
-                                <UserPlus className="h-5 w-5" />
-                                Contact Persons
-                            </CardTitle>
-                            <Button type="button" variant="outline" size="sm" onClick={addContact}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Person
-                            </Button>
-                        </CardHeader>
-                        <CardContent className="grid gap-6">
-                            {contactPersons.map((contact, index) => (
-                                <div key={contact.id} className="relative grid gap-4 p-4 border rounded-lg bg-muted/30">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Person #{index + 1}</span>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                            onClick={() => removeContact(contact.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="grid gap-2">
-                                            <Label>Full Name <span className="text-destructive">*</span></Label>
-                                            <Input
-                                                required
-                                                value={contact.name}
-                                                onChange={e => updateContact(contact.id, "name", e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label>Mobile <span className="text-destructive">*</span></Label>
-                                            <Input
-                                                required
-                                                value={contact.mobile}
-                                                onChange={e => updateContact(contact.id, "mobile", e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label>Email</Label>
-                                            <Input
-                                                type="email"
-                                                value={contact.email}
-                                                onChange={e => updateContact(contact.id, "email", e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label>Designation</Label>
-                                            <Input
-                                                value={contact.designation}
-                                                onChange={e => updateContact(contact.id, "designation", e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label>Role</Label>
-                                            <Input
-                                                value={contact.role}
-                                                onChange={e => updateContact(contact.id, "role", e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </CardContent>
-                    </Card>
-
-                    {/* Office Locations */}
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="flex items-center gap-2 text-lg text-emerald-600">
-                                <MapPin className="h-5 w-5" />
-                                Office Locations
-                            </CardTitle>
-                            <Button type="button" variant="outline" size="sm" onClick={addLocation}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Location
-                            </Button>
-                        </CardHeader>
-                        <CardContent className="grid gap-6">
-                            {officeLocations.map((loc, index) => (
-                                <div key={loc.id} className="relative grid gap-4 p-4 border rounded-lg bg-muted/30">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Location #{index + 1}</span>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                                            onClick={() => removeLocation(loc.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="grid gap-2">
-                                            <Label>Location Name <span className="text-destructive">*</span></Label>
-                                            <Input
-                                                required
-                                                value={loc.locationName}
-                                                onChange={e => updateLocation(loc.id, "locationName", e.target.value)}
-                                            />
-                                        </div>
-                                        <div className="grid gap-2">
-                                            <Label>Contact Number</Label>
-                                            <Input
-                                                value={loc.contactNo}
-                                                onChange={e => updateLocation(loc.id, "contactNo", e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label>Full Address <span className="text-destructive">*</span></Label>
-                                        <Textarea
-                                            rows={2}
-                                            required
-                                            value={loc.address}
-                                            onChange={e => updateLocation(loc.id, "address", e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
                         </CardContent>
                     </Card>
 

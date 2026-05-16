@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, Save, X, GitBranch, MapPin, User, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -29,14 +29,31 @@ import { toast } from "sonner"
 type CompanySummary = {
     id: number
     name: string
+    registeredName?: string
+}
+
+type Branch = {
+    id: number
+    companyId: number
+    name: string
+    company: string
+    city: string
+    manager: string
+    address: string
+    contactNumber: string
+    officialEmail: string
+    status: string
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function AddBranchPage() {
+export default function EditBranchPage() {
     const router = useRouter()
+    const params = useParams()
+    const branchIdFromParams = params.id as string
+
     const [isLoading, setIsLoading] = React.useState(false)
-    const [isFetchingCompanies, setIsFetchingCompanies] = React.useState(true)
+    const [isFetchingInitial, setIsFetchingInitial] = React.useState(true)
     const [companies, setCompanies] = React.useState<CompanySummary[]>([])
 
     // Form State
@@ -49,33 +66,49 @@ export default function AddBranchPage() {
     const [officialEmail, setOfficialEmail] = React.useState("")
     const [status, setStatus] = React.useState("Active")
 
-    // Fetch Companies for selection
+    // Fetch initial data
     React.useEffect(() => {
-        async function fetchCompanies() {
+        async function fetchData() {
             try {
-                // Assuming companies endpoint from previous task
-                const data = await apiClient.get<CompanySummary[]>("/api/SystemMasters/companies")
-                setCompanies(data)
+                const [companiesData, branchData] = await Promise.all([
+                    apiClient.get<CompanySummary[]>("/api/SystemMasters/companies"),
+                    apiClient.get<Branch>(`/api/SystemMasters/branches/${branchIdFromParams}`)
+                ])
+                
+                setCompanies(companiesData)
+                
+                // Populate form
+                if (branchData) {
+                    setName(branchData.name || "")
+                    setCompanyId((branchData.companyId || "").toString())
+                    setCity(branchData.city || "")
+                    setManager(branchData.manager || "")
+                    setAddress(branchData.address || "")
+                    setContactNumber(branchData.contactNumber || "")
+                    setOfficialEmail(branchData.officialEmail || "")
+                    setStatus(branchData.status || "Active")
+                }
             } catch (err: unknown) {
-                toast.error("Failed to load companies list")
+                toast.error("Failed to load branch details")
+                router.back()
             } finally {
-                setIsFetchingCompanies(false)
+                setIsFetchingInitial(false)
             }
         }
-        fetchCompanies()
-    }, [])
+        fetchData()
+    }, [branchIdFromParams, router])
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
 
-        const selectedCompany = companies.find(c => c.id.toString() === companyId)
+        const selectedCompany = companies.find(c => (c.id || (c as any).companyId)?.toString() === companyId)
 
         const payload = {
-            id: 0,
+            id: parseInt(branchIdFromParams),
             companyId: parseInt(companyId),
             name,
-            company: selectedCompany?.name || "",
+            company: selectedCompany?.name || selectedCompany?.registeredName || "",
             city,
             manager,
             address,
@@ -85,15 +118,23 @@ export default function AddBranchPage() {
         }
 
         try {
-            await apiClient.post("/api/SystemMasters/branches", payload)
-            toast.success("Branch created successfully")
+            await apiClient.put(`/api/SystemMasters/branches/${branchIdFromParams}`, payload)
+            toast.success("Branch updated successfully")
             router.push("/system/masters/branches")
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
-            toast.error(`Failed to create branch: ${message}`)
+            toast.error(`Failed to update branch: ${message}`)
         } finally {
             setIsLoading(false)
         }
+    }
+
+    if (isFetchingInitial) {
+        return (
+            <div className="flex h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
     }
 
     return (
@@ -104,8 +145,8 @@ export default function AddBranchPage() {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Add Branch</h1>
-                        <p className="text-muted-foreground">Create a new office location or branch office.</p>
+                        <h1 className="text-3xl font-bold tracking-tight">Edit Branch</h1>
+                        <p className="text-muted-foreground">Modify details for this office location.</p>
                     </div>
                 </div>
             </div>
@@ -136,17 +177,16 @@ export default function AddBranchPage() {
                                     required
                                     onValueChange={(val) => setCompanyId(val ?? "")}
                                     value={companyId}
-                                    disabled={isFetchingCompanies}
                                 >
                                     <SelectTrigger id="company">
-                                        <SelectValue placeholder={isFetchingCompanies ? "Loading companies..." : "Select company"}>
-                                            {companies.find(c => c.id.toString() === companyId)?.name}
+                                        <SelectValue placeholder="Select company">
+                                            {companies.find(c => (c.id || (c as any).companyId)?.toString() === companyId)?.name || companies.find(c => (c.id || (c as any).companyId)?.toString() === companyId)?.registeredName}
                                         </SelectValue>
                                     </SelectTrigger>
                                     <SelectContent>
                                         {companies.map(company => (
-                                            <SelectItem key={company.id} value={company.id.toString()}>
-                                                {company.name}
+                                            <SelectItem key={company.id || (company as any).companyId} value={(company.id || (company as any).companyId).toString()}>
+                                                {company.name || company.registeredName}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -240,13 +280,13 @@ export default function AddBranchPage() {
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>
-                        <Button type="submit" disabled={isLoading || isFetchingCompanies}>
+                        <Button type="submit" disabled={isLoading}>
                             {isLoading ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
                                 <Save className="mr-2 h-4 w-4" />
                             )}
-                            {isLoading ? "Saving..." : "Create Branch"}
+                            {isLoading ? "Saving..." : "Update Branch"}
                         </Button>
                     </div>
                 </div>

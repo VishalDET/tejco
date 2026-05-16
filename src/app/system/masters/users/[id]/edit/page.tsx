@@ -69,9 +69,9 @@ export default function EditUserPage() {
     const [error, setError] = React.useState<string | null>(null)
 
     // Master Data
-    const [companies, setCompanies] = React.useState<MasterItem[]>([])
-    const [branches, setBranches] = React.useState<MasterItem[]>([])
-    const [departments, setDepartments] = React.useState<MasterItem[]>([])
+    const [companies, setCompanies] = React.useState<any[]>([])
+    const [branches, setBranches] = React.useState<any[]>([])
+    const [departments, setDepartments] = React.useState<any[]>([])
 
     // Form State
     const [formData, setFormData] = React.useState({
@@ -95,20 +95,20 @@ export default function EditUserPage() {
     React.useEffect(() => {
         async function fetchData() {
             try {
-                const [comps, brs, userRes] = await Promise.all([
-                    apiClient.get<MasterItem[]>("/api/SystemMasters/companies"),
-                    apiClient.get<MasterItem[]>("/api/SystemMasters/branches"),
+                const [compsRes, brsRes, deptsRes, userRes] = await Promise.all([
+                    apiClient.get<any>("/api/SystemMasters/companies"),
+                    apiClient.get<any>("/api/SystemMasters/branches"),
+                    apiClient.get<any>("/api/SystemMasters/departments"),
                     usersApi.getById(userId)
                 ])
                 
-                setCompanies(comps.map(c => ({ id: c.id, name: c.name || (c as any).registeredName })))
-                setBranches(brs.map(b => ({ id: b.id, name: b.name })))
-                setDepartments([
-                    { id: "1", name: "Administration" },
-                    { id: "2", name: "Sales" },
-                    { id: "3", name: "Inventory" },
-                    { id: "4", name: "Manufacturing" },
-                ])
+                const comps = Array.isArray(compsRes) ? compsRes : (compsRes?.data || [])
+                const brs = Array.isArray(brsRes) ? brsRes : (brsRes?.data || [])
+                const depts = Array.isArray(deptsRes) ? deptsRes : (deptsRes?.data || [])
+
+                setCompanies(comps)
+                setBranches(brs)
+                setDepartments(depts)
 
                 const userData = userRes.data || userRes // Handle if wrapped in data or not
                 setOriginalUser(userData)
@@ -309,14 +309,23 @@ export default function EditUserPage() {
                                     <Select 
                                         required 
                                         value={formData.companyId}
-                                        onValueChange={(val) => setFormData({...formData, companyId: val ?? ""})}
+                                        onValueChange={(val) => setFormData({
+                                            ...formData, 
+                                            companyId: val ?? "", 
+                                            branchId: "", 
+                                            departmentId: ""
+                                        })}
                                     >
                                         <SelectTrigger id="company">
-                                            <SelectValue placeholder="Select company" />
+                                            <SelectValue placeholder="Select company">
+                                                {companies.find(c => (c.id || c.companyId)?.toString() === formData.companyId)?.name || companies.find(c => (c.id || c.companyId)?.toString() === formData.companyId)?.registeredName}
+                                            </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
                                             {companies.map(c => (
-                                                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                                                <SelectItem key={c.id || c.companyId} value={(c.id || c.companyId).toString()}>
+                                                    {c.name || c.registeredName}
+                                                </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
@@ -327,14 +336,29 @@ export default function EditUserPage() {
                                         <Select 
                                             required
                                             value={formData.branchId}
-                                            onValueChange={(val) => setFormData({...formData, branchId: val ?? ""})}
+                                            onValueChange={(val) => setFormData({
+                                                ...formData, 
+                                                branchId: val ?? "", 
+                                                departmentId: ""
+                                            })}
+                                            disabled={!formData.companyId}
                                         >
                                             <SelectTrigger id="location">
-                                                <SelectValue placeholder="Select branch" />
+                                                <SelectValue placeholder="Select branch">
+                                                    {branches.find(b => (b.id || b.branchId || b.BranchID)?.toString() === formData.branchId)?.name}
+                                                </SelectValue>
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {branches.map(b => (
-                                                    <SelectItem key={b.id} value={b.id.toString()}>{b.name}</SelectItem>
+                                                {branches
+                                                    .filter(b => {
+                                                        if (!formData.companyId) return false;
+                                                        const bCompId = b.companyId || b.companyID || b.CompanyID || b.CompanyId || (b.company?.id || b.company?.companyId);
+                                                        return String(bCompId) === String(formData.companyId);
+                                                    })
+                                                    .map(b => (
+                                                    <SelectItem key={b.id || b.branchId || b.BranchID} value={(b.id || b.branchId || b.BranchID).toString()}>
+                                                        {b.name}
+                                                    </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>
@@ -345,13 +369,24 @@ export default function EditUserPage() {
                                             required
                                             value={formData.departmentId}
                                             onValueChange={(val) => setFormData({...formData, departmentId: val ?? ""})}
+                                            disabled={!formData.branchId}
                                         >
                                             <SelectTrigger id="department">
-                                                <SelectValue placeholder="Select department" />
+                                                <SelectValue placeholder="Select department">
+                                                    {departments.find(d => (d.id || d.departmentId || d.DepartmentID)?.toString() === formData.departmentId)?.name}
+                                                </SelectValue>
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {departments.map(d => (
-                                                    <SelectItem key={d.id} value={d.id.toString()}>{d.name}</SelectItem>
+                                                {departments
+                                                    .filter(d => {
+                                                        if (!formData.branchId) return false;
+                                                        const dBrId = d.branchId || d.branchID || d.BranchID || d.BranchId || (d.branch?.id || d.branch?.branchId);
+                                                        return String(dBrId) === String(formData.branchId);
+                                                    })
+                                                    .map(d => (
+                                                    <SelectItem key={d.id || d.departmentId || d.DepartmentID} value={(d.id || d.departmentId || d.DepartmentID).toString()}>
+                                                        {d.name}
+                                                    </SelectItem>
                                                 ))}
                                             </SelectContent>
                                         </Select>

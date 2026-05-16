@@ -24,8 +24,25 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
-import { warehousesApi, productsApi } from "@/lib/api"
+import { warehousesApi, productsApi, categoriesApi } from "@/lib/api"
 import type { Warehouse } from "@/app/supply-chain/warehouse/types"
+
+interface Subcategory {
+    subcategoryId: number;
+    categoryId: number;
+    parentSubcategoryId: number | null;
+    subcategoryName: string;
+    description: string;
+    subcategories: Subcategory[];
+}
+
+interface Category {
+    categoryId: number;
+    categoryName: string;
+    description: string;
+    status: boolean;
+    subcategories: Subcategory[];
+}
 
 export default function AddProductPage() {
     const router = useRouter()
@@ -35,8 +52,8 @@ export default function AddProductPage() {
     const [description, setDescription] = React.useState("")
     const [brand, setBrand] = React.useState("")
     const [unit, setUnit] = React.useState("PCS")
-    const [category, setCategory] = React.useState("")
-    const [subcategory, setSubcategory] = React.useState("")
+    const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<number[]>([])
+    const [categories, setCategories] = React.useState<Category[]>([])
     const [taggingNo, setTaggingNo] = React.useState("")
     const [warehouses, setWarehouses] = React.useState<Warehouse[]>([])
     // Placeholder for product ID used in barcode generation
@@ -47,13 +64,23 @@ export default function AddProductPage() {
         setTempProdId(Math.floor(1000 + Math.random() * 9000).toString())
     }, [])
 
-    // Fetch warehouses on mount
+    // Fetch warehouses and categories on mount
     React.useEffect(() => {
-        const fetchWarehouses = async () => {
-            const data = await warehousesApi.getAll()
-            setWarehouses(data)
+        const fetchData = async () => {
+            try {
+                const [wData, cData] = await Promise.all([
+                    warehousesApi.getAll(),
+                    categoriesApi.getAll()
+                ])
+                setWarehouses(wData)
+                // The API might return { data: [...] } or just [...]
+                const categoryList = (cData as any).data || cData
+                setCategories(Array.isArray(categoryList) ? categoryList : [])
+            } catch (err) {
+                console.error("Failed to fetch master data:", err)
+            }
         }
-        fetchWarehouses()
+        fetchData()
     }, [])
 
     // Dynamic state for variants
@@ -73,9 +100,9 @@ export default function AddProductPage() {
         }
     ])
 
-    const generateVariantBarcode = React.useCallback((index: number, catId: string, subId: string) => {
-        const c = catId || "0"
-        const s = subId || "000"
+    const generateVariantBarcode = React.useCallback((index: number, path: number[]) => {
+        const c = path[0] ? String(path[0]) : "0"
+        const s = path[path.length - 1] ? String(path[path.length - 1]).padStart(3, '0') : "000"
         const p = tempProdId
         const v = (index + 1).toString().padStart(2, '0')
         return `${c}${s}${p}${v}`
@@ -88,13 +115,13 @@ export default function AddProductPage() {
         return (price - (price * gstRate / 100)).toFixed(2)
     }
 
-    // Effect to auto-generate barcodes when category or subcategory changes
+    // Effect to auto-generate barcodes when category selection path changes
     React.useEffect(() => {
         setVariants(prev => prev.map((v, i) => ({
             ...v,
-            barcode: generateVariantBarcode(i, category, subcategory)
+            barcode: generateVariantBarcode(i, selectedCategoryIds)
         })))
-    }, [category, subcategory, generateVariantBarcode])
+    }, [selectedCategoryIds, generateVariantBarcode])
 
     const addVariant = () => {
         const newIndex = variants.length
@@ -106,7 +133,7 @@ export default function AddProductPage() {
             gstPercentage: "18", 
             costPrice: "",
             stock: "", 
-            barcode: generateVariantBarcode(newIndex, category, subcategory),
+            barcode: generateVariantBarcode(newIndex, selectedCategoryIds),
             warehouseId: "",
             rackLocation: "",
             image: null as string | null
@@ -153,8 +180,8 @@ export default function AddProductPage() {
             baseSKU: baseSKU,
             productTaggingNo: taggingNo,
             barcodeNumber: tempProdId, // Using the generated base ID
-            categoryId: parseInt(category) || 0,
-            subcategoryId: parseInt(subcategory) || 0,
+            categoryId: selectedCategoryIds[0] || 0,
+            subcategoryId: selectedCategoryIds[selectedCategoryIds.length - 1] || 0,
             brand: brand,
             unit: unit,
             description: description,
@@ -265,31 +292,64 @@ export default function AddProductPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="grid gap-6">
-                                <div className="grid gap-2">
-                                    <Label>Category</Label>
-                                    <Select required value={category} onValueChange={(val) => setCategory(val || "")}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select category" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="1">Surgical Instruments</SelectItem>
-                                            <SelectItem value="3">Consumables</SelectItem>
-                                            <SelectItem value="2">Diagnostic Equipment</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Subcategory (Optional)</Label>
-                                    <Select value={subcategory} onValueChange={(val) => setSubcategory(val || "")}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Select subcategory" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="7">Blades/Gloves</SelectItem>
-                                            <SelectItem value="230">Forceps</SelectItem>
-                                            <SelectItem value="232">Gauze</SelectItem>
-                                        </SelectContent>
-                                    </Select>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {(() => {
+                                        const renderedSelects = []
+                                        let currentOptions: (Category | Subcategory)[] = categories
+                                        
+                                        // Always show root level, then show subsequent levels if a parent is selected and has children
+                                        for (let i = 0; i <= selectedCategoryIds.length; i++) {
+                                            if (currentOptions.length === 0 && i > 0) break;
+                                            
+                                            const levelIndex = i
+                                            const selectedId = selectedCategoryIds[i]
+                                            const currentVal = selectedId ? String(selectedId) : ""
+                                            const label = levelIndex === 0 ? "Category" : `Subcategory Level ${levelIndex}`
+                                            
+                                            const selectedItem = selectedId ? currentOptions.find(o => ((o as any).subcategoryId || (o as any).categoryId) === selectedId) : null
+                                            const selectedName = selectedItem ? ((selectedItem as any).subcategoryName || (selectedItem as any).categoryName) : ""
+
+                                            renderedSelects.push(
+                                                <div key={levelIndex} className="grid gap-2">
+                                                    <Label>{label}</Label>
+                                                    <Select 
+                                                        required={levelIndex === 0} 
+                                                        value={currentVal} 
+                                                        onValueChange={(val) => {
+                                                            const newPath = selectedCategoryIds.slice(0, levelIndex)
+                                                            if (val) newPath.push(parseInt(val))
+                                                            setSelectedCategoryIds(newPath)
+                                                        }}
+                                                    >
+                                                        <SelectTrigger className="w-full">
+                                                            <SelectValue placeholder={`Select ${label.toLowerCase()}`}>
+                                                                {selectedName}
+                                                            </SelectValue>
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {currentOptions.map((opt) => {
+                                                                const id = (opt as any).subcategoryId || (opt as any).categoryId
+                                                                const name = (opt as any).subcategoryName || (opt as any).categoryName
+                                                                return (
+                                                                    <SelectItem key={id} value={String(id)}>
+                                                                        {name}
+                                                                    </SelectItem>
+                                                                )
+                                                            })}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            )
+
+                                            // Prepare options for the next level
+                                            if (selectedId && selectedItem) {
+                                                currentOptions = selectedItem.subcategories || []
+                                            } else {
+                                                currentOptions = []
+                                            }
+                                        }
+                                        return renderedSelects
+                                    })()}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="grid gap-2">
@@ -494,19 +554,44 @@ export default function AddProductPage() {
                                                         </div>
                                                     </>
                                                 ) : (
-                                                    <Label className="flex flex-col items-center gap-2 cursor-pointer hover:text-primary transition-colors">
-                                                        <UploadCloud className="h-6 w-6 text-muted-foreground" />
-                                                        <span className="text-[10px] font-medium uppercase tracking-tight">Upload Image</span>
-                                                        <input 
-                                                            type="file" 
-                                                            className="hidden" 
-                                                            accept="image/*"
-                                                            onChange={(e) => {
-                                                                const file = e.target.files?.[0]
-                                                                if (file) handleImageChange(v.id, file)
-                                                            }}
-                                                        />
-                                                    </Label>
+                                                    <div className="flex flex-col gap-2 w-full p-2">
+                                                        <Label className="flex flex-col items-center gap-1.5 cursor-pointer hover:text-primary transition-colors py-3 border-2 border-dashed border-muted-foreground/10 rounded-lg bg-muted/5">
+                                                            <UploadCloud className="h-5 w-5 text-muted-foreground" />
+                                                            <span className="text-[9px] font-bold uppercase tracking-tight">Upload File</span>
+                                                            <input 
+                                                                type="file" 
+                                                                className="hidden" 
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0]
+                                                                    if (file) handleImageChange(v.id, file)
+                                                                }}
+                                                            />
+                                                        </Label>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="h-px flex-1 bg-muted-foreground/10" />
+                                                            <span className="text-[8px] font-bold text-muted-foreground/60">OR</span>
+                                                            <div className="h-px flex-1 bg-muted-foreground/10" />
+                                                        </div>
+                                                        <div className="relative">
+                                                            <ImageIcon className="absolute left-2 top-2 h-3 w-3 text-muted-foreground/50" />
+                                                            <Input 
+                                                                className="h-7 pl-6 text-[10px] bg-white/50" 
+                                                                placeholder="Paste URL" 
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault()
+                                                                        const val = (e.target as HTMLInputElement).value
+                                                                        if (val) handleVariantChange(v.id, "image", val)
+                                                                    }
+                                                                }}
+                                                                onBlur={(e) => {
+                                                                    const val = e.target.value
+                                                                    if (val) handleVariantChange(v.id, "image", val)
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 )}
                                             </div>
 

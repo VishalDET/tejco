@@ -81,8 +81,8 @@ export default function ClientsPage() {
         hasBranches: data.hasBranches ?? false,
         branches: data.branches ?? [],
         address: data.address ?? "",
-        billingAddress: data.billingAddress ?? data.address ?? "",
-        shippingAddress: data.shippingAddress ?? data.address ?? "",
+        billingAddress: data.billingAddress ?? { street1: data.address ?? "", city: "", state: "", pincode: "", country: "India" },
+        shippingAddress: data.shippingAddress ?? { street1: data.address ?? "", city: "", state: "", pincode: "", country: "India" },
         gstin: data.gstin,
         contacts: data.contacts ?? [],
       }

@@ -2,34 +2,67 @@
 
 import * as React from "react"
 import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, Edit, GitBranch, MapPin, User, Building2 } from "lucide-react"
+import { ArrowLeft, Edit, GitBranch, MapPin, User, Loader2, Phone, Mail } from "lucide-react"
 
+import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import {
     Card,
     CardContent,
-    CardDescription,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { toast } from "sonner"
+
+type Branch = {
+    id: number
+    companyId: number
+    name: string
+    company: string
+    city: string
+    manager: string
+    address: string
+    contactNumber: string
+    officialEmail: string
+    status: string
+}
 
 export default function BranchDetailPage() {
     const router = useRouter()
     const params = useParams()
+    const branchId = params.id as string
 
-    const branch = {
-        id: params.id,
-        name: "Mumbai HQ",
-        company: "Tejco Surgical Instruments",
-        city: "Mumbai",
-        manager: "Dr. Vishal Kumar",
-        address: "123, Tejco Tower, BKC, Mumbai - 400051",
-        status: "Active"
+    const [branch, setBranch] = React.useState<Branch | null>(null)
+    const [isLoading, setIsLoading] = React.useState(true)
+
+    React.useEffect(() => {
+        async function fetchBranch() {
+            try {
+                const data = await apiClient.get<Branch>(`/api/SystemMasters/branches/${branchId}`)
+                setBranch(data)
+            } catch (err) {
+                toast.error("Failed to load branch details")
+                router.push("/system/masters/branches")
+            } finally {
+                setIsLoading(false)
+            }
+        }
+        fetchBranch()
+    }, [branchId, router])
+
+    if (isLoading) {
+        return (
+            <div className="flex h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
     }
 
+    if (!branch) return null
+
     return (
-        <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+        <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="icon" onClick={() => router.back()}>
@@ -40,7 +73,7 @@ export default function BranchDetailPage() {
                         <p className="text-muted-foreground">{branch.company}</p>
                     </div>
                 </div>
-                <Button variant="outline">
+                <Button onClick={() => router.push(`/system/masters/branches/edit/${branchId}`)}>
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Branch
                 </Button>
@@ -62,14 +95,16 @@ export default function BranchDetailPage() {
                             </div>
                             <div className="space-y-1">
                                 <p className="text-xs text-muted-foreground font-semibold uppercase">Status</p>
-                                <Badge variant="outline">{branch.status}</Badge>
+                                <Badge variant={branch.status === "Active" ? "default" : "secondary"}>
+                                    {branch.status || "Active"}
+                                </Badge>
                             </div>
                         </div>
                         <div className="space-y-1">
                             <p className="text-xs text-muted-foreground font-semibold uppercase">Manager</p>
                             <div className="flex items-center text-sm font-medium">
-                                <User className="h-4 w-4 mr-2" />
-                                {branch.manager}
+                                <User className="h-4 w-4 mr-2 text-muted-foreground" />
+                                {branch.manager || "Unassigned"}
                             </div>
                         </div>
                     </CardContent>
@@ -79,7 +114,7 @@ export default function BranchDetailPage() {
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center gap-2">
                             <MapPin className="h-5 w-5 text-primary" />
-                            Location Details
+                            Location & Contact
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-4">
@@ -90,6 +125,20 @@ export default function BranchDetailPage() {
                         <div className="space-y-1">
                             <p className="text-xs text-muted-foreground font-semibold uppercase">Full Address</p>
                             <p className="text-sm font-medium leading-relaxed">{branch.address}</p>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2 pt-2 border-t mt-2">
+                            {branch.contactNumber && (
+                                <div className="flex items-center text-sm">
+                                    <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    {branch.contactNumber}
+                                </div>
+                            )}
+                            {branch.officialEmail && (
+                                <div className="flex items-center text-sm">
+                                    <Mail className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    {branch.officialEmail}
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

@@ -1,17 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, Save, X, LayoutGrid, User, Building2, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
-
 import { Button } from "@/components/ui/button"
 import {
     Card,
     CardContent,
-    CardDescription,
-    CardFooter,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
@@ -26,10 +23,28 @@ import {
 } from "@/components/ui/select"
 import { toast } from "sonner"
 
-export default function AddDepartmentPage() {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Department = {
+    id: number
+    companyId: number
+    branchId: number
+    name: string
+    code: string
+    hod: string
+    branch: string
+    status: string
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function EditDepartmentPage() {
     const router = useRouter()
+    const params = useParams()
+    const deptIdFromParams = params.id as string
+
     const [isLoading, setIsLoading] = React.useState(false)
-    const [isFetchingData, setIsFetchingData] = React.useState(true)
+    const [isFetchingInitial, setIsFetchingInitial] = React.useState(true)
     
     // Lists
     const [companies, setCompanies] = React.useState<any[]>([])
@@ -43,32 +58,45 @@ export default function AddDepartmentPage() {
     const [hod, setHod] = React.useState("")
     const [status, setStatus] = React.useState("Active")
 
+    // Fetch initial data
     React.useEffect(() => {
         async function fetchData() {
             try {
-                const [catsRes, branchesRes] = await Promise.all([
+                const [companiesRes, branchesRes, deptRes] = await Promise.all([
                     apiClient.get<any[]>("/api/SystemMasters/companies"),
-                    apiClient.get<any[]>("/api/SystemMasters/branches")
+                    apiClient.get<any[]>("/api/SystemMasters/branches"),
+                    apiClient.get<Department>(`/api/SystemMasters/departments/${deptIdFromParams}`)
                 ])
-                setCompanies(catsRes || [])
+                
+                setCompanies(companiesRes || [])
                 setBranches(branchesRes || [])
+                
+                if (deptRes) {
+                    setName(deptRes.name || "")
+                    setCode(deptRes.code || "")
+                    setCompanyId((deptRes.companyId || "").toString())
+                    setBranchId((deptRes.branchId || "").toString())
+                    setHod(deptRes.hod || "")
+                    setStatus(deptRes.status || "Active")
+                }
             } catch (err) {
-                toast.error("Failed to load initial data")
+                toast.error("Failed to load data")
+                router.back()
             } finally {
-                setIsFetchingData(false)
+                setIsFetchingInitial(false)
             }
         }
         fetchData()
-    }, [])
+    }, [deptIdFromParams, router])
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
         setIsLoading(true)
 
-        const selectedBranch = branches.find(b => b.id.toString() === branchId)
+        const selectedBranch = branches.find(b => (b.id || b.branchId || b.BranchID)?.toString() === branchId)
 
         const payload = {
-            id: 0,
+            id: parseInt(deptIdFromParams),
             companyId: parseInt(companyId),
             branchId: parseInt(branchId),
             name,
@@ -79,14 +107,22 @@ export default function AddDepartmentPage() {
         }
 
         try {
-            await apiClient.post("/api/SystemMasters/departments", payload)
-            toast.success("Department created successfully")
+            await apiClient.put(`/api/SystemMasters/departments/${deptIdFromParams}`, payload)
+            toast.success("Department updated successfully")
             router.push("/system/masters/departments")
         } catch (err: any) {
-            toast.error(err.message || "Failed to create department")
+            toast.error(err.message || "Failed to update department")
         } finally {
             setIsLoading(false)
         }
+    }
+
+    if (isFetchingInitial) {
+        return (
+            <div className="flex h-[400px] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        )
     }
 
     return (
@@ -97,8 +133,8 @@ export default function AddDepartmentPage() {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Add Department</h1>
-                        <p className="text-muted-foreground">Define a new organizational unit.</p>
+                        <h1 className="text-3xl font-bold tracking-tight">Edit Department</h1>
+                        <p className="text-muted-foreground">Modify organizational unit details.</p>
                     </div>
                 </div>
             </div>
@@ -143,9 +179,8 @@ export default function AddDepartmentPage() {
                                         value={companyId} 
                                         onValueChange={(val) => {
                                             setCompanyId(val || "")
-                                            setBranchId("") // Reset branch when company changes
+                                            setBranchId("")
                                         }}
-                                        disabled={isFetchingData}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select company">
@@ -167,7 +202,7 @@ export default function AddDepartmentPage() {
                                         required 
                                         value={branchId} 
                                         onValueChange={(val) => setBranchId(val || "")}
-                                        disabled={isFetchingData || !companyId}
+                                        disabled={!companyId}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select branch">
@@ -222,7 +257,7 @@ export default function AddDepartmentPage() {
                         </Button>
                         <Button type="submit" disabled={isLoading}>
                             <Save className="mr-2 h-4 w-4" />
-                            {isLoading ? "Saving..." : "Create Department"}
+                            {isLoading ? "Saving..." : "Update Department"}
                         </Button>
                     </div>
                 </div>
