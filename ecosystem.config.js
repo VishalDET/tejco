@@ -1,13 +1,13 @@
-# Tejco ERP – PM2 Ecosystem Config
-# Usage: pm2 start ecosystem.config.js --env production
+// Tejco ERP – PM2 Ecosystem Config
+// Usage: pm2 start ecosystem.config.js --env production
 
 module.exports = {
   apps: [
     {
       name: "tejco-erp",
-      script: "node_modules/next/dist/bin/next",
-      args: "start",
-      cwd: "C:\\inetpub\\tejco",          // <-- update to actual deploy path
+      script: "server.js",
+      args: "",
+      cwd: "C:\\inetpub\\wwwroot\\tejcocrm",          // <-- update to actual deploy path
       instances: "max",                    // use all CPU cores
       exec_mode: "cluster",
       autorestart: true,

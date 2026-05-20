@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/system/layout,_N_T_/system/masters/layout,_N_T_/system/masters/categories/layout,_N_T_/system/masters/categories/page,_N_T_/system/masters/categories"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/system/masters/categories/__PAGE__",
+    "/system/masters/categories",
+    "/system/masters",
+    "/system",
+    "/_index",
+    "/_head"
+  ]
+}

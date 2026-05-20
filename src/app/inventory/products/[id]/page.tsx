@@ -59,6 +59,8 @@ export default function EditProductPage() {
     const [desc, setDesc] = React.useState("")
     const [taggingNo, setTaggingNo] = React.useState("")
     const [barcode, setBarcode] = React.useState("")
+    const [brand, setBrand] = React.useState("")
+    const [unit, setUnit] = React.useState("")
     
     // Categories state
     const [categories, setCategories] = React.useState<Category[]>([])
@@ -86,11 +88,16 @@ export default function EditProductPage() {
                     setName(p.productName || "")
                     setSku(p.baseSKU || "")
                     setDesc(p.description || "")
+                    setBrand(p.brand || "")
+                    setUnit(p.unit || "")
                     
                     // Initialize category path
                     const path: number[] = []
                     if (p.categoryId) path.push(p.categoryId)
                     if (p.subcategoryId) path.push(p.subcategoryId)
+                    if (p.subcategoryL2Id) path.push(p.subcategoryL2Id)
+                    if (p.subcategoryL3Id) path.push(p.subcategoryL3Id)
+                    if (p.subcategoryL4Id) path.push(p.subcategoryL4Id)
                     setSelectedCategoryIds(path)
 
                     setTaggingNo(p.productTaggingNo || "")
@@ -99,14 +106,22 @@ export default function EditProductPage() {
                     if (p.variants && p.variants.length > 0) {
                         setVariants(p.variants.map((v: any) => ({
                             id: v.variantId,
+                            productId: v.productId,
                             name: v.variantName,
                             sku_suffix: v.skuSuffix,
-                            price: v.sellingPrice.toString(),
-                            stock: v.currentQuantity.toString(),
-                            image: v.image || null // Assuming API might have image
+                            purchasePrice: v.purchasePrice || 0,
+                            price: v.sellingPrice?.toString() || "0",
+                            initialQuantity: v.initialQuantity || 0,
+                            stock: v.currentQuantity?.toString() || "0",
+                            reorderLevel: v.reorderLevel || 0,
+                            gstPercentage: v.gstPercentage || 0,
+                            warehouseId: v.warehouseId || 0,
+                            rackLocation: v.rackLocation || "",
+                            barcode: v.barcodeNumber || "",
+                            image: v.variantImage || null // Assuming API might have image
                         })))
                     } else {
-                        setVariants([{ id: 1, name: "Standard", sku_suffix: "", price: "0", stock: "0", image: null }])
+                        setVariants([{ id: 1, name: "Standard", sku_suffix: "", purchasePrice: 0, price: "0", initialQuantity: 0, stock: "0", reorderLevel: 0, gstPercentage: 0, warehouseId: 0, rackLocation: "", barcode: "", image: null }])
                     }
                 } else {
                     setError(response.message || "Product not found")
@@ -123,7 +138,7 @@ export default function EditProductPage() {
     }, [params.id])
 
     const addVariant = () => {
-        setVariants([...variants, { id: Date.now(), name: "", sku_suffix: "", price: "", stock: "", image: null }])
+        setVariants([...variants, { id: Date.now(), name: "", sku_suffix: "", purchasePrice: 0, price: "0", initialQuantity: 0, stock: "0", reorderLevel: 0, gstPercentage: 0, warehouseId: 0, rackLocation: "", barcode: "", image: null }])
     }
 
     const handleImageChange = (id: number, file: File) => {
@@ -167,22 +182,36 @@ export default function EditProductPage() {
             productTaggingNo: taggingNo,
             barcodeNumber: barcode,
             categoryId: selectedCategoryIds[0] || 0,
-            subcategoryId: selectedCategoryIds[selectedCategoryIds.length - 1] || 0,
+            subcategoryId: selectedCategoryIds[1] || 0,
+            subcategoryL2Id: selectedCategoryIds[2] || 0,
+            subcategoryL3Id: selectedCategoryIds[3] || 0,
+            subcategoryL4Id: selectedCategoryIds[4] || 0,
+            brand: brand,
+            unit: unit,
             description: desc,
+            hasVariants: variants.length > 0,
             status: true,
             variants: variants.map(v => ({
                 variantId: typeof v.id === 'string' ? 0 : v.id, // New ones have timestamp IDs
+                productId: v.productId || parseInt(params.id as string),
                 variantName: v.name,
                 skuSuffix: v.sku_suffix,
+                purchasePrice: parseFloat(v.purchasePrice) || 0,
                 sellingPrice: parseFloat(v.price) || 0,
+                initialQuantity: parseInt(v.initialQuantity) || 0,
                 currentQuantity: parseInt(v.stock) || 0,
-                image: v.image,
-                status: true
+                reorderLevel: parseInt(v.reorderLevel) || 0,
+                status: true,
+                gstPercentage: parseFloat(v.gstPercentage) || 0,
+                warehouseId: parseInt(v.warehouseId) || 0,
+                rackLocation: v.rackLocation || "",
+                barcodeNumber: v.barcode || "",
+                variantImage: v.image || ""
             }))
         }
 
         try {
-            const response = await apiClient.post<any>(`/api/Product/Update/${params.id}`, payload)
+            const response = await apiClient.put<any>(`/api/Product/Update/${params.id}`, payload)
             if (response.success) {
                 toast.success(`Product "${name}" updated successfully`)
                 router.push("/inventory/products")
@@ -391,6 +420,31 @@ export default function EditProductPage() {
                                     }
                                     return renderedSelects
                                 })()}
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pt-4 border-t">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="brand">Brand</Label>
+                                    <Input
+                                        id="brand"
+                                        value={brand}
+                                        onChange={(e) => setBrand(e.target.value)}
+                                        placeholder="e.g., Tejco"
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="unit">Unit</Label>
+                                    <Select value={unit} onValueChange={(val) => setUnit(val || "PCS")}>
+                                        <SelectTrigger id="unit">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="PCS">Pieces (PCS)</SelectItem>
+                                            <SelectItem value="BOX">Box</SelectItem>
+                                            <SelectItem value="PKT">Packet</SelectItem>
+                                            <SelectItem value="SET">Set</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

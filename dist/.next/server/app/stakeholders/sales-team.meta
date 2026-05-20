@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/stakeholders/layout,_N_T_/stakeholders/sales-team/layout,_N_T_/stakeholders/sales-team/page,_N_T_/stakeholders/sales-team"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/stakeholders/sales-team/__PAGE__",
+    "/stakeholders/sales-team",
+    "/stakeholders",
+    "/_index",
+    "/_head"
+  ]
+}

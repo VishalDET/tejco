@@ -1,0 +1,18 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/system/layout,_N_T_/system/masters/layout,_N_T_/system/masters/branches/layout,_N_T_/system/masters/branches/add/layout,_N_T_/system/masters/branches/add/page,_N_T_/system/masters/branches/add"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/system/masters/branches/add/__PAGE__",
+    "/system/masters/branches/add",
+    "/system/masters/branches",
+    "/system/masters",
+    "/system",
+    "/_index",
+    "/_head"
+  ]
+}

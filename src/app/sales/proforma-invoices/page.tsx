@@ -2,32 +2,19 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit, ShoppingCart } from "lucide-react"
+import { Search, Plus, MoreVertical, Eye, FileDown, Printer, Edit, ShoppingCart, RefreshCw, Loader2, Receipt } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { SalesDocument, SalesDocumentStatus } from "../types"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SalesDocumentStatus } from "../types"
+import { ProformaInvoice } from "./types"
 import { ProformaFormDialog } from "./proforma-form-dialog"
-
-const initialProformas: SalesDocument[] = [
-  {
-    id: "p1",
-    number: "PI-2024-5501",
-    clientId: "c2",
-    clientName: "City Dental Clinic",
-    date: "2024-03-05",
-    status: "Issued",
-    items: [],
-    subtotal: 12000,
-    taxAmount: 2160,
-    totalAmount: 14160,
-    billingAddress: "Pune",
-    shippingAddress: "Pune",
-  }
-]
+import { proformaApi } from "@/lib/api"
+import { toast } from "sonner"
 
 const getStatusBadge = (status: SalesDocumentStatus) => {
   switch (status) {
@@ -41,20 +28,54 @@ const getStatusBadge = (status: SalesDocumentStatus) => {
 
 export default function ProformaInvoicesPage() {
   const router = useRouter()
-  const [proformas, setProformas] = React.useState<SalesDocument[]>(initialProformas)
+  const [proformas, setProformas] = React.useState<ProformaInvoice[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
-  const [selectedProforma, setSelectedProforma] = React.useState<SalesDocument | null>(null)
+  const [selectedProforma, setSelectedProforma] = React.useState<ProformaInvoice | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
 
+  const fetchProformas = async (silent = false) => {
+    if (!silent) setIsLoading(true)
+    else setIsRefreshing(true)
+    try {
+      const data = await proformaApi.getAll()
+      setProformas(data)
+    } catch (error) {
+      console.error("Failed to fetch proforma invoices:", error)
+      toast.error("Failed to load proforma invoices.")
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }
+
+  React.useEffect(() => {
+    fetchProformas()
+  }, [])
+
+  // Handle incoming conversion from a quotation
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     if (urlParams.get("convert") === "true") {
       const sourceData = localStorage.getItem("convert_source_data")
       if (sourceData) {
-        const parsed = JSON.parse(sourceData)
-        setSelectedProforma(parsed)
-        setIsDialogOpen(true)
-        // Clean up URL
+        try {
+          const parsed = JSON.parse(sourceData)
+          // Map quotation fields to proforma fields
+          const prefilled: Partial<ProformaInvoice> = {
+            ...parsed,
+            proformaId: 0,
+            number: `PI-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+            date: new Date().toISOString().split("T")[0],
+            status: "Draft",
+            sourceQuotationId: parsed.id || parsed.sourceId,
+          }
+          setSelectedProforma(prefilled as ProformaInvoice)
+          setIsDialogOpen(true)
+        } catch (e) {
+          console.error("Failed to parse convert source data:", e)
+        }
         window.history.replaceState({}, "", window.location.pathname)
         localStorage.removeItem("convert_source_data")
       }
@@ -66,126 +87,179 @@ export default function ProformaInvoicesPage() {
     setIsDialogOpen(true)
   }
 
-  const handleConvertToOrder = (p: SalesDocument) => {
-    // 1. Mark proforma as converted
-    setProformas(prev => prev.map(item => 
-      item.id === p.id ? { ...item, status: "Converted to Sales Order" } as SalesDocument : item
-    ))
-
-    // 2. Store data for sales order pre-fill
-    localStorage.setItem("convert_source_data", JSON.stringify({
-      ...p,
-      sourceId: p.id,
-      orderNumber: "", // New number for Sales Order
-      status: "Pending",
-      paymentStatus: "Unpaid",
-      date: new Date().toISOString().split('T')[0]
-    }))
-
-    // 3. Redirect to sales orders page
-    router.push("/sales/orders?convert=true")
-  }
-
-  const handleEdit = (p: SalesDocument) => {
+  const handleEdit = (p: ProformaInvoice) => {
     setSelectedProforma(p)
     setIsDialogOpen(true)
   }
 
-  const handleSave = (data: Partial<SalesDocument>) => {
-    if (selectedProforma) {
-      setProformas(prev => prev.map(o => o.id === selectedProforma.id ? { ...o, ...data } as SalesDocument : o))
-    } else {
-      const newPI: SalesDocument = {
-        ...data,
-        id: Math.random().toString(36).substr(2, 9),
-      } as SalesDocument
-      setProformas(prev => [newPI, ...prev])
+  const handleSave = () => {
+    fetchProformas(true)
+  }
+
+  const handleConvertToOrder = (p: ProformaInvoice) => {
+    localStorage.setItem("convert_source_data", JSON.stringify({
+      ...p,
+      sourceId: p.id,
+      number: "",
+      status: "Pending",
+      paymentStatus: "Unpaid",
+      date: new Date().toISOString().split("T")[0],
+    }))
+    router.push("/sales/orders?convert=true")
+  }
+
+  const handleDelete = async (p: ProformaInvoice) => {
+    if (!confirm(`Delete proforma ${p.number}?`)) return
+    try {
+      await proformaApi.remove(String(p.proformaId))
+      toast.success("Proforma invoice deleted.")
+      fetchProformas(true)
+    } catch {
+      toast.error("Failed to delete proforma invoice.")
     }
   }
 
-  const filtered = proformas.filter(o => 
-    o.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    o.clientName.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filtered = proformas.filter(p => {
+    const num = (p.number ?? "").toLowerCase()
+    const name = (p.clientName ?? "").toLowerCase()
+    const q = searchQuery.toLowerCase()
+    return num.includes(q) || name.includes(q)
+  })
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Proforma Invoices</h1>
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Proforma Invoices
+          </h1>
           <p className="text-muted-foreground">Draft invoices for client approval and advance payment.</p>
         </div>
-        <Button onClick={handleCreate} className="gap-2 bg-primary">
-          <Plus className="h-4 w-4" /> New Proforma
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fetchProformas(true)}
+            disabled={isLoading || isRefreshing}
+            className="hover:rotate-180 transition-transform duration-500"
+          >
+            {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          </Button>
+          <Button onClick={handleCreate} className="gap-2 shadow-md hover:shadow-lg transition-all duration-200">
+            <Plus className="h-4 w-4" /> New Proforma
+          </Button>
+        </div>
       </div>
 
-      <Card className="shadow-sm border-slate-200">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
-          <div>
-            <CardTitle className="text-lg">Proforma Records</CardTitle>
+      <Card className="shadow-xl border-none ring-1 ring-slate-200 overflow-hidden">
+        <CardHeader className="bg-slate-50/50 flex flex-row items-center justify-between space-y-0 pb-6">
+          <div className="space-y-1">
+            <CardTitle className="text-xl font-semibold">Proforma Records</CardTitle>
             <CardDescription>Track pending approvals and conversions to sales orders.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search proformas..." 
-                className="pl-8 w-[250px] border-slate-200" 
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search proformas..."
+                className="pl-9 w-[200px] md:w-[300px] bg-white/50 backdrop-blur-sm border-slate-200 focus:bg-white transition-all duration-200"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <Table>
-            <TableHeader className="bg-slate-50">
-              <TableRow>
-                <TableHead className="w-[150px] font-bold">PI Number</TableHead>
-                <TableHead className="font-bold">Client / Doctor</TableHead>
-                <TableHead className="font-bold">Date</TableHead>
-                <TableHead className="text-right font-bold">Total Amount</TableHead>
-                <TableHead className="font-bold">Status</TableHead>
-                <TableHead className="text-right font-bold">Actions</TableHead>
+            <TableHeader className="bg-slate-50/80 border-b">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-[180px] py-4 px-6 font-semibold">PI Number</TableHead>
+                <TableHead className="py-4 font-semibold">Client / Doctor</TableHead>
+                <TableHead className="py-4 font-semibold">Date</TableHead>
+                <TableHead className="py-4 font-semibold">Validity</TableHead>
+                <TableHead className="text-right py-4 font-semibold">Total Amount</TableHead>
+                <TableHead className="py-4 font-semibold">Status</TableHead>
+                <TableHead className="text-right py-4 px-6 font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.length === 0 ? (
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell className="px-6"><Skeleton className="h-5 w-32" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                    <TableCell className="text-right"><Skeleton className="h-5 w-20 ml-auto" /></TableCell>
+                    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                    <TableCell className="px-6"><Skeleton className="h-8 w-8 ml-auto rounded-full" /></TableCell>
+                  </TableRow>
+                ))
+              ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground italic">
-                    No proforma invoices found.
+                  <TableCell colSpan={7} className="h-64 text-center">
+                    <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground">
+                      <div className="p-4 bg-slate-50 rounded-full mb-2">
+                        <Receipt className="h-8 w-8 opacity-20" />
+                      </div>
+                      <p className="text-lg font-medium">No proforma invoices found</p>
+                      <p className="text-sm">Create a new proforma or convert from a quotation.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (
-                filtered.map((p) => (
-                  <TableRow key={p.id} className="hover:bg-slate-50/50">
-                    <TableCell className="font-bold text-primary">{p.number}</TableCell>
-                    <TableCell className="font-medium">{p.clientName}</TableCell>
-                    <TableCell>{new Date(p.date).toLocaleDateString("en-GB")}</TableCell>
-                    <TableCell className="text-right font-bold">₹{p.totalAmount.toLocaleString()}</TableCell>
+                filtered.map((p, idx) => (
+                  <TableRow key={p.id || `proforma-${idx}`} className="group hover:bg-slate-50/50 transition-colors duration-200">
+                    <TableCell className="font-bold text-primary py-4 px-6">{p.number}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-900">{p.clientName}</span>
+                        {p.subject && <span className="text-xs text-muted-foreground line-clamp-1">{p.subject}</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-slate-600 font-medium">{new Date(p.date).toLocaleDateString("en-GB")}</TableCell>
+                    <TableCell className="text-slate-600 font-medium">{p.validUntil ? new Date(p.validUntil).toLocaleDateString("en-GB") : "-"}</TableCell>
+                    <TableCell className="text-right py-4">
+                      <div className="flex flex-col items-end">
+                        <span className="font-bold text-slate-900">₹{p.totalAmount.toLocaleString()}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Incl. GST</span>
+                      </div>
+                    </TableCell>
                     <TableCell>{getStatusBadge(p.status)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right py-4 px-6">
                       <DropdownMenu>
-                        <DropdownMenuTrigger render={<Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4 text-slate-400" /></Button>} />
-                        <DropdownMenuContent align="end" className="w-[200px]">
-                          <DropdownMenuLabel>Proforma Menu</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => handleEdit(p)} className="gap-2 focus:bg-primary/5">
-                            <Edit className="h-4 w-4" /> Edit Details
+                        <DropdownMenuTrigger render={
+                          <Button variant="ghost" size="icon" className="rounded-full hover:bg-white hover:shadow-sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        } />
+                        <DropdownMenuContent align="end" className="w-48 shadow-xl border-slate-200">
+                          <DropdownMenuLabel className="text-xs font-bold uppercase text-slate-500 tracking-wider">Management</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => handleEdit(p)} className="gap-2 cursor-pointer">
+                            <Edit className="h-4 w-4 text-slate-500" /> Edit Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => router.push(`/sales/proforma-invoices/${p.id}`)} className="gap-2 cursor-pointer">
+                            <Eye className="h-4 w-4 text-slate-500" /> View Details
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs font-bold uppercase text-slate-500 tracking-wider">Operations</DropdownMenuLabel>
                           {p.status !== "Converted to Sales Order" && (
-                            <DropdownMenuItem 
-                              className="gap-2 text-emerald-600 font-bold focus:bg-emerald-50"
+                            <DropdownMenuItem
+                              className="gap-2 text-emerald-600 font-semibold cursor-pointer focus:bg-emerald-50"
                               onClick={() => handleConvertToOrder(p)}
                             >
                               <ShoppingCart className="h-4 w-4" /> Convert to Order
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => router.push(`/sales/proforma-invoices/${p.id}`)} className="gap-2 focus:bg-primary/5">
-                            <Eye className="h-4 w-4" /> View Details
+                          <DropdownMenuItem className="gap-2 cursor-pointer"><FileDown className="h-4 w-4 text-slate-500" /> Export as PDF</DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2 cursor-pointer"><Printer className="h-4 w-4 text-slate-500" /> Print Document</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="gap-2 text-destructive cursor-pointer focus:bg-destructive/5"
+                            onClick={() => handleDelete(p)}
+                          >
+                            Delete
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2"><FileDown className="h-4 w-4" /> Download PDF</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -197,7 +271,7 @@ export default function ProformaInvoicesPage() {
         </CardContent>
       </Card>
 
-      <ProformaFormDialog 
+      <ProformaFormDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         proforma={selectedProforma}

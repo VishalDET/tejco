@@ -12,25 +12,27 @@ import { cn } from "@/lib/utils"
 
 interface ClientSelectorProps {
   selectedClientId?: string
+  selectedClientName?: string
   onSelect: (client: Client) => void
 }
 
-export function ClientSelector({ selectedClientId, onSelect }: ClientSelectorProps) {
+export function ClientSelector({ selectedClientId, selectedClientName, onSelect }: ClientSelectorProps) {
   const [open, setOpen] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const selectedClient = clients.find((c) => c.id === selectedClientId)
+  const selectedClient = clients.find((c) => 
+    c.id === selectedClientId || 
+    (selectedClientName && c.name?.toLowerCase().trim() === selectedClientName.toLowerCase().trim())
+  )
 
   useEffect(() => {
-    if (open && clients.length === 0) {
-      setIsLoading(true)
-      clientsApi.getAll()
-        .then(setClients)
-        .finally(() => setIsLoading(false))
-    }
-  }, [open, clients.length])
+    setIsLoading(true)
+    clientsApi.getAll()
+      .then(setClients)
+      .finally(() => setIsLoading(false))
+  }, [])
 
   const filteredClients = clients.filter((client) =>
     (client.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -51,7 +53,7 @@ export function ClientSelector({ selectedClientId, onSelect }: ClientSelectorPro
           aria-expanded={open}
           className="w-full justify-between font-normal"
         >
-          {selectedClient ? selectedClient.name : "Select Client / Doctor..."}
+          {selectedClient ? selectedClient.name : (selectedClientName || "Select Client / Doctor...")}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       } />

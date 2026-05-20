@@ -61,6 +61,9 @@ interface ApiProduct {
     barcodeNumber: string
     categoryId: number
     subcategoryId: number
+    subcategoryL2Id: number
+    subcategoryL3Id: number
+    subcategoryL4Id: number
     brand: string
     unit: string
     description: string

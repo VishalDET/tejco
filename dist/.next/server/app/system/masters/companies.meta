@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/system/layout,_N_T_/system/masters/layout,_N_T_/system/masters/companies/layout,_N_T_/system/masters/companies/page,_N_T_/system/masters/companies"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/system/masters/companies/__PAGE__",
+    "/system/masters/companies",
+    "/system/masters",
+    "/system",
+    "/_index",
+    "/_head"
+  ]
+}

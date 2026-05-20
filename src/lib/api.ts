@@ -342,6 +342,7 @@ export const warehousesApi = {
 // ---------------------------------------------------------------------------
 
 import { mapApiQuotation, Quotation } from "@/app/sales/quotations/types"
+import { mapApiProforma, ProformaInvoice } from "@/app/sales/proforma-invoices/types"
 import type { SalesDocument } from "@/app/sales/types"
 
 export const quotationsApi = {
@@ -368,11 +369,46 @@ export const quotationsApi = {
   /** POST /api/Quotation/Create */
   create: (data: any) => apiClient.post<any>("/api/Quotation/Create", data),
 
-  /** PUT /api/Quotation/{id} */
-  update: (id: string, data: any) => apiClient.put<any>(`/api/Quotation/${id}`, data),
+  /** PUT /api/Quotation/Update/{id} */
+  update: (id: string, data: any) => apiClient.put<any>(`/api/Quotation/Update/${id}`, data),
 
-  /** DELETE /api/Quotation/{id} */
-  remove: (id: string) => apiClient.delete<void>(`/api/Quotation/${id}`),
+  /** DELETE /api/Quotation/Delete/{id} */
+  remove: (id: string) => apiClient.delete<void>(`/api/Quotation/Delete/${id}`),
+}
+
+// ---------------------------------------------------------------------------
+// Proforma Invoices  →  /api/ProformaInvoice
+// ---------------------------------------------------------------------------
+
+export const proformaApi = {
+  /** GET /api/ProformaInvoice/GetAll */
+  getAll: async (): Promise<ProformaInvoice[]> => {
+    try {
+      const raw = await apiClient.get<any>("/api/ProformaInvoice/GetAll")
+      if (Array.isArray(raw)) return raw.map(mapApiProforma)
+      if (raw?.data && Array.isArray(raw.data)) return raw.data.map(mapApiProforma)
+      return []
+    } catch (err) {
+      console.error("Failed to fetch proforma invoices:", err)
+      return []
+    }
+  },
+
+  /** GET /api/ProformaInvoice/GetById/{id} */
+  getById: async (id: string): Promise<ProformaInvoice> => {
+    const raw = await apiClient.get<any>(`/api/ProformaInvoice/GetById/${id}`)
+    const data = raw?.data || raw
+    return mapApiProforma(data)
+  },
+
+  /** POST /api/ProformaInvoice/Create */
+  create: (data: any) => apiClient.post<any>("/api/ProformaInvoice/Create", data),
+
+  /** PUT /api/ProformaInvoice/Update/{id} */
+  update: (id: string, data: any) => apiClient.put<any>(`/api/ProformaInvoice/Update/${id}`, data),
+
+  /** DELETE /api/ProformaInvoice/Delete/{id} */
+  remove: (id: string) => apiClient.delete<void>(`/api/ProformaInvoice/Delete/${id}`),
 }
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ interface ProductVariant {
   purchasePrice: number
   sellingPrice: number
   currentQuantity: number
+  variantImage?: string
 }
 
 interface Product {
@@ -92,7 +93,7 @@ export function ProductSelector({ onSelect }: ProductSelectorProps) {
             className="h-9"
           />
         </div>
-        <ScrollArea className="h-[400px]">
+        <div className="h-[400px] overflow-y-auto">
           <div className="p-1">
             {isLoading ? (
               <div className="p-4 text-center text-sm text-muted-foreground">Loading products...</div>
@@ -121,7 +122,7 @@ export function ProductSelector({ onSelect }: ProductSelectorProps) {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       </DialogContent>
     </Dialog>
   )

@@ -181,7 +181,10 @@ export default function AddProductPage() {
             productTaggingNo: taggingNo,
             barcodeNumber: tempProdId, // Using the generated base ID
             categoryId: selectedCategoryIds[0] || 0,
-            subcategoryId: selectedCategoryIds[selectedCategoryIds.length - 1] || 0,
+            subcategoryId: selectedCategoryIds[1] || 0,
+            subcategoryL2Id: selectedCategoryIds[2] || 0,
+            subcategoryL3Id: selectedCategoryIds[3] || 0,
+            subcategoryL4Id: selectedCategoryIds[4] || 0,
             brand: brand,
             unit: unit,
             description: description,

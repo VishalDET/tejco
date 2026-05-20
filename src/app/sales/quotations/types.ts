@@ -3,12 +3,15 @@ import { SalesDocument, SalesDocumentItem } from "../types"
 export interface ApiQuotationItem {
   quotationItemId: number
   quotationId: number
+  productId: number
   productName: string
   itemName: string
   imageUrl: string
   price: number
   gstPercentage: number
   quantity: number
+  discountPercentage?: number
+  discountAmount?: number
 }
 
 export interface ApiQuotation {
@@ -24,6 +27,7 @@ export interface ApiQuotation {
   deliveryTime: string
   salesPersonName: string
   salesPersonCell: string
+  salesPersonId?: string
   createdAt: string
   updatedAt: string | null
   items: ApiQuotationItem[]
@@ -38,12 +42,45 @@ export interface Quotation extends SalesDocument {
   deliveryTime: string
   salesPersonName: string
   salesPersonCell: string
+  salesPersonId?: string
   gstinNo?: string
 }
 
 export function mapApiQuotation(raw: ApiQuotation): Quotation {
-  const subtotal = raw.items.reduce((acc, item) => acc + (item.price * item.quantity), 0)
-  const taxAmount = raw.items.reduce((acc, item) => acc + (item.price * item.quantity * item.gstPercentage / 100), 0)
+  // Calculate totals incorporating discounts
+  const items = raw.items.map(item => {
+    const price = item.price || 0
+    const quantity = item.quantity || 0
+    const discountPercentage = item.discountPercentage || 0
+    // If discountAmount is provided use it, otherwise calculate it
+    const discountAmount = item.hasOwnProperty('discountAmount') 
+      ? (item.discountAmount || 0) 
+      : (price * discountPercentage / 100)
+    
+    const discountedPrice = price - discountAmount
+    const itemSubtotal = discountedPrice * quantity
+    const itemTax = itemSubtotal * (item.gstPercentage || 0) / 100
+    const itemTotal = itemSubtotal + itemTax
+
+    return {
+      id: String(item.quotationItemId),
+      productId: String(item.productId || item.quotationItemId),
+      productName: item.productName,
+      name: item.itemName,
+      sku: item.itemName, // The API doesn't seem to have a separate SKU field, using itemName as fallback
+      quantity,
+      unitPrice: price,
+      discountPercentage,
+      discountAmount,
+      discountedUnitPrice: discountedPrice,
+      gstRate: item.gstPercentage,
+      total: itemTotal,
+      imageUrl: item.imageUrl
+    }
+  })
+
+  const subtotal = items.reduce((acc, item) => acc + (item.discountedUnitPrice * item.quantity), 0)
+  const taxAmount = items.reduce((acc, item) => acc + (item.discountedUnitPrice * item.quantity * item.gstRate / 100), 0)
 
   return {
     id: String(raw.quotationId),
@@ -55,18 +92,7 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     date: raw.quotationDate,
     validUntil: new Date(new Date(raw.quotationDate).getTime() + raw.validityDays * 24 * 60 * 60 * 1000).toISOString(),
     status: "Issued", // Default status from API response message "Quotations retrieved successfully."
-    items: raw.items.map(item => ({
-      id: String(item.quotationItemId),
-      productId: String(item.quotationItemId), // Fallback
-      productName: item.productName,
-      name: item.itemName,
-      sku: item.itemName, // The API doesn't seem to have a separate SKU field, using itemName as fallback
-      quantity: item.quantity,
-      unitPrice: item.price,
-      gstRate: item.gstPercentage,
-      total: item.price * item.quantity * (1 + item.gstPercentage / 100),
-      imageUrl: item.imageUrl
-    })),
+    items,
     subtotal,
     taxAmount,
     totalAmount: subtotal + taxAmount,
@@ -79,6 +105,7 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     deliveryTime: raw.deliveryTime,
     salesPersonName: raw.salesPersonName,
     salesPersonCell: raw.salesPersonCell,
+    salesPersonId: (raw as any).salesPersonId ? String((raw as any).salesPersonId) : "",
     gstinNo: raw.gstinNo
   }
 }

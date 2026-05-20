@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/supply-chain/layout,_N_T_/supply-chain/warehouse/layout,_N_T_/supply-chain/warehouse/page,_N_T_/supply-chain/warehouse"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/supply-chain/warehouse/__PAGE__",
+    "/supply-chain/warehouse",
+    "/supply-chain",
+    "/_index",
+    "/_head"
+  ]
+}

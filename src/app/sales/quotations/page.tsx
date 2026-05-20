@@ -60,11 +60,50 @@ export default function QuotationsPage() {
     setIsDialogOpen(true)
   }
 
-  const handleConvertToProforma = (q: Quotation) => {
+  const handleConvertToProforma = async (q: Quotation) => {
+    try {
+      // Update quotation status in backend
+      const payload = {
+        quotationId: q.quotationId,
+        quotationNumber: q.quotationNumber || q.number,
+        quotationDate: new Date(q.date).toISOString(),
+        clientName: q.clientName || "",
+        clientAddress: q.billingAddress || "",
+        clientMobileNo: q.clientMobileNo || "",
+        subject: q.subject || "",
+        gstinNo: q.gstinNo || "",
+        validityDays: q.validityDays || 7,
+        deliveryTime: q.deliveryTime || "",
+        salesPersonName: q.salesPersonName || "",
+        salesPersonCell: q.salesPersonCell || "",
+        salesPersonId: q.salesPersonId ? String(q.salesPersonId) : "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        items: q.items.map(item => ({
+          quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
+          quotationId: q.quotationId,
+          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
+          productName: item.productName || "",
+          itemName: item.name || "",
+          imageUrl: (item as any).imageUrl || "",
+          price: item.unitPrice || 0,
+          gstPercentage: item.gstRate || 0,
+          quantity: item.quantity || 0,
+          discountPercentage: (item as any).discountPercentage || 0,
+          discountAmount: (item as any).discountAmount || 0,
+        }))
+      }
+      await quotationsApi.update(String(q.quotationId), payload)
+      // Optimistically update local list badge
+      setQuotations(prev => prev.map(o => o.id === q.id ? { ...o, status: "Converted to Proforma" } as Quotation : o))
+    } catch (err) {
+      console.error("Failed to update quotation status on convert:", err)
+    }
+
     localStorage.setItem("convert_source_data", JSON.stringify({
       ...q,
       sourceId: q.id,
-      number: "", 
+      number: "",
       status: "Draft",
       date: new Date().toISOString().split('T')[0]
     }))

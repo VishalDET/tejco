@@ -1,0 +1,16 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/supply-chain/layout,_N_T_/supply-chain/vendors/layout,_N_T_/supply-chain/vendors/page,_N_T_/supply-chain/vendors"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/supply-chain/vendors/__PAGE__",
+    "/supply-chain/vendors",
+    "/supply-chain",
+    "/_index",
+    "/_head"
+  ]
+}

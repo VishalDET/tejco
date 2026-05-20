@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Plus, Trash2, FileText, Calculator } from "lucide-react"
 import { ClientSelector } from "@/components/sales/client-selector"
 import { ProductSelector } from "@/components/sales/product-selector"
-import { quotationsApi, serializeAddress } from "@/lib/api"
+import { quotationsApi, usersApi, serializeAddress } from "@/lib/api"
 import { toast } from "sonner"
 
 interface QuotationFormDialogProps {
@@ -30,6 +30,26 @@ const GST_RATES = [0, 5, 12, 18, 28]
 export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: QuotationFormDialogProps) {
   const [form, setForm] = useState<Partial<Quotation>>({})
   const [isSaving, setIsSaving] = useState(false)
+  const [users, setUsers] = useState<any[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        setLoadingUsers(true)
+        const res = await usersApi.getAll() as any
+        const list = Array.isArray(res) ? res : (res?.data && Array.isArray(res.data) ? res.data : [])
+        setUsers(list)
+      } catch (err) {
+        console.error("Error fetching users:", err)
+      } finally {
+        setLoadingUsers(false)
+      }
+    }
+    if (open) {
+      fetchUsers()
+    }
+  }, [open])
 
   useEffect(() => {
     if (quotation) {
@@ -54,6 +74,15 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     }
   }, [quotation, open])
 
+  useEffect(() => {
+    if (users.length > 0 && form.salesPersonName && !form.salesPersonId) {
+      const match = users.find(u => `${u.firstName} ${u.lastName}`.trim().toLowerCase() === form.salesPersonName?.trim().toLowerCase())
+      if (match) {
+        setForm(prev => ({ ...prev, salesPersonId: String(match.userId) }))
+      }
+    }
+  }, [users, form.salesPersonName, form.salesPersonId])
+
   const calculateTotals = (items: SalesDocumentItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0)
     const taxAmount = items.reduce((sum, item) => sum + ((item.total || 0) * (item.gstRate / 100)), 0)
@@ -76,21 +105,29 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
       unitPrice: variant.sellingPrice,
       total: variant.sellingPrice,
       gstRate: variant.gstPercentage ?? 18,
-      imageUrl: product.imageUrl || "" 
+      imageUrl: variant.variantImage || product.imageUrl || "" 
     }
+    // Initialize discount fields
+    ;(newItem as any).discountPercentage = 0
+    ;(newItem as any).discountAmount = 0
     const newItems = [...(form.items || []), newItem]
     const totals = calculateTotals(newItems)
     setForm(prev => ({ ...prev, items: newItems, ...totals }))
   }
 
-  const updateItem = (id: string, field: keyof SalesDocumentItem, value: any) => {
+  const updateItem = (id: string, field: keyof SalesDocumentItem | "discountPercentage", value: any) => {
     const newItems = (form.items || []).map(item => {
       if (item.id === id) {
-        const updatedItem = { ...item, [field]: value } as SalesDocumentItem
-        if (field === "quantity" || field === "unitPrice") {
-          updatedItem.total = (updatedItem.quantity || 0) * (updatedItem.unitPrice || 0)
+        const updatedItem = { ...item, [field]: value } as any
+        if (field === "quantity" || field === "unitPrice" || field === "discountPercentage") {
+          const qty = updatedItem.quantity || 0
+          const price = updatedItem.unitPrice || 0
+          const discPct = updatedItem.discountPercentage || 0
+          const discAmt = price * discPct / 100
+          updatedItem.discountAmount = discAmt
+          updatedItem.total = (price - discAmt) * qty
         }
-        return updatedItem
+        return updatedItem as SalesDocumentItem
       }
       return item
     })
@@ -105,7 +142,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
   }
 
   const handleSave = async () => {
-    if (!form.clientId || (form.items || []).length === 0) return
+    if ((!form.clientId && !form.clientName) || (form.items || []).length === 0) return
     setIsSaving(true)
     
     try {
@@ -116,24 +153,28 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         quotationDate: new Date(form.date || new Date()).toISOString(),
         clientName: form.clientName || "",
         clientAddress: form.billingAddress || "",
-        clientMobileNo: quotation?.clientMobileNo || "", 
-        subject: form.subject || form.notes || "", 
+        clientMobileNo: form.clientMobileNo || quotation?.clientMobileNo || "", 
+        subject: form.subject || form.notes || "Quotation", 
         gstinNo: form.gstinNo || "",
         validityDays: form.validityDays || 7,
         deliveryTime: form.deliveryTime || "7-10 Days",
         salesPersonName: form.salesPersonName || "Admin",
         salesPersonCell: form.salesPersonCell || "",
+        salesPersonId: form.salesPersonId ? String(form.salesPersonId) : "",
         createdAt: new Date().toISOString(),
         updatedAt: null,
         items: (form.items || []).map(item => ({
           quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           quotationId: quotation?.id && !isNaN(parseInt(quotation.id)) ? parseInt(quotation.id) : 0,
+          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
           productName: item.productName || "",
           itemName: item.name || "",
           imageUrl: (item as any).imageUrl || "",
           price: item.unitPrice || 0,
           gstPercentage: item.gstRate || 0,
-          quantity: item.quantity || 0
+          quantity: item.quantity || 0,
+          discountPercentage: (item as any).discountPercentage || 0,
+          discountAmount: (item as any).discountAmount || 0
         }))
       }
 
@@ -165,7 +206,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 p-6">
+        <div className="flex-1 p-6 overflow-y-auto max-h-[calc(95vh-140px)]">
           <div className="space-y-6 pb-6">
             {/* Header Section */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -175,27 +216,66 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
               </div>
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Input type="date" value={form.date || ""} onChange={(e) => set("date", e.target.value)} />
+                <Input type="date" value={form.date ? form.date.split("T")[0] : ""} onChange={(e) => set("date", e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label>Valid Until</Label>
-                <Input type="date" value={form.validUntil || ""} onChange={(e) => set("validUntil", e.target.value)} />
+                <Input type="date" value={form.validUntil ? form.validUntil.split("T")[0] : ""} onChange={(e) => set("validUntil", e.target.value)} />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
                 <Label>Client / Doctor *</Label>
                 <ClientSelector 
                   selectedClientId={form.clientId} 
+                  selectedClientName={form.clientName}
                   onSelect={(c) => {
                     set("clientId", c.id)
                     set("clientName", c.name)
+                    set("clientMobileNo", c.phone || "")
                     set("billingAddress", serializeAddress(c.billingAddress))
                     set("shippingAddress", serializeAddress(c.shippingAddress))
                     set("gstinNo", c.gstin)
                   }} 
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Sales Representative *</Label>
+                <Select 
+                  value={form.salesPersonName || ""}
+                  onValueChange={(val) => {
+                    const selectedUser = users.find(u => `${u.firstName} ${u.lastName}` === val)
+                    if (selectedUser) {
+                      setForm(prev => ({
+                        ...prev,
+                        salesPersonName: val,
+                        salesPersonCell: selectedUser.phone || "",
+                        salesPersonId: String(selectedUser.userId)
+                      } as Partial<Quotation>))
+                    } else {
+                      setForm(prev => ({
+                        ...prev,
+                        salesPersonName: val,
+                        salesPersonId: undefined
+                      } as Partial<Quotation>))
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingUsers ? "Loading..." : "Select Sales Person"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map(u => {
+                      const fullName = `${u.firstName} ${u.lastName}`
+                      return (
+                        <SelectItem key={u.userId} value={fullName}>
+                          {fullName}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -208,6 +288,15 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Subject *</Label>
+              <Input 
+                placeholder="e.g. Surgical Blade L4, Testing Item Discounts, etc." 
+                value={form.subject || ""} 
+                onChange={(e) => set("subject", e.target.value)} 
+              />
             </div>
 
             <Separator />
@@ -223,10 +312,11 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[30%]">Product</TableHead>
+                      <TableHead className="w-[25%]">Product</TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead className="w-[10%] text-center">Qty</TableHead>
                       <TableHead className="w-[12%] text-right">Price</TableHead>
+                      <TableHead className="w-[12%] text-center">Disc %</TableHead>
                       <TableHead className="w-[12%] text-center">GST %</TableHead>
                       <TableHead className="w-[15%] text-right">Total</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
@@ -235,14 +325,26 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   <TableBody>
                     {(form.items || []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-muted-foreground italic">
+                        <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">
                           No items added. Click "Add Product" to search the inventory.
                         </TableCell>
                       </TableRow>
                     ) : (
                       (form.items || []).map((item) => (
                         <TableRow key={item.id}>
-                          <TableCell className="font-medium">{item.productName}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-3">
+                              {(item as any).imageUrl && (
+                                <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
+                                  <img src={(item as any).imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-medium text-slate-900">{item.productName}</div>
+                                {item.name && <div className="text-xs text-slate-500">{item.name}</div>}
+                              </div>
+                            </div>
+                          </TableCell>
                           <TableCell className="text-xs font-mono">{item.sku}</TableCell>
                           <TableCell>
                             <Input 
@@ -259,6 +361,17 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                               value={item.unitPrice ?? ""} 
                               onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
                               className="h-8 text-right"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input 
+                              type="number" 
+                              min="0"
+                              max="100"
+                              value={(item as any).discountPercentage ?? 0} 
+                              onChange={(e) => updateItem(item.id, "discountPercentage", parseFloat(e.target.value) || 0)}
+                              className="h-8 text-center"
+                              placeholder="0"
                             />
                           </TableCell>
                           <TableCell>
@@ -320,9 +433,15 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
 
               <div className="bg-muted/30 p-6 rounded-xl space-y-4 border border-muted-foreground/10">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">₹{form.subtotal?.toLocaleString()}</span>
+                  <span className="text-muted-foreground">Subtotal (Gross)</span>
+                  <span className="font-medium">₹{form.items?.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)?.toLocaleString()}</span>
                 </div>
+                {form.items?.some(item => (item as any).discountAmount > 0) && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Total Discount</span>
+                    <span className="font-medium text-rose-600">- ₹{form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total GST</span>
                   <span className="font-medium text-amber-600">+ ₹{form.taxAmount?.toLocaleString()}</span>
@@ -348,11 +467,11 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
               />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="p-6 border-t bg-muted/10 gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>Discard Changes</Button>
-          <Button onClick={handleSave} disabled={!form.clientId || (form.items || []).length === 0 || isSaving} className="min-w-[140px]">
+          <Button onClick={handleSave} disabled={(!form.clientId && !form.clientName) || (form.items || []).length === 0 || isSaving} className="min-w-[140px]">
             {isSaving ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
             ) : (

@@ -40,8 +40,9 @@ export default function LoginPage() {
                 throw new Error("Invalid response from server. No token received.")
             }
 
-            // Save token immediately so subsequent requests (like getByEmail) can use it
+            // Save token in localStorage and Cookie (Middleware needs the cookie)
             localStorage.setItem("tejco_auth_token", token)
+            document.cookie = `tejco_auth_token=${token}; path=/; max-age=86400; SameSite=Lax`
 
             // Fetch full user details by email
             try {
@@ -50,11 +51,10 @@ export default function LoginPage() {
                 localStorage.setItem("tejco_user", JSON.stringify(userData))
             } catch (userErr) {
                 console.error("Failed to fetch user details:", userErr)
-                // We still proceed if we have a token, but profile might be empty
             }
 
             toast.success("Login successful! Welcome back.")
-            router.push("/system/dashboard")
+            router.push("/")
         } catch (err: any) {
             const message = err.message || "Invalid username or password"
             toast.error(message)

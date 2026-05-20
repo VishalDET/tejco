@@ -32,6 +32,7 @@ export function TopNav() {
     const handleLogout = () => {
         localStorage.removeItem("tejco_auth_token")
         localStorage.removeItem("tejco_user")
+        document.cookie = "tejco_auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
         toast.success("Logged out successfully")
         router.push("/login")
     }

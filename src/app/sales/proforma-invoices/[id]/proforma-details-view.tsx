@@ -72,12 +72,12 @@ export function ProformaDetailsView({ proforma }: ProformaDetailsViewProps) {
               <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">{proforma.number}</h1>
               {getStatusBadge(proforma.status)}
             </div>
-            <p className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-2">
+            <div className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-2">
               <Clock className="h-3.5 w-3.5" />
               Generated on {new Date(proforma.date).toLocaleDateString("en-GB")}
               <Separator orientation="vertical" className="h-3 mx-1" />
               <span className="text-slate-900 font-bold">{proforma.clientName}</span>
-            </p>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">

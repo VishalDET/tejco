@@ -210,9 +210,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                                 <Boxes className="size-4" />
                             </div>
-                            <div className="grid flex-1 text-left text-sm leading-tight">
-                                <span className="truncate font-semibold">Tejco ERP</span>
-                                <span className="truncate text-xs">Enterprise Suite</span>
+                            <div className="flex flex-1 items-center">
+                                <img
+                                    src="https://tejcovision.com/wp-content/uploads/2018/09/logo.png"
+                                    alt="Tejco Logo"
+                                    className="h-8 w-auto object-contain brightness-0 invert"
+                                />
                             </div>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
