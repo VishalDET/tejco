@@ -50,7 +50,16 @@ async function request<T>(
     try {
       data = await res.json()
       console.error(`[apiClient] Error ${res.status} on ${path}:`, data)
-      message = data?.message ?? data?.title ?? message
+      if (data && typeof data === "object") {
+        if (data.errors && typeof data.errors === "object") {
+          const detailMsgs = Object.entries(data.errors)
+            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(", ") : msgs}`)
+            .join(" | ")
+          message = `${data.title ?? data.message ?? message} (${detailMsgs})`
+        } else {
+          message = data.message ?? data.title ?? message
+        }
+      }
     } catch {
       // ignore parse errors
     }

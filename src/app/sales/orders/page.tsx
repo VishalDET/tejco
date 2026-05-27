@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit } from "lucide-react"
+import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit, Loader2, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -24,8 +24,10 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Order, OrderStatus } from "./types"
+import { Order, OrderStatus, mapApiSalesOrder } from "./types"
 import { OrderFormDialog } from "./order-form-dialog"
+import { salesOrderApi } from "@/lib/api"
+import { toast } from "sonner"
 
 const initialOrders: Order[] = [
     {
@@ -75,14 +77,33 @@ const getStatusBadge = (status: OrderStatus) => {
 
 export default function OrdersPage() {
     const router = useRouter()
-    const [orders, setOrders] = React.useState<Order[]>(initialOrders)
+    const [orders, setOrders] = React.useState<Order[]>([])
+    const [isLoading, setIsLoading] = React.useState(true)
+    const [isRefreshing, setIsRefreshing] = React.useState(false)
     const [isDialogOpen, setIsDialogOpen] = React.useState(false)
     const [selectedOrder, setSelectedOrder] = React.useState<Order | null>(null)
     const [isMounted, setIsMounted] = React.useState(false)
     const [searchQuery, setSearchQuery] = React.useState("")
 
+    const fetchOrders = async (silent = false) => {
+        if (!silent) setIsLoading(true)
+        else setIsRefreshing(true)
+        try {
+            const raw = await salesOrderApi.getAll()
+            const data = Array.isArray(raw) ? raw.map(mapApiSalesOrder) : []
+            setOrders(data)
+        } catch (error) {
+            console.error("Failed to fetch sales orders:", error)
+            toast.error("Failed to load sales orders. Please try again.")
+        } finally {
+            setIsLoading(false)
+            setIsRefreshing(false)
+        }
+    }
+
     React.useEffect(() => {
         setIsMounted(true)
+        fetchOrders()
         
         // Handle conversion from Proforma
         const urlParams = new URLSearchParams(window.location.search)
@@ -90,7 +111,17 @@ export default function OrdersPage() {
             const sourceData = localStorage.getItem("convert_source_data")
             if (sourceData) {
                 const parsed = JSON.parse(sourceData)
-                setSelectedOrder(parsed)
+                const prefilledOrder = {
+                    ...parsed,
+                    id: "",
+                    orderNumber: `SO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+                    status: "Pending",
+                    paymentStatus: "Unpaid",
+                    date: new Date().toISOString().split('T')[0],
+                    proformaId: parsed.proformaId || parsed.id,
+                    quotationId: parsed.sourceQuotationId || parsed.quotationId,
+                }
+                setSelectedOrder(prefilledOrder)
                 setIsDialogOpen(true)
                 // Clean up URL and storage
                 window.history.replaceState({}, "", window.location.pathname)
@@ -110,15 +141,7 @@ export default function OrdersPage() {
     }
 
     const handleSaveOrder = (data: Partial<Order>) => {
-        if (selectedOrder) {
-            setOrders(prev => prev.map(o => o.id === selectedOrder.id ? { ...o, ...data } as Order : o))
-        } else {
-            const newOrder: Order = {
-                ...data,
-                id: Math.random().toString(36).substr(2, 9),
-            } as Order
-            setOrders(prev => [newOrder, ...prev])
-        }
+        fetchOrders(true)
     }
 
     const filteredOrders = orders.filter(o => 
@@ -186,7 +209,14 @@ export default function OrdersPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredOrders.length === 0 ? (
+                                    {isLoading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                                                <Loader2 className="h-6 w-6 animate-spin mx-auto text-emerald-600 mb-2" />
+                                                Loading orders...
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : filteredOrders.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">
                                                 No orders found matching your search.

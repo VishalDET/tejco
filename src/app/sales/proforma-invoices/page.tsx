@@ -96,7 +96,44 @@ export default function ProformaInvoicesPage() {
     fetchProformas(true)
   }
 
-  const handleConvertToOrder = (p: ProformaInvoice) => {
+  const handleConvertToOrder = async (p: ProformaInvoice) => {
+    try {
+      const payload = {
+        proformaInvoiceId: p.proformaId,
+        piNo: p.proformaNumber || "",
+        piDate: new Date(p.date || new Date()).toISOString(),
+        billingName: p.clientName || "",
+        billingAddress: p.billingAddress || "",
+        freight: p.freight || 0,
+        totalAmount: p.totalAmount || 0,
+        deliveryTerms: p.deliveryTerms || p.deliveryTime || "10-15 Working Days",
+        paymentTerms: p.paymentTerms || p.notes || "",
+        salesPersonName: p.salesPersonName || "",
+        salesPersonCell: p.salesPersonCell || "",
+        salesPersonId: p.salesPersonId ? String(p.salesPersonId) : "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        status: "Converted to Sales Order",
+        items: (p.items || []).map(item => ({
+          proformaInvoiceItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
+          proformaInvoiceId: p.proformaId,
+          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
+          productName: item.productName || "",
+          imageUrl: (item as any).imageUrl || "",
+          quantity: item.quantity || 0,
+          rate: item.unitPrice || 0,
+          discountPercentage: (item as any).discountPercentage || 0,
+          discountAmount: (item as any).discountAmount || 0,
+          total: item.total || 0,
+        })),
+      }
+      await proformaApi.update(String(p.proformaId), payload)
+      setProformas(prev => prev.map(o => o.id === p.id ? { ...o, status: "Converted to Sales Order" } as ProformaInvoice : o))
+      toast.success("Proforma invoice converted successfully.")
+    } catch (err) {
+      console.error("Failed to update proforma status:", err)
+    }
+
     localStorage.setItem("convert_source_data", JSON.stringify({
       ...p,
       sourceId: p.id,

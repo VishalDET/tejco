@@ -69,6 +69,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         totalAmount: 0,
         validityDays: 7,
         deliveryTime: "10-15 Working Days",
+        deliveryTerms: "10-15 Working Days",
+        paymentTerms: "",
         salesPersonName: "",
         salesPersonCell: "",
         subject: "",
@@ -76,13 +78,26 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
     }
   }, [proforma, open])
 
-  // Auto-match salesperson name to user list
+  // Auto-match salesperson name to user list, or resolve mock/invalid salesPersonId
   useEffect(() => {
-    if (users.length > 0 && form.salesPersonName && !form.salesPersonId) {
-      const match = users.find(u =>
-        `${u.firstName} ${u.lastName}`.trim().toLowerCase() === form.salesPersonName?.trim().toLowerCase()
-      )
-      if (match) setForm(prev => ({ ...prev, salesPersonId: String(match.userId) }))
+    if (users.length > 0 && form.salesPersonName) {
+      const hasValidId = form.salesPersonId && users.some(u => String(u.userId) === String(form.salesPersonId))
+      
+      if (!hasValidId) {
+        const match = users.find(u =>
+          `${u.firstName} ${u.lastName}`.trim().toLowerCase() === form.salesPersonName?.trim().toLowerCase()
+        )
+        if (match) {
+          setForm(prev => ({ 
+            ...prev, 
+            salesPersonId: String(match.userId),
+            salesPersonCell: match.mobile || match.phone || prev.salesPersonCell || ""
+          }))
+        } else {
+          // Clear invalid/mock salesPersonId so user is forced to select a valid one
+          setForm(prev => ({ ...prev, salesPersonId: undefined }))
+        }
+      }
     }
   }, [users, form.salesPersonName, form.salesPersonId])
 
@@ -141,40 +156,42 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
 
   const handleSave = async () => {
     if ((!form.clientId && !form.clientName) || (form.items || []).length === 0) return
+    if (!form.salesPersonId) {
+      toast.error("Please select a valid Sales Person")
+      return
+    }
     setIsSaving(true)
 
     try {
       const existingId = proforma?.proformaId && !isNaN(proforma.proformaId) ? proforma.proformaId : 0
 
       const payload = {
-        proformaId: existingId,
-        proformaNumber: form.number || "",
-        proformaDate: new Date(form.date || new Date()).toISOString(),
-        clientName: form.clientName || "",
-        clientAddress: form.billingAddress || "",
-        clientMobileNo: form.clientMobileNo || "",
-        subject: form.subject || form.notes || "Proforma Invoice",
-        gstinNo: form.gstinNo || "",
-        validityDays: form.validityDays || 7,
-        deliveryTime: form.deliveryTime || "10-15 Working Days",
+        proformaInvoiceId: existingId,
+        piNo: form.number || "",
+        piDate: new Date(form.date || new Date()).toISOString(),
+        billingName: form.clientName || "",
+        billingAddress: form.billingAddress || "",
+        freight: form.freight || 0,
+        totalAmount: form.totalAmount || 0,
+        deliveryTerms: form.deliveryTerms || form.deliveryTime || "10-15 Working Days",
+        paymentTerms: form.paymentTerms || form.notes || "",
         salesPersonName: form.salesPersonName || "",
         salesPersonCell: form.salesPersonCell || "",
         salesPersonId: form.salesPersonId ? String(form.salesPersonId) : "",
-        sourceQuotationId: (form as any).sourceQuotationId || "",
         createdAt: new Date().toISOString(),
-        updatedAt: null,
+        updatedAt: new Date().toISOString(),
+        status: form.status || "Draft",
         items: (form.items || []).map(item => ({
-          proformaItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
-          proformaId: existingId,
+          proformaInvoiceItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
+          proformaInvoiceId: existingId,
           productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
           productName: item.productName || "",
-          itemName: item.name || "",
           imageUrl: (item as any).imageUrl || "",
-          price: item.unitPrice || 0,
-          gstPercentage: item.gstRate || 0,
           quantity: item.quantity || 0,
+          rate: item.unitPrice || 0,
           discountPercentage: (item as any).discountPercentage || 0,
           discountAmount: (item as any).discountAmount || 0,
+          total: item.total || 0,
         })),
       }
 
@@ -188,9 +205,10 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
 
       onSave(form as Partial<ProformaInvoice>)
       onOpenChange(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save proforma:", error)
-      toast.error("Failed to save proforma invoice. Please try again.")
+      const errorMsg = error?.message || "Please try again."
+      toast.error(`Failed to save proforma invoice: ${errorMsg}`)
     } finally {
       setIsSaving(false)
     }
@@ -259,7 +277,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
             {/* Sales Person */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <Label>Sales Person</Label>
+                <Label>Sales Person *</Label>
                 <Select
                   value={form.salesPersonName || ""}
                   onValueChange={(val) => {
@@ -298,8 +316,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                 <Input value={form.salesPersonCell || ""} onChange={(e) => set("salesPersonCell", e.target.value)} placeholder="+91-xxxxxxxxxx" />
               </div>
               <div className="space-y-2">
-                <Label>Delivery Time</Label>
-                <Input value={form.deliveryTime || ""} onChange={(e) => set("deliveryTime", e.target.value)} placeholder="e.g. 10-15 Working Days" />
+                <Label>Delivery Terms</Label>
+                <Input value={form.deliveryTerms || form.deliveryTime || ""} onChange={(e) => set("deliveryTerms", e.target.value)} placeholder="e.g. 10-15 Working Days" />
               </div>
             </div>
 
@@ -333,7 +351,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                       <TableHead className="w-[9%] text-center font-bold">Disc%</TableHead>
                       <TableHead className="w-[10%] text-center font-bold">GST %</TableHead>
                       <TableHead className="w-[13%] text-right font-bold">Total</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
+                      <TableHead className="w-12.5"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -349,7 +367,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-3">
                               {(item as any).imageUrl && (
-                                <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
+                                <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 shrink-0 flex items-center justify-center">
                                   <img src={(item as any).imageUrl} alt={item.productName} className="h-full w-full object-contain" />
                                 </div>
                               )}
@@ -466,11 +484,11 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
             </div>
 
             <div className="space-y-2 pt-4">
-              <Label>Notes / Terms &amp; Conditions</Label>
+              <Label>Payment Terms / Notes</Label>
               <Textarea
-                placeholder="Validity period, payment terms, or other instructions..."
-                value={form.notes || ""}
-                onChange={(e) => set("notes", e.target.value)}
+                placeholder="Payment terms, validity period, or other instructions..."
+                value={form.paymentTerms || form.notes || ""}
+                onChange={(e) => set("paymentTerms", e.target.value)}
               />
             </div>
           </div>
@@ -481,7 +499,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
           <Button
             onClick={handleSave}
             disabled={(!form.clientId && !form.clientName) || (form.items || []).length === 0 || isSaving}
-            className="min-w-[160px]"
+            className="min-w-40"
           >
             {isSaving ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>

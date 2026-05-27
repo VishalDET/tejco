@@ -28,6 +28,7 @@ export interface ApiQuotation {
   salesPersonName: string
   salesPersonCell: string
   salesPersonId?: string
+  status?: string
   createdAt: string
   updatedAt: string | null
   items: ApiQuotationItem[]
@@ -91,7 +92,7 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     clientName: raw.clientName,
     date: raw.quotationDate,
     validUntil: new Date(new Date(raw.quotationDate).getTime() + raw.validityDays * 24 * 60 * 60 * 1000).toISOString(),
-    status: "Issued", // Default status from API response message "Quotations retrieved successfully."
+    status: (raw.status as any) || "Issued", // Default status from API response message "Quotations retrieved successfully."
     items,
     subtotal,
     taxAmount,

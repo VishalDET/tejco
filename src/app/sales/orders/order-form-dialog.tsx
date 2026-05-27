@@ -9,11 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2, Plus, Trash2, ShoppingCart, Calculator } from "lucide-react"
 import { ClientSelector } from "@/components/sales/client-selector"
 import { ProductSelector } from "@/components/sales/product-selector"
+import { salesOrderApi } from "@/lib/api"
+import { toast } from "sonner"
 
 interface OrderFormDialogProps {
   open: boolean
@@ -61,11 +62,13 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
       id: Math.random().toString(36).substring(2, 9).slice(0, 8),
       productId: product.productId.toString(),
       productName: product.productName,
+      name: variant.variantName,
       sku: `${product.baseSKU}${variant.skuSuffix}`,
       quantity: 1,
       unitPrice: variant.sellingPrice,
       total: variant.sellingPrice,
-      gstRate: 18, // Default
+      gstRate: variant.gstPercentage ?? product.gstPercentage ?? 18,
+      imageUrl: variant.variantImage || product.imageUrl || "",
     }
     const newItems = [...(form.items || []), newItem]
     const totals = calculateTotals(newItems)
@@ -96,11 +99,57 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
   const handleSave = async () => {
     if (!form.clientId || (form.items || []).length === 0) return
     setIsSaving(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800))
-    onSave(form)
-    setIsSaving(false)
-    onOpenChange(false)
+    
+    try {
+      const payload = {
+        orderId: order?.orderId && !isNaN(Number(order.orderId)) ? Number(order.orderId) : 0,
+        orderNumber: form.orderNumber || "",
+        orderDate: new Date(form.date || new Date()).toISOString(),
+        deliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : undefined,
+        clientName: form.clientName || "",
+        clientAddress: form.billingAddress || "",
+        clientMobileNo: "",
+        gstinNo: "",
+        salesPersonName: "Admin",
+        salesPersonCell: "",
+        salesPersonId: form.salesPersonId ? String(form.salesPersonId) : "SP-001",
+        status: form.status || "Pending",
+        paymentStatus: form.paymentStatus || "Unpaid",
+        notes: form.notes || "",
+        quotationId: form.quotationId ? String(form.quotationId) : undefined,
+        proformaId: form.proformaId ? String(form.proformaId) : undefined,
+        items: (form.items || []).map(item => ({
+          orderItemId: item.orderItemId && !isNaN(Number(item.orderItemId)) ? Number(item.orderItemId) : 0,
+          orderId: order?.orderId && !isNaN(Number(order.orderId)) ? Number(order.orderId) : 0,
+          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
+          productName: item.productName || "",
+          itemName: item.name || "",
+          imageUrl: item.imageUrl || "",
+          price: item.unitPrice || 0,
+          gstPercentage: item.gstRate || 0,
+          quantity: item.quantity || 0,
+          discountPercentage: item.discountPercentage || 0,
+          discountAmount: item.discountAmount || 0
+        }))
+      }
+
+      if (order?.id && !isNaN(parseInt(order.id))) {
+        await salesOrderApi.update(order.id, payload)
+        toast.success("Sales Order updated successfully")
+      } else {
+        await salesOrderApi.create(payload)
+        toast.success("Sales Order created successfully")
+      }
+
+      onSave(form)
+      onOpenChange(false)
+    } catch (error: any) {
+      console.error("Failed to save Sales Order:", error)
+      const errorMsg = error?.message || "Please try again."
+      toast.error(`Failed to save Sales Order: ${errorMsg}`)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -113,7 +162,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
           </DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 p-6">
+        <div className="flex-1 p-6 overflow-y-auto max-h-[calc(95vh-140px)]">
           <div className="space-y-6 pb-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
@@ -130,11 +179,29 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
               </div>
             </div>
 
+            {(form.quotationId || form.proformaId) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-lg border border-slate-100">
+                {form.quotationId && (
+                  <div className="space-y-2">
+                    <Label className="text-slate-500 font-medium">Source Quotation ID</Label>
+                    <Input value={form.quotationId} disabled className="bg-slate-100/50 border-slate-200 font-mono text-xs" />
+                  </div>
+                )}
+                {form.proformaId && (
+                  <div className="space-y-2">
+                    <Label className="text-slate-500 font-medium">Source Proforma ID</Label>
+                    <Input value={form.proformaId} disabled className="bg-slate-100/50 border-slate-200 font-mono text-xs" />
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label>Client / Doctor *</Label>
                 <ClientSelector 
                     selectedClientId={form.clientId} 
+                    selectedClientName={form.clientName}
                     onSelect={(c) => {
                         set("clientId", c.id)
                         set("clientName", c.name)
@@ -203,7 +270,19 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                     ) : (
                       (form.items || []).map((item) => (
                         <TableRow key={item.id} className="hover:bg-slate-50/50">
-                          <TableCell className="font-medium text-slate-900">{item.productName}</TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-3">
+                              {(item as any).imageUrl && (
+                                <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
+                                  <img src={(item as any).imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                                </div>
+                              )}
+                              <div>
+                                <div className="font-medium text-slate-900">{item.productName}</div>
+                                {(item as any).name && <div className="text-xs text-slate-500">{(item as any).name}</div>}
+                              </div>
+                            </div>
+                          </TableCell>
                           <TableCell className="text-xs font-mono text-slate-500">{item.sku}</TableCell>
                           <TableCell>
                             <Input 
@@ -311,7 +390,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
               />
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="p-6 border-t bg-slate-50 gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isSaving} className="text-slate-500">Cancel</Button>

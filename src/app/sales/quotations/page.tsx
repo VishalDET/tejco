@@ -79,6 +79,7 @@ export default function QuotationsPage() {
         salesPersonId: q.salesPersonId ? String(q.salesPersonId) : "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        status: "Converted to Proforma",
         items: q.items.map(item => ({
           quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           quotationId: q.quotationId,

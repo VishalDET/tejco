@@ -482,7 +482,22 @@ export const systemMastersApi = {
 }
 
 // ---------------------------------------------------------------------------
-// Add more domains below as the app grows, e.g.:
-//   export const salesApi = { ... }
-//   export const purchaseOrdersApi = { ... }
+// Sales Orders  →  /api/SalesOrder
 // ---------------------------------------------------------------------------
+
+export const salesOrderApi = {
+  /** POST /api/SalesOrder/Create */
+  create: (data: any) => apiClient.post<any>("/api/SalesOrder/Create", data),
+
+  /** PUT /api/SalesOrder/Update/{id} */
+  update: (id: string, data: any) => apiClient.put<any>(`/api/SalesOrder/Update/${id}`, data),
+
+  /** GET /api/SalesOrder/GetAll */
+  getAll: () => apiClient.get<any[]>("/api/SalesOrder/GetAll"),
+
+  /** GET /api/SalesOrder/GetById/{id} */
+  getById: (id: string) => apiClient.get<any>(`/api/SalesOrder/GetById/${id}`),
+
+  /** DELETE /api/SalesOrder/Delete/{id} */
+  remove: (id: string) => apiClient.delete<void>(`/api/SalesOrder/Delete/${id}`),
+}

@@ -34,13 +34,26 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { quotationsApi } from "@/lib/api"
 import { toast } from "sonner"
+import { QuotationFormDialog } from "../quotation-form-dialog"
 
 interface QuotationDetailsViewProps {
   quotation: Quotation
 }
 
-export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
+export function QuotationDetailsView({ quotation: initialQuotation }: QuotationDetailsViewProps) {
   const router = useRouter()
+  const [quotation, setQuotation] = React.useState<Quotation>(initialQuotation)
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false)
+
+  const handleSave = async () => {
+    try {
+      const updated = await quotationsApi.getById(String(initialQuotation.quotationId))
+      setQuotation(updated)
+      router.refresh()
+    } catch (err) {
+      console.error("Failed to refresh quotation after edit:", err)
+    }
+  }
   const [isConverting, setIsConverting] = React.useState(false)
   const originalSubtotal = quotation.items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
   const totalDiscount = quotation.items.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)
@@ -68,6 +81,7 @@ export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
         salesPersonId: quotation.salesPersonId ? String(quotation.salesPersonId) : "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        status: "Converted to Proforma",
         items: quotation.items.map(item => ({
           quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           quotationId: quotation.quotationId,
@@ -158,7 +172,7 @@ export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
               : <><Receipt className="h-4 w-4" /> {isAlreadyConverted ? "Converted to Proforma" : "Convert to Proforma"}</>
             }
           </Button>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => setIsDialogOpen(true)}>
             <Edit className="h-4 w-4" /> Edit Quotation
           </Button>
         </div>
@@ -559,6 +573,12 @@ export function QuotationDetailsView({ quotation }: QuotationDetailsViewProps) {
           </div>
         </div>
       </div>
+      <QuotationFormDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        quotation={quotation}
+        onSave={handleSave}
+      />
     </div>
   )
 }

@@ -116,7 +116,17 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
                   {order.items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>
-                        <div className="font-medium">{item.productName}</div>
+                        <div className="flex items-center gap-3">
+                          {(item as any).imageUrl && (
+                            <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
+                              <img src={(item as any).imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-slate-900">{item.productName}</div>
+                            {(item as any).name && <div className="text-xs text-slate-500">{(item as any).name}</div>}
+                          </div>
+                        </div>
                       </TableCell>
                       <TableCell className="text-xs font-mono">{item.sku}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>

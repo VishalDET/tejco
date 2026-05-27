@@ -74,11 +74,25 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     }
   }, [quotation, open])
 
+  // Auto-match salesperson name to user list, or resolve mock/invalid salesPersonId
   useEffect(() => {
-    if (users.length > 0 && form.salesPersonName && !form.salesPersonId) {
-      const match = users.find(u => `${u.firstName} ${u.lastName}`.trim().toLowerCase() === form.salesPersonName?.trim().toLowerCase())
-      if (match) {
-        setForm(prev => ({ ...prev, salesPersonId: String(match.userId) }))
+    if (users.length > 0 && form.salesPersonName) {
+      const hasValidId = form.salesPersonId && users.some(u => String(u.userId) === String(form.salesPersonId))
+      
+      if (!hasValidId) {
+        const match = users.find(u =>
+          `${u.firstName} ${u.lastName}`.trim().toLowerCase() === form.salesPersonName?.trim().toLowerCase()
+        )
+        if (match) {
+          setForm(prev => ({ 
+            ...prev, 
+            salesPersonId: String(match.userId),
+            salesPersonCell: match.phone || match.mobile || prev.salesPersonCell || ""
+          }))
+        } else {
+          // Clear invalid/mock salesPersonId so user is forced to select a valid one
+          setForm(prev => ({ ...prev, salesPersonId: undefined }))
+        }
       }
     }
   }, [users, form.salesPersonName, form.salesPersonId])
@@ -143,6 +157,10 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
 
   const handleSave = async () => {
     if ((!form.clientId && !form.clientName) || (form.items || []).length === 0) return
+    if (!form.salesPersonId) {
+      toast.error("Please select a valid Sales Representative")
+      return
+    }
     setIsSaving(true)
     
     try {
@@ -163,6 +181,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         salesPersonId: form.salesPersonId ? String(form.salesPersonId) : "",
         createdAt: new Date().toISOString(),
         updatedAt: null,
+        status: form.status || "Draft",
         items: (form.items || []).map(item => ({
           quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           quotationId: quotation?.id && !isNaN(parseInt(quotation.id)) ? parseInt(quotation.id) : 0,
@@ -188,9 +207,10 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
       
       onSave(form)
       onOpenChange(false)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save quotation:", error)
-      toast.error("Failed to save quotation. Please try again.")
+      const errorMsg = error?.message || "Please try again."
+      toast.error(`Failed to save quotation: ${errorMsg}`)
     } finally {
       setIsSaving(false)
     }
