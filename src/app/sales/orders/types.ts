@@ -79,7 +79,8 @@ export interface ApiSalesOrder {
 }
 
 export function mapApiSalesOrder(raw: any): Order {
-  const items = (raw.items || []).map((item: any) => {
+  const rawItems = raw.lineItems || raw.items || []
+  const items = rawItems.map((item: any) => {
     const price = item.price || item.unitPrice || 0
     const quantity = item.quantity || 0
     const discountPercentage = item.discountPercentage || 0
@@ -90,21 +91,21 @@ export function mapApiSalesOrder(raw: any): Order {
     const discountedPrice = price - discountAmount
     const itemSubtotal = discountedPrice * quantity
     const itemTax = itemSubtotal * (item.gstPercentage || item.gstRate || 0) / 100
-    const itemTotal = item.total || (itemSubtotal + itemTax)
+    const itemTotal = item.total || item.totalPrice || (itemSubtotal + itemTax)
 
     return {
       id: String(item.orderItemId || item.id || Math.random().toString(36).substring(2, 9)),
       orderItemId: item.orderItemId,
       productId: String(item.productId),
-      productName: item.productName || "",
-      name: item.itemName || item.name || "",
-      sku: item.itemName || item.name || item.sku || "",
+      productName: item.productName || item.sku || "",
+      name: item.itemName || item.name || item.sku || "",
+      sku: item.sku || item.itemName || item.name || "",
       quantity,
       unitPrice: price,
       discountPercentage,
       discountAmount,
       total: itemTotal,
-      gstRate: item.gstPercentage || item.gstRate || 0,
+      gstRate: item.gstPercentage || item.gstRate || 18,
       imageUrl: item.imageUrl || ""
     }
   })
@@ -124,20 +125,20 @@ export function mapApiSalesOrder(raw: any): Order {
     orderId: raw.orderId,
     orderNumber: raw.orderNumber || raw.number || "",
     clientId: String(raw.clientId || ""),
-    clientName: raw.clientName || "",
+    clientName: raw.clientName || (raw.billingAddress ? raw.billingAddress.split(",")[0] : "Client #" + raw.clientId),
     salesPersonId: raw.salesPersonId ? String(raw.salesPersonId) : undefined,
     date: (raw.orderDate || raw.date || new Date().toISOString()).split("T")[0],
-    deliveryDate: raw.deliveryDate ? raw.deliveryDate.split("T")[0] : undefined,
-    status: (raw.status as OrderStatus) || "Pending",
-    paymentStatus: (raw.paymentStatus as PaymentStatus) || "Unpaid",
+    deliveryDate: (raw.targetDeliveryDate || raw.deliveryDate) ? (raw.targetDeliveryDate || raw.deliveryDate).split("T")[0] : undefined,
+    status: (raw.orderStatus || raw.status || "Pending") as OrderStatus,
+    paymentStatus: (raw.paymentStatus || "Unpaid") as PaymentStatus,
     items,
     subtotal: raw.subtotal || subtotal,
-    taxAmount: raw.taxAmount || taxAmount,
+    taxAmount: raw.gstAmount || raw.taxAmount || taxAmount,
     totalAmount: raw.totalAmount || (subtotal + taxAmount),
-    billingAddress: raw.clientAddress || raw.billingAddress || "",
-    shippingAddress: raw.clientAddress || raw.shippingAddress || "",
-    notes: raw.notes || raw.subject || "",
-    quotationId: raw.quotationId,
-    proformaId: raw.proformaId,
+    billingAddress: raw.billingAddress || raw.clientAddress || "",
+    shippingAddress: raw.shippingAddress || raw.clientAddress || "",
+    notes: raw.orderNotes || raw.notes || raw.subject || "",
+    quotationId: raw.linkedQuotationId || raw.quotationId,
+    proformaId: raw.linkedProformaInvoiceId || raw.proformaId,
   }
 }

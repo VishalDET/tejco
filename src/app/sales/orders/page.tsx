@@ -89,8 +89,9 @@ export default function OrdersPage() {
         if (!silent) setIsLoading(true)
         else setIsRefreshing(true)
         try {
-            const raw = await salesOrderApi.getAll()
-            const data = Array.isArray(raw) ? raw.map(mapApiSalesOrder) : []
+            const raw = await salesOrderApi.getAll() as any
+            const list = Array.isArray(raw) ? raw : (raw?.data && Array.isArray(raw.data) ? raw.data : [])
+            const data = list.map(mapApiSalesOrder)
             setOrders(data)
         } catch (error) {
             console.error("Failed to fetch sales orders:", error)
