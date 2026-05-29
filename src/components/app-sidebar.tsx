@@ -62,6 +62,7 @@ const data = {
                 { title: "Raw Materials", url: "/inventory/raw-materials" },
                 { title: "Stock Transfer", url: "/inventory/stock-transfer" },
                 { title: "Order Outward", url: "/inventory/order-outward" },
+                { title: "Dispatch Orders", url: "/inventory/dispatch" },
             ],
         },
         {

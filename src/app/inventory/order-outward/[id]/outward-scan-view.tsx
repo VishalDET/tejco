@@ -266,6 +266,15 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
             <Truck className="h-4 w-4" />
             Complete Outward
           </Button>
+          <Button
+            variant="outline"
+            className="gap-2"
+            disabled={!isDispatchReady}
+            onClick={() => router.push(`/inventory/dispatch/${outwardOrder.id}`)}
+          >
+            <PackageCheck className="h-4 w-4" />
+            Create Dispatch
+          </Button>
         </div>
       </div>
 
