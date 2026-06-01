@@ -501,3 +501,20 @@ export const salesOrderApi = {
   /** DELETE /api/SalesOrder/Delete/{id} */
   remove: (id: string) => apiClient.delete<void>(`/api/SalesOrder/Delete/${id}`),
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard  →  /api/Dashboard
+// ---------------------------------------------------------------------------
+
+export const dashboardApi = {
+  getKPIs: () => apiClient.get<any>("/api/Dashboard/KPIs"),
+  getSalesTrend: () => apiClient.get<any>("/api/Dashboard/SalesTrend"),
+  getCategorySales: () => apiClient.get<any>("/api/Dashboard/CategorySales"),
+  getWarehouseDistribution: () => apiClient.get<any>("/api/Dashboard/WarehouseDistribution"),
+  getRecentActivity: () => apiClient.get<any>("/api/Dashboard/RecentActivity"),
+  getTopProducts: () => apiClient.get<any>("/api/Dashboard/TopProducts"),
+  getOrderStatus: () => apiClient.get<any>("/api/Dashboard/OrderStatus"),
+  getTopClients: () => apiClient.get<any>("/api/Dashboard/TopClients"),
+  getCriticalStock: () => apiClient.get<any>("/api/Dashboard/CriticalStock"),
+}
+

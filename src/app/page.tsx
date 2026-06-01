@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { dashboardApi } from "@/lib/api"
 import {
   LineChart,
   Line,
@@ -16,6 +17,7 @@ import {
   Cell,
   Legend,
 } from "recharts"
+import { useState, useEffect } from "react"
 import {
   TrendingUp,
   Package,
@@ -24,38 +26,68 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Plus,
+  Users,
+  Box
 } from "lucide-react"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 
-const salesTrendData = [
-  { name: "Jan", sales: 4000 },
-  { name: "Feb", sales: 3000 },
-  { name: "Mar", sales: 2000 },
-  { name: "Apr", sales: 2780 },
-  { name: "May", sales: 1890 },
-  { name: "Jun", sales: 2390 },
-  { name: "Jul", sales: 3490 },
-]
-
-const categorySalesData = [
-  { name: "Electronics", value: 400, color: "var(--primary)" },
-  { name: "Furniture", value: 300, color: "var(--secondary)" },
-  { name: "Raw Material", value: 300, color: "oklch(0.6 0.1 200)" },
-  { name: "Medical Gear", value: 200, color: "oklch(0.5 0.1 150)" },
-]
-
-const warehouseStockData = [
-  { name: "Main WH", value: 400 },
-  { name: "Secondary WH", value: 300 },
-  { name: "Transit", value: 100 },
-]
-
-const COLORS = ["var(--primary)", "var(--secondary)", "oklch(0.7 0.1 250)"]
+const COLORS = ["var(--primary)", "var(--secondary)", "oklch(0.7 0.1 250)", "oklch(0.6 0.1 200)", "oklch(0.5 0.1 150)"]
 
 export default function DashboardPage() {
+  const [kpis, setKpis] = useState({ totalStockValue: 0, todaysOrders: 0, yesterdaysOrders: 0, pendingDispatch: 0, lowStockItems: 0 })
+  const [salesTrendData, setSalesTrendData] = useState([])
+  const [categorySalesData, setCategorySalesData] = useState([])
+  const [warehouseStockData, setWarehouseStockData] = useState([])
+  const [recentActivity, setRecentActivity] = useState([])
+  const [topProducts, setTopProducts] = useState([])
+  const [orderStatus, setOrderStatus] = useState([])
+  const [topClients, setTopClients] = useState([])
+  const [criticalStock, setCriticalStock] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const [
+          kpisData, salesTrendData, categorySalesData, warehouseData, 
+          activityData, productsData, orderStatusData, clientsData, stockData
+        ] = await Promise.all([
+          dashboardApi.getKPIs(),
+          dashboardApi.getSalesTrend(),
+          dashboardApi.getCategorySales(),
+          dashboardApi.getWarehouseDistribution(),
+          dashboardApi.getRecentActivity(),
+          dashboardApi.getTopProducts(),
+          dashboardApi.getOrderStatus(),
+          dashboardApi.getTopClients(),
+          dashboardApi.getCriticalStock()
+        ])
+
+        if (kpisData.success) setKpis(kpisData.data)
+        if (salesTrendData.success) setSalesTrendData(salesTrendData.data)
+        if (categorySalesData.success) setCategorySalesData(categorySalesData.data)
+        if (warehouseData.success) setWarehouseStockData(warehouseData.data)
+        if (activityData.success) setRecentActivity(activityData.data)
+        if (productsData.success) setTopProducts(productsData.data)
+        if (orderStatusData.success) setOrderStatus(orderStatusData.data)
+        if (clientsData.success) setTopClients(clientsData.data)
+        if (stockData.success) setCriticalStock(stockData.data)
+
+      } catch (error) {
+        console.error("Failed to fetch dashboard data", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [])
+
+  if (loading) return <div className="flex items-center justify-center h-screen">Loading dashboard data...</div>
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
@@ -78,13 +110,7 @@ export default function DashboardPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹1,284,430.20</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-emerald-500 inline-flex items-center">
-                +12.5% <ArrowUpRight className="ml-1 h-3 w-3" />
-              </span>{" "}
-              from last month
-            </p>
+            <div className="text-2xl font-bold">₹{kpis.totalStockValue.toLocaleString()}</div>
           </CardContent>
         </Card>
         <Card className="shadow-sm">
@@ -93,12 +119,18 @@ export default function DashboardPage() {
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">156</div>
+            <div className="text-2xl font-bold">{kpis.todaysOrders}</div>
             <p className="text-xs text-muted-foreground">
-              <span className="text-emerald-500 inline-flex items-center">
-                +5.2% <ArrowUpRight className="ml-1 h-3 w-3" />
-              </span>{" "}
-              compared to yesterday
+              {kpis.todaysOrders > kpis.yesterdaysOrders ? (
+                <span className="text-emerald-500 inline-flex items-center">
+                  +{((kpis.todaysOrders - kpis.yesterdaysOrders) / (kpis.yesterdaysOrders || 1) * 100).toFixed(1)}% <ArrowUpRight className="ml-1 h-3 w-3" />
+                </span>
+              ) : (
+                <span className="text-red-500 inline-flex items-center">
+                  {((kpis.todaysOrders - kpis.yesterdaysOrders) / (kpis.yesterdaysOrders || 1) * 100).toFixed(1)}% <ArrowDownRight className="ml-1 h-3 w-3" />
+                </span>
+              )}{" "}
+              vs yesterday ({kpis.yesterdaysOrders})
             </p>
           </CardContent>
         </Card>
@@ -108,12 +140,9 @@ export default function DashboardPage() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">42</div>
+            <div className="text-2xl font-bold">{kpis.pendingDispatch}</div>
             <p className="text-xs text-muted-foreground">
-              <span className="text-red-500 inline-flex items-center">
-                -2 items <ArrowDownRight className="ml-1 h-3 w-3" />
-              </span>{" "}
-              delayed shipments
+              Awaiting fulfillment
             </p>
           </CardContent>
         </Card>
@@ -123,7 +152,7 @@ export default function DashboardPage() {
             <AlertTriangle className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-warning">12</div>
+            <div className="text-2xl font-bold text-warning">{kpis.lowStockItems}</div>
             <p className="text-xs text-muted-foreground">Requires immediate reorder</p>
           </CardContent>
         </Card>
@@ -141,9 +170,10 @@ export default function DashboardPage() {
                 <LineChart data={salesTrendData}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}`} />
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `₹${(value || 0).toLocaleString()}`} width={80} />
                   <Tooltip
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    formatter={(value) => `₹${(value || 0).toLocaleString()}`}
                   />
                   <Line type="monotone" dataKey="sales" stroke="var(--primary)" strokeWidth={2} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
@@ -153,21 +183,29 @@ export default function DashboardPage() {
         </Card>
         <Card className="lg:col-span-3 shadow-sm">
           <CardHeader>
-            <CardTitle>Category Sales</CardTitle>
-            <CardDescription>Sales distribution by product category.</CardDescription>
+            <CardTitle>Order Status Breakdown</CardTitle>
+            <CardDescription>Current status of all active orders.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={categorySalesData}>
-                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    cursor={{ fill: 'transparent' }}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                  />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]} fill="var(--primary)" />
-                </BarChart>
+                <PieChart>
+                  <Pie
+                    data={orderStatus}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {orderStatus.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -177,28 +215,21 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-3 shadow-sm">
           <CardHeader>
-            <CardTitle>Warehouse Distribution</CardTitle>
+            <CardTitle>Top Selling Products</CardTitle>
+            <CardDescription>Highest revenue generating products.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={warehouseStockData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={5}
-                    dataKey="value"
-                  >
-                    {warehouseStockData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
+                <BarChart data={topProducts} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis dataKey="productName" type="category" fontSize={12} tickLine={false} axisLine={false} width={100} />
+                  <Tooltip
+                    cursor={{ fill: 'transparent' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                  <Bar dataKey="revenue" radius={[0, 4, 4, 0]} fill="var(--primary)" />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -210,12 +241,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {[
-                { type: "Order", text: "New order #ORD-4581 created by Client Dr. Smith", time: "25 min ago" },
-                { type: "Stock", text: "Stock added: 500 units of Surgical Grade Steel", time: "1 hour ago" },
-                { type: "Mfg", text: "Manufacturing batch #MFG-901 completed successfully", time: "3 hours ago" },
-                { type: "Transfer", text: "Stock transfer from Main WH to Secondary WH approved", time: "5 hours ago" },
-              ].map((activity, i) => (
+              {recentActivity.map((activity: any, i: number) => (
                 <div key={i} className="flex items-center gap-4">
                   <div className="h-2 w-2 rounded-full bg-primary" />
                   <div className="flex-1 space-y-1">
@@ -227,6 +253,52 @@ export default function DashboardPage() {
               ))}
             </div>
             <Button variant="ghost" className="w-full mt-6 text-primary hover:bg-primary/5">View All Activity</Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardHeader>
+            <CardTitle>Top Clients</CardTitle>
+            <CardDescription>Highest revenue generating clients.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             <div className="space-y-4">
+              {topClients.map((client: any, i: number) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-none">{client.clientName}</p>
+                    <p className="text-xs text-muted-foreground">{client.totalOrders} Orders</p>
+                  </div>
+                  <div className="text-sm font-bold">₹{client.revenue.toLocaleString()}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-l-4 border-l-destructive">
+          <CardHeader>
+            <CardTitle className="text-destructive">Critical Stock Alerts</CardTitle>
+            <CardDescription>Items critically low on stock.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             <div className="space-y-4">
+              {criticalStock.map((stock: any, i: number) => (
+                <div key={i} className="flex items-center gap-4">
+                  <Box className="h-4 w-4 text-destructive" />
+                  <div className="flex-1 space-y-1">
+                    <p className="text-sm font-medium leading-none">{stock.productName} ({stock.variantName})</p>
+                  </div>
+                  <Badge variant="destructive" className="text-xs">{stock.currentQuantity} / {stock.reorderLevel}</Badge>
+                </div>
+              ))}
+              {criticalStock.length === 0 && (
+                 <p className="text-sm text-muted-foreground">All items are sufficiently stocked.</p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
