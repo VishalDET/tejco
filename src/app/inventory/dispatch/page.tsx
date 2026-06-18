@@ -28,8 +28,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { mockDispatches } from "./mock-data"
-import { getDispatchReadiness, type DispatchStatus, type OrderDispatch } from "./types"
+import { getDispatchReadiness, mapApiDispatch, type DispatchStatus, type OrderDispatch } from "./types"
+import { dispatchApi } from "@/lib/api"
 
 const tabFilters: Array<{ label: string; value: "all" | DispatchStatus }> = [
   { label: "All", value: "all" },
@@ -86,9 +86,28 @@ function DispatchStat({
 
 export default function DispatchPage() {
   const router = useRouter()
-  const [dispatches] = React.useState<OrderDispatch[]>(mockDispatches)
+  const [dispatches, setDispatches] = React.useState<OrderDispatch[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
   const [activeTab, setActiveTab] = React.useState<"all" | DispatchStatus>("all")
   const [searchQuery, setSearchQuery] = React.useState("")
+
+  const fetchDispatches = React.useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const res = await dispatchApi.getAll()
+      const rawList = Array.isArray(res) ? res : ((res as any)?.data && Array.isArray((res as any).data) ? (res as any).data : [])
+      setDispatches(rawList.map(mapApiDispatch))
+    } catch (err) {
+      console.error("Failed to load dispatches:", err)
+      setDispatches([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    fetchDispatches()
+  }, [fetchDispatches])
 
   const filteredDispatches = dispatches.filter((dispatch) => {
     const query = searchQuery.toLowerCase()
@@ -108,6 +127,8 @@ export default function DispatchPage() {
   const deliveredCount = dispatches.filter((dispatch) => dispatch.status === "Delivered").length
   const exceptionCount = dispatches.filter((dispatch) => dispatch.status === "Exception").length
 
+  const nextReadyDispatchId = dispatches.find((d) => d.status === "Ready")?.id
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -123,7 +144,11 @@ export default function DispatchPage() {
             Record delivery partners, tracking numbers, package details, and delivery progress.
           </p>
         </div>
-        <Button className="gap-2" onClick={() => router.push("/inventory/dispatch/disp-9281")}>
+        <Button 
+          className="gap-2" 
+          onClick={() => router.push(`/inventory/dispatch/${nextReadyDispatchId}`)}
+          disabled={!nextReadyDispatchId}
+        >
           <Truck className="h-4 w-4" />
           Dispatch Next Ready Order
         </Button>

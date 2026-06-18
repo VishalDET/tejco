@@ -38,9 +38,11 @@ import {
 import {
   deliveryPartners,
   getDispatchReadiness,
+  mapOrderDispatchToApi,
   type DispatchStatus,
   type OrderDispatch,
 } from "../types"
+import { dispatchApi } from "@/lib/api"
 
 interface DispatchDetailsViewProps {
   dispatch: OrderDispatch
@@ -80,54 +82,91 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
     setForm((current) => ({ ...current, [key]: value }))
   }
 
-  function saveDraft() {
-    toast.success("Dispatch details saved in this UI session")
+  async function saveDraft() {
+    try {
+      const apiPayload = mapOrderDispatchToApi(form)
+      await dispatchApi.update(form.id, apiPayload)
+      toast.success("Dispatch details saved successfully on server")
+    } catch (err) {
+      console.error("Failed to save dispatch:", err)
+      toast.error("Failed to save dispatch to server")
+    }
   }
 
-  function markDispatched() {
+  async function markDispatched() {
     if (!readiness.isReady) {
       toast.error("Add delivery partner, tracking number, package count, and dispatch date first.")
       return
     }
 
-    setForm((current) => ({
-      ...current,
-      status: "Dispatched",
-      timeline: [
-        {
-          id: `tl-${Date.now()}`,
-          label: "Dispatched",
-          description: `${current.partnerName} tracking ${current.trackingNumber} recorded.`,
-          timestamp: new Date().toISOString(),
-          status: "current",
-        },
-        ...current.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
-      ],
-    }))
-    toast.success("Order marked as dispatched")
+    const nextTimeline = [
+      {
+        id: `tl-${Date.now()}`,
+        label: "Dispatched",
+        description: `${form.partnerName} tracking ${form.trackingNumber} recorded.`,
+        timestamp: new Date().toISOString(),
+        status: "current",
+      },
+      ...form.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
+    ]
+
+    const nextForm = {
+      ...form,
+      status: "Dispatched" as DispatchStatus,
+      timeline: nextTimeline
+    }
+
+    setForm(nextForm)
+
+    try {
+      const apiPayload = mapOrderDispatchToApi(nextForm)
+      await dispatchApi.update(form.id, apiPayload)
+      await dispatchApi.updateStatus(form.id, "Dispatched", "Order marked as Dispatched")
+      toast.success("Order marked as dispatched on server")
+    } catch (err) {
+      console.error("Failed to update status on server:", err)
+      toast.success("Order marked as dispatched locally")
+    }
   }
 
-  function updateStatus(status: DispatchStatus) {
-    setForm((current) => ({
-      ...current,
+  async function updateStatus(status: DispatchStatus) {
+    const nextTimeline = [
+      {
+        id: `tl-${Date.now()}`,
+        label: status,
+        description:
+          status === "Delivered"
+            ? "Delivery confirmation recorded."
+            : status === "Exception"
+              ? "Delivery exception reported for warehouse follow-up."
+              : `Shipment status updated to ${status}.`,
+        timestamp: new Date().toISOString(),
+        status: status === "Exception" ? "exception" : "current",
+      },
+      ...form.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
+    ]
+
+    const nextForm = {
+      ...form,
       status,
-      timeline: [
-        {
-          id: `tl-${Date.now()}`,
-          label: status,
-          description:
-            status === "Delivered"
-              ? "Delivery confirmation recorded."
-              : status === "Exception"
-                ? "Delivery exception reported for warehouse follow-up."
-                : `Shipment status updated to ${status}.`,
-          timestamp: new Date().toISOString(),
-          status: status === "Exception" ? "exception" : "current",
-        },
-        ...current.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
-      ],
-    }))
-    toast.success(`Dispatch status updated to ${status}`)
+      timeline: nextTimeline
+    }
+
+    setForm(nextForm)
+
+    try {
+      const apiPayload = mapOrderDispatchToApi(nextForm)
+      await dispatchApi.update(form.id, apiPayload)
+      
+      let apiStatus = status
+      if (status === "In Transit") apiStatus = "InTransit"
+      
+      await dispatchApi.updateStatus(form.id, apiStatus, `Shipment status updated to ${status}`)
+      toast.success(`Dispatch status updated to ${status} on server`)
+    } catch (err) {
+      console.error("Failed to update status on server:", err)
+      toast.success(`Dispatch status updated to ${status} locally`)
+    }
   }
 
   return (

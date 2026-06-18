@@ -19,7 +19,7 @@
 
 # production
 /build
-
+/dist
 # misc
 .DS_Store
 *.pem
@@ -35,7 +35,7 @@ yarn-error.log*
 
 # vercel
 .vercel
-
+.agent
 # typescript
 *.tsbuildinfo
 next-env.d.ts

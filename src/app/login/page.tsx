@@ -63,6 +63,31 @@ export default function LoginPage() {
         }
     }
 
+    const handleDevBypass = () => {
+        setIsLoading(true)
+        const mockToken = "dev-bypass-token"
+        localStorage.setItem("tejco_auth_token", mockToken)
+        document.cookie = `tejco_auth_token=${mockToken}; path=/; max-age=86400; SameSite=Lax`
+
+        const mockUser = {
+            userId: "0001",
+            firstName: "Developer",
+            lastName: "User",
+            email: "dev@tejco.com",
+            role: "Administrator",
+            phone: "+91 98765 43210",
+            company: "Tejco Group (Dev)",
+            branch: "Mumbai HO",
+            department: "IT Infrastructure",
+            imageUrl: null,
+            createdAt: new Date().toISOString()
+        }
+        localStorage.setItem("tejco_user", JSON.stringify(mockUser))
+        toast.success("Bypassed login (Dev Mode)")
+        router.push("/")
+        setIsLoading(false)
+    }
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 dark:bg-slate-950">
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -134,6 +159,17 @@ export default function LoginPage() {
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Sign In
                         </Button>
+                        {process.env.NODE_ENV === "development" && (
+                            <Button 
+                                type="button"
+                                variant="outline" 
+                                className="w-full h-11 text-base font-medium border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 transition-all text-primary"
+                                onClick={handleDevBypass}
+                                disabled={isLoading}
+                            >
+                                Dev Mode: Bypass Login
+                            </Button>
+                        )}
                         <p className="text-center text-sm text-muted-foreground">
                             Don&apos;t have an account?{" "}
                             <Button variant="link" className="p-0 h-auto font-semibold text-primary">

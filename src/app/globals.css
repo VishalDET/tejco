@@ -71,41 +71,38 @@
 }
 
 :root {
-  --background: oklch(0.984 0.006 247.8);
-  /* #F8FAFC */
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.322 0.123 250.6);
-  /* #1E3A8A */
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.686 0.17 236);
-  /* #0EA5E9 */
-  --secondary-foreground: oklch(1 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.322 0.123 250.6);
-  --chart-1: oklch(0.322 0.123 250.6);
-  --chart-2: oklch(0.686 0.17 236);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  --background: #F8FAFC;
+  --foreground: #1E3A8A;
+  --card: #FFFFFF;
+  --card-foreground: #1E3A8A;
+  --popover: #FFFFFF;
+  --popover-foreground: #1E3A8A;
+  --primary: #1E40AF;
+  --primary-foreground: #F8FAFC;
+  --secondary: #3B82F6;
+  --secondary-foreground: #FFFFFF;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #F59E0B;
+  --accent-foreground: #FFFFFF;
+  --destructive: #EF4444;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #1E40AF;
+  --chart-1: #1E40AF;
+  --chart-2: #3B82F6;
+  --chart-3: #F59E0B;
+  --chart-4: #60A5FA;
+  --chart-5: #FBBF24;
   --radius: 0.625rem;
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.322 0.123 250.6);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.322 0.123 250.6);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.322 0.123 250.6);
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #1E3A8A;
+  --sidebar-primary: #1E40AF;
+  --sidebar-primary-foreground: #F8FAFC;
+  --sidebar-accent: #F1F5F9;
+  --sidebar-accent-foreground: #1E40AF;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #1E40AF;
 }
 
 .dark {
@@ -154,4 +151,13 @@
   html {
     @apply font-sans;
   }
+}
+
+.max-w-9xl {
+  max-width: 96rem;
+  /* 1536px */
+}
+
+.text-xxs {
+  font-size: 5px;
 }

@@ -7,7 +7,7 @@ module.exports = {
       name: "tejco-erp",
       script: "server.js",
       args: "",
-      cwd: "C:\\inetpub\\tejco",          // <-- update to actual deploy path
+      cwd: "C:\\inetpub\\wwwroot\\tejcocrm",          // <-- update to actual deploy path
       instances: "max",                    // use all CPU cores
       exec_mode: "cluster",
       autorestart: true,

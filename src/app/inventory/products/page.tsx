@@ -38,6 +38,17 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 // --- API Types ---
 interface ApiVariant {
@@ -92,6 +103,81 @@ export type Product = {
     status: "Active" | "Inactive" | "Low Stock"
 }
 
+const ActionsCell = ({ row }: { row: any }) => {
+    const [isDeleting, setIsDeleting] = React.useState(false);
+
+    const handleDelete = async () => {
+        try {
+            setIsDeleting(true);
+            const res = await apiClient.delete<any>(`/api/Product/Delete/${row.original.id}`);
+            if (res.success) {
+                window.location.reload();
+            } else {
+                alert(res.message || "Failed to delete");
+                setIsDeleting(false);
+            }
+        } catch (e: any) {
+            alert(e.message || "Error deleting product");
+            setIsDeleting(false);
+        }
+    };
+
+    return (
+        <AlertDialog>
+            <DropdownMenu>
+                <DropdownMenuTrigger className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                    <span className="sr-only">Open menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.id)}>
+                        Copy product ID
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/view/${row.original.id}`}>View details</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/${row.original.id}`}>Edit product</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <AlertDialogTrigger 
+                        nativeButton={false}
+                        render={
+                            <DropdownMenuItem 
+                                onSelect={(e) => e.preventDefault()}
+                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
+                            >
+                                Delete product
+                            </DropdownMenuItem>
+                        }
+                    />
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the product
+                        "{row.original.name}" and remove its data from our servers.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                        onClick={(e) => {
+                            e.preventDefault();
+                            handleDelete();
+                        }}
+                        disabled={isDeleting}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                        {isDeleting ? "Deleting..." : "Delete"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+};
+
 export const columns: ColumnDef<Product>[] = [
     {
         accessorKey: "name",
@@ -127,7 +213,7 @@ export const columns: ColumnDef<Product>[] = [
         header: () => <div className="text-right">Price</div>,
         cell: ({ row }) => {
             const amount = parseFloat(row.getValue("price"))
-            const formatted = new Intl.NumberFormat("en-US", {
+            const formatted = new Intl.NumberFormat("en-IN", {
                 style: "currency",
                 currency: "INR",
             }).format(amount)
@@ -163,29 +249,7 @@ export const columns: ColumnDef<Product>[] = [
     {
         id: "actions",
         enableHiding: false,
-        cell: ({ row }) => {
-            return (
-                <DropdownMenu>
-                    <DropdownMenuTrigger
-                        render={
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
-                                <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                        }
-                    />
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => navigator.clipboard.writeText(row.original.id)}>
-                            Copy product ID
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/${row.original.id}`}>View details</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/${row.original.id}`}>Edit product</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )
-        },
+        cell: ({ row }) => <ActionsCell row={row} />,
     },
 ]
 

@@ -117,73 +117,57 @@ export const clientsApi = {
 
   /** GET /api/Clients/{id} — fetch a single client */
   getById: async (id: string): Promise<Client> => {
-    const raw = await apiClient.get<ApiClient>(`/api/Client/GetById/${id}`)
-    return mapApiClient(raw)
+    const raw = await apiClient.get<any>(`/api/Client/GetById/${id}`)
+    const data = raw?.data || raw
+    return mapApiClient(data)
   },
 
   /** GET /api/Clients/{id}/deliveries — fetch delivery history for a client */
   getDeliveries: (id: string) =>
     apiClient.get<ClientDelivery[]>(`/api/Client/${id}/deliveries`),
 
-  /** POST /api/Clients — create a new client */
+  /** POST /api/Client/Create — create a new client */
   create: (data: Partial<Client>) => {
-    const extra = {
-      email: data.email,
-      clientType: data.clientType,
-      hasBranches: data.hasBranches,
-      branches: data.branches,
-      contacts: data.contacts,
-      status: data.status,
-      billingAddress: data.billingAddress,
-      shippingAddress: data.shippingAddress,
-      joinedDate: data.joinedDate || new Date().toISOString()
-    }
-    
-    // We store the searchable/readable string in the main field, and the object in the hidden segment
-    const billingStr = serializeAddress(data.billingAddress)
-    const shippingStr = serializeAddress(data.shippingAddress)
-    const finalShippingSegment = `${shippingStr}|||${JSON.stringify(extra)}`
-
     const payload = {
       clientId: 0,
-      clientName: data.name ?? "",
-      billingAddress: billingStr,
-      shippingAddress: finalShippingSegment,
-      gstin: data.gstin ?? "",
+      name: data.name ?? "",
+      company: data.company ?? data.name ?? "",
       contactPerson: data.contactPerson ?? data.name ?? "",
-      contactNumber: data.phone ?? "",
+      email: data.email ?? "",
+      phone: data.phone ?? "",
+      status: data.status ?? "Active",
+      clientType: data.clientType ?? "Clinic",
+      hasBranches: data.hasBranches ?? false,
+      gstin: data.gstin ?? "",
+      joinedDate: data.joinedDate || new Date().toISOString(),
+      billingAddress: data.billingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
+      shippingAddress: data.shippingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
+      contacts: data.contacts ?? [],
+      branches: data.branches ?? [],
     }
-    return apiClient.post<any>("/api/Client", payload)
+    return apiClient.post<any>("/api/Client/Create", payload)
   },
 
-  /** PUT /api/Clients/{id} — update an existing client */
+  /** PUT /api/Client/Update/{id} — update an existing client */
   update: (id: string, data: Partial<Client>) => {
-    const extra = {
-      email: data.email,
-      clientType: data.clientType,
-      hasBranches: data.hasBranches,
-      branches: data.branches,
-      contacts: data.contacts,
-      status: data.status,
-      billingAddress: data.billingAddress,
-      shippingAddress: data.shippingAddress,
-      joinedDate: data.joinedDate
-    }
-
-    const billingStr = serializeAddress(data.billingAddress)
-    const shippingStr = serializeAddress(data.shippingAddress)
-    const finalShippingSegment = `${shippingStr}|||${JSON.stringify(extra)}`
-
     const payload = {
       clientId: parseInt(id),
-      clientName: data.name ?? "",
-      billingAddress: billingStr,
-      shippingAddress: finalShippingSegment,
-      gstin: data.gstin ?? "",
+      name: data.name ?? "",
+      company: data.company ?? data.name ?? "",
       contactPerson: data.contactPerson ?? data.name ?? "",
-      contactNumber: data.phone ?? "",
+      email: data.email ?? "",
+      phone: data.phone ?? "",
+      status: data.status ?? "Active",
+      clientType: data.clientType ?? "Clinic",
+      hasBranches: data.hasBranches ?? false,
+      gstin: data.gstin ?? "",
+      joinedDate: data.joinedDate || new Date().toISOString(),
+      billingAddress: data.billingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
+      shippingAddress: data.shippingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
+      contacts: data.contacts ?? [],
+      branches: data.branches ?? [],
     }
-    return apiClient.put<any>(`/api/Client/${id}`, payload)
+    return apiClient.put<any>(`/api/Client/Update/${id}`, payload)
   },
 
   /** DELETE /api/Clients/{id} — delete a client */
@@ -287,8 +271,9 @@ export const warehousesApi = {
 
   /** GET /api/Warehouse/{id} */
   getById: async (id: string): Promise<Warehouse> => {
-    const raw = await apiClient.get<ApiWarehouse>(`/api/Warehouse/GetById/${id}`)
-    return mapApiWarehouse(raw)
+    const raw = await apiClient.get<any>(`/api/Warehouse/GetById/${id}`)
+    const data = raw?.data || raw
+    return mapApiWarehouse(data)
   },
 
   /** POST /api/Warehouse */
@@ -517,4 +502,150 @@ export const dashboardApi = {
   getTopClients: () => apiClient.get<any>("/api/Dashboard/TopClients"),
   getCriticalStock: () => apiClient.get<any>("/api/Dashboard/CriticalStock"),
 }
+
+// ---------------------------------------------------------------------------
+// Order Outward  →  /api/OrderOutward
+// ---------------------------------------------------------------------------
+
+export interface ApiOutwardOrderItem {
+  outwardOrderItemId: number
+  outwardOrderId: number
+  productId: number
+  productName: string
+  variantName: string
+  sku: string
+  barcode: string
+  orderedQty: number
+  scannedQty: number
+  locationCode: string
+}
+
+export interface ApiOutwardScanEvent {
+  scanId: number
+  outwardOrderId: number
+  barcode: string
+  message: string
+  scanType: string
+  productName?: string
+  scannedAt: string
+}
+
+export interface ApiOutwardOrder {
+  outwardOrderId: number
+  orderId: number
+  orderNumber: string
+  clientName: string
+  warehouseName: string
+  shippingAddress: string
+  orderDate: string
+  promisedDate: string
+  status: string
+  priority: string
+  pickerName?: string
+  createdAt: string
+  updatedAt: string
+  items: ApiOutwardOrderItem[]
+  scanHistory: ApiOutwardScanEvent[]
+}
+
+export const orderOutwardApi = {
+  getAll: () => apiClient.get<ApiOutwardOrder[]>("/api/OrderOutward/GetAll"),
+  getById: (id: number | string) => apiClient.get<ApiOutwardOrder>(`/api/OrderOutward/GetById/${id}`),
+  create: (data: Partial<ApiOutwardOrder>) => apiClient.post<ApiOutwardOrder>("/api/OrderOutward/Create", data),
+  update: (id: number | string, data: ApiOutwardOrder) => apiClient.put<ApiOutwardOrder>(`/api/OrderOutward/Update/${id}`, data),
+  updateStatus: (id: number | string, newStatus: string, remarks: string) => 
+    apiClient.put<void>(`/api/OrderOutward/${id}/Status`, { newStatus, remarks }),
+  scanBarcode: (id: number | string, scanEvent: Partial<ApiOutwardScanEvent>) => 
+    apiClient.post<ApiOutwardScanEvent>(`/api/OrderOutward/${id}/Scan`, scanEvent),
+  remove: (id: number | string) => apiClient.delete<void>(`/api/OrderOutward/Delete/${id}`),
+}
+
+// ---------------------------------------------------------------------------
+// Dispatch  →  /api/Dispatch
+// ---------------------------------------------------------------------------
+
+export interface ApiDispatchItem {
+  dispatchItemId: number
+  dispatchId: number
+  productName: string
+  sku: string
+  quantity: number
+}
+
+export interface ApiDispatchTimelineEvent {
+  timelineId: number
+  dispatchId: number
+  label: string
+  description: string
+  timestamp: string
+  status: string
+}
+
+export interface ApiDispatch {
+  dispatchId: number
+  orderId: number
+  orderNumber: string
+  clientName: string
+  warehouseName: string
+  warehouseCode: string
+  shippingAddress: string
+  packedAt?: string
+  partnerName: string
+  partnerService?: string
+  trackingNumber: string
+  trackingLink?: string
+  dispatchDate: string
+  expectedDeliveryDate?: string
+  packageCount: number
+  grossWeightKg?: number
+  freightCharges?: number
+  freightPaymentMode: string
+  vehicleNumber?: string
+  driverName?: string
+  driverPhone?: string
+  challanNumber?: string
+  invoiceNumber?: string
+  ewayBillNumber?: string
+  shippingLabelRef?: string
+  status: string
+  remarks?: string
+  createdAt?: string
+  updatedAt?: string
+  items: ApiDispatchItem[]
+  timeline: ApiDispatchTimelineEvent[]
+}
+
+export const dispatchApi = {
+  getAll: () => apiClient.get<ApiDispatch[]>("/api/Dispatch/GetAll"),
+  getById: (id: number | string) => apiClient.get<ApiDispatch>(`/api/Dispatch/GetById/${id}`),
+  create: (data: Partial<ApiDispatch>) => apiClient.post<ApiDispatch>("/api/Dispatch/Create", data),
+  update: (id: number | string, data: ApiDispatch) => apiClient.put<ApiDispatch>(`/api/Dispatch/Update/${id}`, data),
+  updateStatus: (id: number | string, newStatus: string, remarks: string) =>
+    apiClient.put<void>(`/api/Dispatch/${id}/Status`, { newStatus, remarks }),
+  remove: (id: number | string) => apiClient.delete<void>(`/api/Dispatch/Delete/${id}`),
+}
+
+// ---------------------------------------------------------------------------
+// Country Master  →  /api/CountryMaster
+// ---------------------------------------------------------------------------
+
+export interface CountryMaster {
+  countryId: number
+  countryName: string
+  currencyType: string
+  paymentType: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export const countryMasterApi = {
+  getAll: () => apiClient.get<CountryMaster[]>("/api/CountryMaster/GetAll"),
+  getById: (id: number | string) => apiClient.get<CountryMaster>(`/api/CountryMaster/GetById/${id}`),
+  create: (data: Partial<CountryMaster>) => apiClient.post<CountryMaster>("/api/CountryMaster/Create", data),
+  update: (id: number | string, data: CountryMaster) => apiClient.put<CountryMaster>(`/api/CountryMaster/Update/${id}`, data),
+  remove: (id: number | string) => apiClient.delete<void>(`/api/CountryMaster/Delete/${id}`),
+}
+
+
+
 

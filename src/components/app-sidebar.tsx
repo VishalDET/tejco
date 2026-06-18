@@ -131,6 +131,7 @@ const data = {
                 { title: "Branches", url: "/system/masters/branches" },
                 { title: "Departments", url: "/system/masters/departments" },
                 { title: "Categories", url: "/system/masters/categories" },
+                { title: "Countries", url: "/system/masters/countries" },
                 { title: "Users & Employees", url: "/system/masters/users" },
                 { title: "General Settings", url: "/system/settings" },
             ],
@@ -155,13 +156,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         if (!item.items) {
             return (
-                <SidebarMenuItem>
+                <SidebarMenuItem className="px-2 my-0.5">
                     <SidebarMenuButton
                         tooltip={item.title}
                         isActive={isActive}
+                        className={`transition-all duration-200 ease-in-out hover:translate-x-1 hover:bg-indigo-50 hover:text-indigo-600 rounded-md py-2.5 ${isActive ? 'bg-indigo-50/80 text-indigo-600 font-semibold shadow-sm' : 'text-slate-600'}`}
                         render={<Link href={item.url} />}
                     >
-                        {item.icon && <item.icon />}
+                        {item.icon && <item.icon className={`transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-indigo-500'}`} />}
                         <span>{item.title}</span>
                     </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -173,30 +175,37 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 key={item.title}
                 open={open}
                 onOpenChange={setOpen}
-                className="group/collapsible"
+                className="group/collapsible px-2 my-0.5"
                 render={<SidebarMenuItem />}
             >
                 <CollapsibleTrigger
                     render={
-                        <SidebarMenuButton tooltip={item.title} className="group/trigger">
-                            {item.icon && <item.icon />}
+                        <SidebarMenuButton 
+                            tooltip={item.title} 
+                            className={`group/trigger transition-all duration-200 ease-in-out hover:bg-indigo-50 hover:text-indigo-600 rounded-md py-2.5 ${isActive ? 'text-indigo-600 font-medium' : 'text-slate-600'}`}
+                        >
+                            {item.icon && <item.icon className={`transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover/trigger:text-indigo-500'}`} />}
                             <span>{item.title}</span>
-                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[panel-open]/trigger:rotate-90 group-data-[state=open]/trigger:rotate-90 group-data-open/trigger:rotate-90 group-data-[state=open]/collapsible:rotate-90" />
+                            <ChevronRight className="ml-auto opacity-50 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-hover/trigger:opacity-100" />
                         </SidebarMenuButton>
                     }
                 />
-                <CollapsibleContent>
-                    <SidebarMenuSub>
-                        {item.items.map((subItem: any) => (
-                            <SidebarMenuSubItem key={subItem.title}>
-                                <SidebarMenuSubButton
-                                    isActive={pathname === subItem.url}
-                                    render={<Link href={subItem.url} />}
-                                >
-                                    <span>{subItem.title}</span>
-                                </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                        ))}
+                <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                    <SidebarMenuSub className="border-l-2 border-indigo-100/50 pl-4 ml-3 mt-1.5 space-y-1">
+                        {item.items.map((subItem: any) => {
+                            const isSubActive = pathname === subItem.url;
+                            return (
+                                <SidebarMenuSubItem key={subItem.title}>
+                                    <SidebarMenuSubButton
+                                        isActive={isSubActive}
+                                        className={`transition-all duration-200 hover:text-indigo-600 hover:translate-x-0.5 rounded-md ${isSubActive ? 'text-indigo-600 font-semibold' : 'text-slate-500'}`}
+                                        render={<Link href={subItem.url} />}
+                                    >
+                                        <span>{subItem.title}</span>
+                                    </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                            )
+                        })}
                     </SidebarMenuSub>
                 </CollapsibleContent>
             </Collapsible>
@@ -204,42 +213,41 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     }
 
     return (
-        <Sidebar collapsible="icon" {...props}>
-            <SidebarHeader>
+        <Sidebar collapsible="icon" className="border-r shadow-sm bg-white" {...props}>
+            <SidebarHeader className="py-4 px-3 border-b border-slate-100">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground border-b">
-                            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                                <Boxes className="size-4" />
+                        <SidebarMenuButton size="lg" className="hover:bg-transparent cursor-default">
+                            <div className="flex aspect-square size-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md transition-transform hover:scale-105 duration-300 ease-out">
+                                <Boxes className="size-5" />
                             </div>
-                            <div className="flex flex-1 items-center">
-                                <img
-                                    src="https://tejcovision.com/wp-content/uploads/2018/09/logo.png"
-                                    alt="Tejco Logo"
-                                    className="h-8 w-auto object-contain brightness-0 invert"
-                                />
+                            <div className="flex flex-1 items-center ml-2">
+                                {/* Use Tejco text or logo with proper contrast */}
+                                <span className="text-xl font-bold tracking-tight text-slate-900">
+                                    Tejco<span className="text-indigo-600">ERP</span>
+                                </span>
                             </div>
                         </SidebarMenuButton>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarHeader>
-            <SidebarContent>
+            <SidebarContent className="pt-4 overflow-y-auto custom-scrollbar">
                 <SidebarMenu>
                     {data.navMain.map((item) => (
                         <NavMainItem key={item.title} item={item} pathname={pathname} />
                     ))}
                 </SidebarMenu>
             </SidebarContent>
-            <SidebarFooter>
+            <SidebarFooter className="p-3 border-t border-slate-100">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg">
-                            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                                <Users className="size-4" />
+                        <SidebarMenuButton size="lg" className="rounded-xl transition-all hover:bg-slate-50 hover:shadow-sm">
+                            <div className="flex aspect-square size-9 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 font-bold">
+                                <UserRound className="size-4" />
                             </div>
-                            <div className="grid flex-1 text-left text-sm leading-tight">
-                                <span className="truncate font-semibold">Admin User</span>
-                                <span className="truncate text-xs">admin@tejco.com</span>
+                            <div className="grid flex-1 text-left text-sm leading-tight ml-1">
+                                <span className="truncate font-bold text-slate-800">Admin User</span>
+                                <span className="truncate text-[11px] font-medium text-slate-500">admin@tejco.com</span>
                             </div>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

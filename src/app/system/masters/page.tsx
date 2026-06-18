@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { Building2, GitBranch, LayoutGrid, ArrowRight, Layers } from "lucide-react"
+import { Building2, GitBranch, LayoutGrid, ArrowRight, Layers, Globe } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +39,14 @@ const masters = [
         href: "/system/masters/categories",
         count: "12 Categories",
         color: "bg-violet-500/10 text-violet-600",
+    },
+    {
+        title: "Countries",
+        description: "Configure international trade settings, currencies, and payment modes.",
+        icon: Globe,
+        href: "/system/masters/countries",
+        count: "Active Countries",
+        color: "bg-sky-500/10 text-sky-600",
     },
 ]
 

@@ -58,7 +58,7 @@ export default function AddProductPage() {
     const [warehouses, setWarehouses] = React.useState<Warehouse[]>([])
     // Placeholder for product ID used in barcode generation
     const [tempProdId, setTempProdId] = React.useState("0000")
-    
+
     // Generate a random product ID only on the client to avoid hydration mismatch
     React.useEffect(() => {
         setTempProdId(Math.floor(1000 + Math.random() * 9000).toString())
@@ -85,14 +85,15 @@ export default function AddProductPage() {
 
     // Dynamic state for variants
     const [variants, setVariants] = React.useState([
-        { 
-            id: 1, 
-            name: "Default", 
-            sku_suffix: "-DEF", 
-            salesPrice: "", 
-            gstPercentage: "18", 
+        {
+            id: 1,
+            name: "Default",
+            sku_suffix: "-DEF",
+            salesPrice: "",
+            exportSalesPrice: "",
+            gstPercentage: "18",
             costPrice: "",
-            stock: "", 
+            stock: "",
             barcode: "",
             warehouseId: "",
             rackLocation: "",
@@ -112,7 +113,7 @@ export default function AddProductPage() {
         const price = parseFloat(salesPrice)
         const gstRate = parseFloat(gst)
         if (isNaN(price) || isNaN(gstRate)) return "0.00"
-        return (price - (price * gstRate / 100)).toFixed(2)
+        return (price / (1 + gstRate / 100)).toFixed(2)
     }
 
     // Effect to auto-generate barcodes when category selection path changes
@@ -125,14 +126,15 @@ export default function AddProductPage() {
 
     const addVariant = () => {
         const newIndex = variants.length
-        setVariants([...variants, { 
-            id: Date.now(), 
-            name: "", 
-            sku_suffix: "", 
-            salesPrice: "", 
-            gstPercentage: "18", 
+        setVariants([...variants, {
+            id: Date.now(),
+            name: "",
+            sku_suffix: "",
+            salesPrice: "",
+            exportSalesPrice: "",
+            gstPercentage: "18",
             costPrice: "",
-            stock: "", 
+            stock: "",
             barcode: generateVariantBarcode(newIndex, selectedCategoryIds),
             warehouseId: "",
             rackLocation: "",
@@ -143,7 +145,7 @@ export default function AddProductPage() {
     const handleImageChange = (id: number, file: File) => {
         const reader = new FileReader()
         reader.onloadend = () => {
-            setVariants(prev => prev.map(v => 
+            setVariants(prev => prev.map(v =>
                 v.id === id ? { ...v, image: reader.result as string } : v
             ))
         }
@@ -153,7 +155,7 @@ export default function AddProductPage() {
     }
 
     const removeImage = (id: number) => {
-        setVariants(prev => prev.map(v => 
+        setVariants(prev => prev.map(v =>
             v.id === id ? { ...v, image: null } : v
         ))
     }
@@ -197,6 +199,8 @@ export default function AddProductPage() {
                 skuSuffix: v.sku_suffix,
                 purchasePrice: parseFloat(v.costPrice) || 0,
                 sellingPrice: parseFloat(v.salesPrice) || 0,
+                sellingPriceOutsideIndia: parseFloat(v.exportSalesPrice) || 0,
+                exportSellingPrice: parseFloat(v.exportSalesPrice) || 0,
                 initialQuantity: parseInt(v.stock) || 0,
                 currentQuantity: parseInt(v.stock) || 0,
                 reorderLevel: 5, // Default
@@ -205,7 +209,8 @@ export default function AddProductPage() {
                 warehouseId: parseInt(v.warehouseId) || 0,
                 rackLocation: v.rackLocation,
                 barcodeNumber: v.barcode,
-                variantImage: v.image || ""
+                variantImage: v.image || "",
+                usdAmount: parseFloat(v.exportSalesPrice) || 0
             }))
         }
 
@@ -262,10 +267,10 @@ export default function AddProductPage() {
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="sku">Base SKU</Label>
-                                        <Input 
-                                            id="sku" 
-                                            placeholder="e.g., SB-010" 
-                                            required 
+                                        <Input
+                                            id="sku"
+                                            placeholder="e.g., SB-010"
+                                            required
                                             value={baseSKU}
                                             onChange={(e) => setBaseSKU(e.target.value)}
                                         />
@@ -273,10 +278,10 @@ export default function AddProductPage() {
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="description">Description</Label>
-                                    <Textarea 
-                                        id="description" 
-                                        placeholder="Technical specifications and usage details..." 
-                                        rows={3} 
+                                    <Textarea
+                                        id="description"
+                                        placeholder="Technical specifications and usage details..."
+                                        rows={3}
                                         value={description}
                                         onChange={(e) => setDescription(e.target.value)}
                                     />
@@ -299,25 +304,25 @@ export default function AddProductPage() {
                                     {(() => {
                                         const renderedSelects = []
                                         let currentOptions: (Category | Subcategory)[] = categories
-                                        
+
                                         // Always show root level, then show subsequent levels if a parent is selected and has children
                                         for (let i = 0; i <= selectedCategoryIds.length; i++) {
                                             if (currentOptions.length === 0 && i > 0) break;
-                                            
+
                                             const levelIndex = i
                                             const selectedId = selectedCategoryIds[i]
                                             const currentVal = selectedId ? String(selectedId) : ""
                                             const label = levelIndex === 0 ? "Category" : `Subcategory Level ${levelIndex}`
-                                            
+
                                             const selectedItem = selectedId ? currentOptions.find(o => ((o as any).subcategoryId || (o as any).categoryId) === selectedId) : null
                                             const selectedName = selectedItem ? ((selectedItem as any).subcategoryName || (selectedItem as any).categoryName) : ""
 
                                             renderedSelects.push(
                                                 <div key={levelIndex} className="grid gap-2">
                                                     <Label>{label}</Label>
-                                                    <Select 
-                                                        required={levelIndex === 0} 
-                                                        value={currentVal} 
+                                                    <Select
+                                                        required={levelIndex === 0}
+                                                        value={currentVal}
                                                         onValueChange={(val) => {
                                                             const newPath = selectedCategoryIds.slice(0, levelIndex)
                                                             if (val) newPath.push(parseInt(val))
@@ -410,13 +415,13 @@ export default function AddProductPage() {
                         </CardHeader>
                         <CardContent className="grid gap-6">
                             {variants.map((v, index) => (
-                                <div key={v.id} className="relative grid gap-4 p-5 border-2 rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors">
+                                <div key={v.id} className="relative grid gap-4 pt-8 p-5 border-2 rounded-xl bg-muted/20 hover:bg-muted/40 transition-colors">
                                     {variants.length > 1 && (
                                         <Button
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            className="absolute top-2 right-2 h-8 w-8 text-destructive hover:bg-destructive/10"
+                                            className="absolute top-0 right-2 h-8 w-8 text-destructive hover:bg-destructive/10"
                                             onClick={() => removeVariant(v.id)}
                                         >
                                             <Trash2 className="h-4 w-4" />
@@ -424,7 +429,7 @@ export default function AddProductPage() {
                                     )}
                                     <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
                                         {/* Column 1: Variant Info */}
-                                        <div className="md:col-span-4 grid gap-4">
+                                        <div className="md:col-span-3 grid gap-4">
                                             <div className="grid gap-2">
                                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Variant Name</Label>
                                                 <Input
@@ -445,8 +450,8 @@ export default function AddProductPage() {
                                         </div>
 
                                         {/* Column 2: Pricing & Breakdown */}
-                                        <div className="md:col-span-3 grid gap-4 border-l pl-6">
-                                            <div className="grid grid-cols-1 gap-4">
+                                        <div className="md:col-span-4 grid gap-4 border-l pl-6">
+                                            <div className="grid grid-cols-2     gap-4">
                                                 <div className="grid gap-2">
                                                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cost Price (₹)</Label>
                                                     <div className="relative">
@@ -462,7 +467,7 @@ export default function AddProductPage() {
                                                     </div>
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sales Price (₹)</Label>
+                                                    <Label className="text-xs font-bold  uppercase tracking-wide text-muted-foreground">Sale Price (IND) (₹)</Label>
                                                     <div className="relative">
                                                         <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                                         <Input
@@ -475,8 +480,10 @@ export default function AddProductPage() {
                                                         />
                                                     </div>
                                                 </div>
+
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
+
                                                 <div className="grid gap-2">
                                                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">GST %</Label>
                                                     <Input
@@ -490,10 +497,25 @@ export default function AddProductPage() {
                                                 <div className="grid gap-2">
                                                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Base Price</Label>
                                                     <div className="h-10 flex items-center px-3 rounded-md bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
-                                                        ₹{calculateBasePrice(v.salesPrice, v.gstPercentage)}
+                                                        ₹{parseFloat(calculateBasePrice(v.salesPrice, v.gstPercentage)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </div>
+                                                </div>
+                                                <div className="grid gap-2 col-span-2">
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sale Price (INTL) ($)</Label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-3 top-2.5 text-sm font-semibold text-muted-foreground">$</span>
+                                                        <Input
+                                                            type="number"
+                                                            className="pl-8"
+                                                            placeholder="0.00"
+                                                            value={v.exportSalesPrice}
+                                                            onChange={(e) => handleVariantChange(v.id, "exportSalesPrice", e.target.value)}
+                                                            required
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
+
                                         </div>
 
                                         {/* Column 3: Inventory & Warehouse */}
@@ -511,8 +533,8 @@ export default function AddProductPage() {
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="grid gap-2">
                                                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Warehouse</Label>
-                                                    <Select 
-                                                        value={v.warehouseId} 
+                                                    <Select
+                                                        value={v.warehouseId}
                                                         onValueChange={(val) => handleVariantChange(v.id, "warehouseId", val || "")}
                                                     >
                                                         <SelectTrigger className="h-9">
@@ -544,11 +566,11 @@ export default function AddProductPage() {
                                                 {v.image ? (
                                                     <>
                                                         <img src={v.image} alt="Variant Preview" className="w-full h-full object-cover" />
-                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                                            <Button 
-                                                                type="button" 
-                                                                variant="destructive" 
-                                                                size="icon" 
+                                                        <div className="absolute inset-0 bg-black/40 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="destructive"
+                                                                size="icon"
                                                                 className="h-8 w-8"
                                                                 onClick={() => removeImage(v.id)}
                                                             >
@@ -558,29 +580,29 @@ export default function AddProductPage() {
                                                     </>
                                                 ) : (
                                                     <div className="flex flex-col gap-2 w-full p-2">
-                                                        <Label className="flex flex-col items-center gap-1.5 cursor-pointer hover:text-primary transition-colors py-3 border-2 border-dashed border-muted-foreground/10 rounded-lg bg-muted/5">
+                                                        {/* <Label className="flex flex-col items-center gap-1.5 cursor-pointer hover:text-primary transition-colors py-3 border-2 border-dashed border-muted-foreground/10 rounded-lg bg-muted/5">
                                                             <UploadCloud className="h-5 w-5 text-muted-foreground" />
                                                             <span className="text-[9px] font-bold uppercase tracking-tight">Upload File</span>
-                                                            <input 
-                                                                type="file" 
-                                                                className="hidden" 
+                                                            <input
+                                                                type="file"
+                                                                className="hidden"
                                                                 accept="image/*"
                                                                 onChange={(e) => {
                                                                     const file = e.target.files?.[0]
                                                                     if (file) handleImageChange(v.id, file)
                                                                 }}
                                                             />
-                                                        </Label>
+                                                        </Label> 
                                                         <div className="flex items-center gap-2">
                                                             <div className="h-px flex-1 bg-muted-foreground/10" />
                                                             <span className="text-[8px] font-bold text-muted-foreground/60">OR</span>
                                                             <div className="h-px flex-1 bg-muted-foreground/10" />
-                                                        </div>
+                                                        </div>*/}
                                                         <div className="relative">
                                                             <ImageIcon className="absolute left-2 top-2 h-3 w-3 text-muted-foreground/50" />
-                                                            <Input 
-                                                                className="h-7 pl-6 text-[10px] bg-white/50" 
-                                                                placeholder="Paste URL" 
+                                                            <Input
+                                                                className="h-7 pl-6 text-[10px] bg-white/50"
+                                                                placeholder="Paste URL"
                                                                 onKeyDown={(e) => {
                                                                     if (e.key === 'Enter') {
                                                                         e.preventDefault()
@@ -603,7 +625,7 @@ export default function AddProductPage() {
                                                 <div className="w-full h-10">
                                                     <svg viewBox="0 0 100 40" className="w-full h-full" preserveAspectRatio="none">
                                                         {/* Simple dummy barcode effect */}
-                                                        {Array.from({length: 20}).map((_, i) => (
+                                                        {Array.from({ length: 20 }).map((_, i) => (
                                                             <rect key={i} x={i * 5} y="0" width={((i * 7) % 3) + 1.5} height="40" fill="black" />
                                                         ))}
                                                     </svg>

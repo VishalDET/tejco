@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { clientsApi } from "@/lib/api"
+import { apiClient } from "@/lib/api-client"
 import { Loader2, Plus, Trash2, UserPlus, Users, Mail, Phone, Building2, Hospital, Stethoscope, Building, MapPin, Globe, Map } from "lucide-react"
 import { Client, ClientContact, ClientBranch, ClientType, Address } from "./types"
 
@@ -33,6 +34,21 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   const [form, setForm] = useState<Partial<Client>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [countries, setCountries] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchCountries = async () => {
+      try {
+        const res = await apiClient.get<any>("/api/CountryMaster/GetAll")
+        if (res.success && res.data) {
+          setCountries(res.data)
+        }
+      } catch (e) {
+        console.error("Failed to fetch countries", e)
+      }
+    }
+    fetchCountries()
+  }, [])
 
   useEffect(() => {
     setForm(client ?? { 
@@ -316,7 +332,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                               <Input className="h-8 text-xs" placeholder="City" value={branch.address?.city || ""} onChange={(e) => setBranchAddress(branch.id, "city", e.target.value)} />
                               <Input className="h-8 text-xs" placeholder="State" value={branch.address?.state || ""} onChange={(e) => setBranchAddress(branch.id, "state", e.target.value)} />
                               <Input className="h-8 text-xs" placeholder="Pincode" value={branch.address?.pincode || ""} onChange={(e) => setBranchAddress(branch.id, "pincode", e.target.value)} />
-                              <Input className="h-8 text-xs" placeholder="Country" value={branch.address?.country || "India"} onChange={(e) => setBranchAddress(branch.id, "country", e.target.value)} />
+                              <Select value={branch.address?.country || "India"} onValueChange={(val) => setBranchAddress(branch.id, "country", val || "")}>
+                                <SelectTrigger className="h-8 text-xs">
+                                  <SelectValue placeholder="Country" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {countries.length > 0 ? countries.map(c => (
+                                    <SelectItem key={c.countryId} value={c.countryName}>{c.countryName}</SelectItem>
+                                  )) : <SelectItem value="India">India</SelectItem>}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
 
@@ -375,7 +400,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   <Input className="h-9" placeholder="City" value={form.billingAddress?.city || ""} onChange={(e) => setAddress("billing", "city", e.target.value)} />
                   <Input className="h-9" placeholder="State" value={form.billingAddress?.state || ""} onChange={(e) => setAddress("billing", "state", e.target.value)} />
                   <Input className="h-9" placeholder="Pincode" value={form.billingAddress?.pincode || ""} onChange={(e) => setAddress("billing", "pincode", e.target.value)} />
-                  <Input className="h-9" placeholder="Country" value={form.billingAddress?.country || "India"} onChange={(e) => setAddress("billing", "country", e.target.value)} />
+                  <Select value={form.billingAddress?.country || "India"} onValueChange={(val) => setAddress("billing", "country", val || "")}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countries.length > 0 ? countries.map(c => (
+                        <SelectItem key={c.countryId} value={c.countryName}>{c.countryName}</SelectItem>
+                      )) : <SelectItem value="India">India</SelectItem>}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button variant="link" size="sm" className="h-auto p-0 text-[10px] h-6" onClick={() => set("shippingAddress", { ...(form.billingAddress || emptyAddress) })}>
                   Copy to Shipping Address
@@ -393,7 +427,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   <Input className="h-9" placeholder="City" value={form.shippingAddress?.city || ""} onChange={(e) => setAddress("shipping", "city", e.target.value)} />
                   <Input className="h-9" placeholder="State" value={form.shippingAddress?.state || ""} onChange={(e) => setAddress("shipping", "state", e.target.value)} />
                   <Input className="h-9" placeholder="Pincode" value={form.shippingAddress?.pincode || ""} onChange={(e) => setAddress("shipping", "pincode", e.target.value)} />
-                  <Input className="h-9" placeholder="Country" value={form.shippingAddress?.country || "India"} onChange={(e) => setAddress("shipping", "country", e.target.value)} />
+                  <Select value={form.shippingAddress?.country || "India"} onValueChange={(val) => setAddress("shipping", "country", val || "")}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {countries.length > 0 ? countries.map(c => (
+                        <SelectItem key={c.countryId} value={c.countryName}>{c.countryName}</SelectItem>
+                      )) : <SelectItem value="India">India</SelectItem>}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </div>

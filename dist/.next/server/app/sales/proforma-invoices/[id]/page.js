@@ -1,5 +1,5 @@
 var R=require("../../../../chunks/ssr/[turbopack]_runtime.js")("server/app/sales/proforma-invoices/[id]/page.js")
-R.c("server/chunks/ssr/[root-of-the-server]__0y_8rv-._.js")
+R.c("server/chunks/ssr/[root-of-the-server]__0ae936_._.js")
 R.c("server/chunks/ssr/node_modules_next_dist_esm_build_templates_app-page_05t7e03.js")
 R.c("server/chunks/ssr/node_modules_next_dist_11dij6w._.js")
 R.c("server/chunks/ssr/node_modules_next_dist_09jzzl8._.js")

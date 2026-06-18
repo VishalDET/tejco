@@ -44,6 +44,7 @@ import {
   type OutwardStatus,
   type ScanResultType,
 } from "../types"
+import { orderOutwardApi } from "@/lib/api"
 
 interface OutwardScanViewProps {
   order: OutwardOrder
@@ -150,14 +151,31 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     return "Scanning"
   }
 
-  function handleScan(rawBarcode?: string) {
+  async function handleScan(rawBarcode?: string) {
     const barcode = (rawBarcode ?? barcodeValue).trim()
     if (!barcode) return
 
-    setOutwardOrder((currentOrder) => {
-      const itemIndex = currentOrder.items.findIndex((item) => item.barcode === barcode)
+    // Check item index to register appropriate scan status to server
+    const itemIndex = outwardOrder.items.findIndex((item) => item.barcode === barcode)
+    
+    // Register scan event on server
+    try {
+      const scanType = itemIndex === -1 ? "Error" : "Pick"
+      await orderOutwardApi.scanBarcode(outwardOrder.id, {
+        outwardOrderId: outwardOrder.outwardOrderId || parseInt(outwardOrder.id) || 0,
+        barcode,
+        scanType,
+        message: itemIndex === -1 ? "Barcode not found in this order" : "Product scanned successfully",
+        scannedAt: new Date().toISOString()
+      })
+    } catch (apiErr) {
+      console.warn("Failed to register scan on server:", apiErr)
+    }
 
-      if (itemIndex === -1) {
+    setOutwardOrder((currentOrder) => {
+      const idx = currentOrder.items.findIndex((item) => item.barcode === barcode)
+
+      if (idx === -1) {
         const event = addScanEvent({
           barcode,
           message: "Barcode not found in this order",
@@ -171,7 +189,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
         }
       }
 
-      const item = currentOrder.items[itemIndex]
+      const item = currentOrder.items[idx]
       if (item.scannedQty >= item.orderedQty) {
         const event = addScanEvent({
           barcode,
@@ -187,12 +205,12 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
       }
 
       const nextItems = currentOrder.items.map((currentItem, index) =>
-        index === itemIndex
+        index === idx
           ? { ...currentItem, scannedQty: currentItem.scannedQty + 1 }
           : currentItem
       )
 
-      const nextItem = nextItems[itemIndex]
+      const nextItem = nextItems[idx]
       const event = addScanEvent({
         barcode,
         productName: item.productName,
@@ -204,9 +222,18 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
       })
 
       toast.success(event.message)
+      const nextStatus = resolveStatus(currentOrder, nextItems, "success")
+      
+      // Auto-update status on server if we transition to Completed or Partially Scanned
+      orderOutwardApi.updateStatus(
+        currentOrder.id, 
+        nextStatus === "Completed" ? "Picked" : "Picking", 
+        `Scanned ${barcode}`
+      ).catch(err => console.warn("Failed to update status on server:", err))
+
       return {
         ...currentOrder,
-        status: resolveStatus(currentOrder, nextItems, "success"),
+        status: nextStatus,
         items: nextItems,
         scanHistory: [event, ...currentOrder.scanHistory],
       }
@@ -221,19 +248,22 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     handleScan()
   }
 
-  function handleResetSession() {
-    setOutwardOrder(cloneOrder(order))
-    setBarcodeValue("")
-    setLatestEvent(order.scanHistory[0] ?? null)
-    inputRef.current?.focus()
-  }
-
-  function handleCompleteOutward() {
-    setOutwardOrder((currentOrder) => ({
-      ...currentOrder,
-      status: "Completed",
-    }))
-    toast.success("Order outward marked complete")
+  async function handleCompleteOutward() {
+    try {
+      await orderOutwardApi.updateStatus(outwardOrder.id, "Picked", "All items scanned and completed via scan console")
+      setOutwardOrder((currentOrder) => ({
+        ...currentOrder,
+        status: "Completed",
+      }))
+      toast.success("Order status updated to Picked on server")
+    } catch (apiErr) {
+      console.warn("Failed to update status on server:", apiErr)
+      setOutwardOrder((currentOrder) => ({
+        ...currentOrder,
+        status: "Completed",
+      }))
+      toast.success("Order outward completed")
+    }
   }
 
   return (
@@ -258,10 +288,6 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={handleResetSession}>
-            <RotateCcw className="h-4 w-4" />
-            Reset Demo
-          </Button>
           <Button className="gap-2" disabled={!isDispatchReady} onClick={handleCompleteOutward}>
             <Truck className="h-4 w-4" />
             Complete Outward

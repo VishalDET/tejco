@@ -151,6 +151,54 @@
         "x-next-revalidate-tag-token"
       ]
     },
+    "/inventory/dispatch": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/inventory/dispatch",
+      "dataRoute": "/inventory/dispatch.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+    "/inventory/order-outward": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/inventory/order-outward",
+      "dataRoute": "/inventory/order-outward.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
     "/inventory/products": {
       "experimentalBypassFor": [
         {
@@ -775,6 +823,54 @@
         "x-next-revalidate-tag-token"
       ]
     },
+    "/system/masters/countries": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/system/masters/countries",
+      "dataRoute": "/system/masters/countries.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+    "/system/masters/countries/add": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "next-action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/system/masters/countries/add",
+      "dataRoute": "/system/masters/countries/add.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
     "/system/masters/departments": {
       "experimentalBypassFor": [
         {
@@ -971,8 +1067,8 @@
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
-    "previewModeId": "2038409b3422bf6b623f2bf1ad872e86",
-    "previewModeSigningKey": "9b564a6f8f416ff19e4f44903a380ed13904013617890d8a18b82ffe2c67fee5",
-    "previewModeEncryptionKey": "441f043830eda1e10081e70df8a783b1e692c9d5e343262af60a99c02812bbba"
+    "previewModeId": "0a2803bfa3453db00e86a77b1a1b892c",
+    "previewModeSigningKey": "9788f7e4a09b1af5e82945fad4534e7ea4f79cffe2c939635bf045415d01b38b",
+    "previewModeEncryptionKey": "497fc30c96df391f087742fc2248f86936bee380d32711e5a64d28a1706965a7"
   }
 }

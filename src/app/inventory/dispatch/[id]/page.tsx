@@ -1,10 +1,20 @@
 import { notFound } from "next/navigation"
-import { getMockDispatch } from "../mock-data"
 import { DispatchDetailsView } from "./dispatch-details-view"
+import { dispatchApi } from "@/lib/api"
+import { mapApiDispatch } from "../types"
 
 export default async function DispatchDetailsPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
-  const dispatch = getMockDispatch(params.id)
+  
+  let dispatch = null
+  try {
+    const apiDispatch = await dispatchApi.getById(params.id)
+    if (apiDispatch) {
+      dispatch = mapApiDispatch(apiDispatch)
+    }
+  } catch (err) {
+    console.error("Failed to load dispatch details from API:", err)
+  }
 
   if (!dispatch) {
     notFound()

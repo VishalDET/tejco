@@ -30,8 +30,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { mockOutwardOrders } from "./mock-data"
-import { getOutwardProgress, type OutwardOrder, type OutwardStatus } from "./types"
+import { getOutwardProgress, mapApiOutwardOrder, type OutwardOrder, type OutwardStatus } from "./types"
+import { orderOutwardApi } from "@/lib/api"
 
 const tabFilters: Array<{ label: string; value: "all" | OutwardStatus }> = [
   { label: "All", value: "all" },
@@ -98,9 +98,28 @@ function DashboardStat({
 
 export default function OrderOutwardPage() {
   const router = useRouter()
-  const [orders] = React.useState<OutwardOrder[]>(mockOutwardOrders)
+  const [orders, setOrders] = React.useState<OutwardOrder[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
   const [activeTab, setActiveTab] = React.useState<"all" | OutwardStatus>("all")
   const [searchQuery, setSearchQuery] = React.useState("")
+
+  const fetchOrders = React.useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const res = await orderOutwardApi.getAll()
+      const rawList = Array.isArray(res) ? res : ((res as any)?.data && Array.isArray((res as any).data) ? (res as any).data : [])
+      setOrders(rawList.map(mapApiOutwardOrder))
+    } catch (err) {
+      console.error("Failed to load outward orders:", err)
+      setOrders([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    fetchOrders()
+  }, [fetchOrders])
 
   const filteredOrders = orders.filter((order) => {
     const matchesTab = activeTab === "all" || order.status === activeTab
@@ -119,6 +138,8 @@ export default function OrderOutwardPage() {
   const completedCount = orders.filter((order) => order.status === "Completed").length
   const pendingUnits = orders.reduce((sum, order) => sum + getOutwardProgress(order).pendingQty, 0)
 
+  const nextReadyOrderId = orders.find((order) => order.status === "Ready" || order.status === "Pending")?.id
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -135,11 +156,15 @@ export default function OrderOutwardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2">
-            <RefreshCw className="h-4 w-4" />
+          <Button variant="outline" className="gap-2" onClick={fetchOrders} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button className="gap-2" onClick={() => router.push("/inventory/order-outward/ord-9281")}>
+          <Button 
+            className="gap-2" 
+            onClick={() => router.push(`/inventory/order-outward/${nextReadyOrderId}`)}
+            disabled={!nextReadyOrderId}
+          >
             <Play className="h-4 w-4" />
             Start Next
           </Button>

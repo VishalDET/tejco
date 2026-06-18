@@ -23,6 +23,22 @@
   },
   "dynamicRoutes": [
     {
+      "page": "/inventory/dispatch/[id]",
+      "regex": "^/inventory/dispatch/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/inventory/dispatch/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/inventory/order-outward/[id]",
+      "regex": "^/inventory/order\\-outward/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/inventory/order\\-outward/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/inventory/products/[id]",
       "regex": "^/inventory/products/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -135,6 +151,22 @@
       "namedRegex": "^/system/masters/companies/(?<nxtPid>[^/]+?)(?:/)?$"
     },
     {
+      "page": "/system/masters/countries/edit/[id]",
+      "regex": "^/system/masters/countries/edit/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/system/masters/countries/edit/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/system/masters/countries/[id]",
+      "regex": "^/system/masters/countries/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/system/masters/countries/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
       "page": "/system/masters/departments/edit/[id]",
       "regex": "^/system/masters/departments/edit/([^/]+?)(?:/)?$",
       "routeKeys": {
@@ -203,6 +235,18 @@
       "regex": "^/intelligence/reports(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/intelligence/reports(?:/)?$"
+    },
+    {
+      "page": "/inventory/dispatch",
+      "regex": "^/inventory/dispatch(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/inventory/dispatch(?:/)?$"
+    },
+    {
+      "page": "/inventory/order-outward",
+      "regex": "^/inventory/order\\-outward(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/inventory/order\\-outward(?:/)?$"
     },
     {
       "page": "/inventory/products",
@@ -359,6 +403,18 @@
       "regex": "^/system/masters/companies/add(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/system/masters/companies/add(?:/)?$"
+    },
+    {
+      "page": "/system/masters/countries",
+      "regex": "^/system/masters/countries(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/system/masters/countries(?:/)?$"
+    },
+    {
+      "page": "/system/masters/countries/add",
+      "regex": "^/system/masters/countries/add(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/system/masters/countries/add(?:/)?$"
     },
     {
       "page": "/system/masters/departments",

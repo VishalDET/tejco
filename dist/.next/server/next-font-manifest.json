@@ -9,6 +9,18 @@
     "[project]/src/app/intelligence/reports/page": [
       "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
     ],
+    "[project]/src/app/inventory/dispatch/[id]/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
+    "[project]/src/app/inventory/dispatch/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
+    "[project]/src/app/inventory/order-outward/[id]/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
+    "[project]/src/app/inventory/order-outward/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
     "[project]/src/app/inventory/products/[id]/page": [
       "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
     ],
@@ -127,6 +139,18 @@
       "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
     ],
     "[project]/src/app/system/masters/companies/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
+    "[project]/src/app/system/masters/countries/[id]/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
+    "[project]/src/app/system/masters/countries/add/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
+    "[project]/src/app/system/masters/countries/edit/[id]/page": [
+      "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
+    ],
+    "[project]/src/app/system/masters/countries/page": [
       "static/media/83afe278b6a6bb3c-s.p.0q-301v4kxxnr.woff2"
     ],
     "[project]/src/app/system/masters/departments/[id]/page": [
