@@ -26,6 +26,7 @@ import { toast } from "sonner"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
 import { warehousesApi, productsApi, categoriesApi } from "@/lib/api"
 import type { Warehouse } from "@/app/supply-chain/warehouse/types"
+import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 
 interface Subcategory {
     subcategoryId: number;
@@ -167,8 +168,9 @@ export default function AddProductPage() {
     }
 
     const handleVariantChange = (id: number, field: string, value: string) => {
+        const finalValue = field === "image" ? (getGoogleDrivePreviewUrl(value) || "") : value
         setVariants(variants.map(v =>
-            v.id === id ? { ...v, [field]: value } : v
+            v.id === id ? { ...v, [field]: finalValue } : v
         ))
     }
 
@@ -565,7 +567,7 @@ export default function AddProductPage() {
                                             <div className="relative aspect-square w-full rounded-lg border-2 border-dashed border-muted-foreground/20 bg-white flex items-center justify-center overflow-hidden group">
                                                 {v.image ? (
                                                     <>
-                                                        <img src={v.image} alt="Variant Preview" className="w-full h-full object-cover" />
+                                                        <img src={v.image} alt="Variant Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                                         <div className="absolute inset-0 bg-black/40 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                                             <Button
                                                                 type="button"

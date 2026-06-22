@@ -14,11 +14,13 @@ import {
     Plus,
     Layers,
     Download,
+    Upload,
     Loader2,
     AlertCircle,
 } from "lucide-react"
 
 import { apiClient, categoriesApi } from "@/lib/api"
+import { CategoryBulkUploadDialog } from "./bulk-upload-dialog"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import {
@@ -173,8 +175,11 @@ export default function CategoriesPage() {
     
     const [isDeleting, setIsDeleting] = React.useState(false)
     const [categoryToDelete, setCategoryToDelete] = React.useState<string | null>(null)
+    const [isBulkUploadOpen, setIsBulkUploadOpen] = React.useState(false)
 
-    React.useEffect(() => {
+    const fetchCategories = () => {
+        setLoading(true)
+        setError(null)
         categoriesApi
             .getAll()
             .then(res => {
@@ -183,6 +188,10 @@ export default function CategoriesPage() {
             })
             .catch((err: Error) => setError(err.message))
             .finally(() => setLoading(false))
+    }
+
+    React.useEffect(() => {
+        fetchCategories()
     }, [])
 
     const handleDelete = async () => {
@@ -218,6 +227,10 @@ export default function CategoriesPage() {
                     <p className="text-muted-foreground">Manage product hierarchies and classifications.</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)} className="gap-2">
+                        <Upload className="h-4 w-4" />
+                        Import Excel
+                    </Button>
                     <Button variant="outline">
                         <Download className="mr-2 h-4 w-4" />
                         Export
@@ -309,6 +322,12 @@ export default function CategoriesPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <CategoryBulkUploadDialog
+                open={isBulkUploadOpen}
+                onOpenChange={setIsBulkUploadOpen}
+                onComplete={fetchCategories}
+            />
         </div>
     )
 }

@@ -15,8 +15,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Plus, Trash2, FileText, Calculator } from "lucide-react"
 import { ClientSelector } from "@/components/sales/client-selector"
 import { ProductSelector } from "@/components/sales/product-selector"
-import { quotationsApi, usersApi, serializeAddress } from "@/lib/api"
+import { quotationsApi, usersApi, serializeAddress, countryMasterApi, clientsApi } from "@/lib/api"
 import { toast } from "sonner"
+import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 
 interface QuotationFormDialogProps {
   open: boolean
@@ -32,6 +33,40 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
   const [isSaving, setIsSaving] = useState(false)
   const [users, setUsers] = useState<any[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
+  const [currencies, setCurrencies] = useState<string[]>(["USD", "EUR", "GBP"])
+
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      try {
+        const res = await countryMasterApi.getAll()
+        const list = Array.isArray(res) ? res : ((res as any)?.data && Array.isArray((res as any).data) ? (res as any).data : [])
+        const uniqueCurrencies = Array.from(
+          new Set(
+            list
+              .map((c: any) => c.currencyType?.trim())
+              .filter((c: any) => c && c.toUpperCase() !== "INR")
+          )
+        ) as string[]
+        if (uniqueCurrencies.length > 0) {
+          setCurrencies(uniqueCurrencies)
+        }
+      } catch (err) {
+        console.error("Failed to fetch currencies from country master:", err)
+      }
+    }
+    fetchCurrencies()
+  }, [])
+
+  const getCurrencySymbol = (currency?: string) => {
+    if (!currency) return "₹"
+    switch (currency.toUpperCase()) {
+      case "USD": return "$"
+      case "EUR": return "€"
+      case "GBP": return "£"
+      case "INR": return "₹"
+      default: return currency
+    }
+  }
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -53,7 +88,11 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
 
   useEffect(() => {
     if (quotation) {
-      setForm(quotation)
+      setForm({
+        ...quotation,
+        paymentType: (quotation as any).paymentType || "Domestic",
+        currencyType: (quotation as any).currencyType || "INR",
+      })
     } else {
       const year = new Date().getFullYear()
       const random = Math.floor(1000 + Math.random() * 9000)
@@ -69,10 +108,36 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         validityDays: 7,
         deliveryTime: "10-15 Working Days",
         salesPersonName: "Ravi Kumar",
-        salesPersonCell: "+91-8888888888"
+        salesPersonCell: "+91-8888888888",
+        paymentType: "Domestic",
+        currencyType: "INR",
       })
     }
   }, [quotation, open])
+
+  useEffect(() => {
+    const resolveClientId = async () => {
+      if (form.clientName && !form.clientId) {
+        try {
+          const list = await clientsApi.getAll()
+          const match = list.find((c: any) => c.name?.toLowerCase().trim() === form.clientName?.toLowerCase().trim())
+          if (match) {
+            setForm(prev => ({
+              ...prev,
+              clientId: match.id,
+              billingAddress: prev.billingAddress || serializeAddress(match.billingAddress),
+              shippingAddress: prev.shippingAddress || serializeAddress(match.shippingAddress),
+            }))
+          }
+        } catch (err) {
+          console.error("Failed to resolve client ID by name:", err)
+        }
+      }
+    }
+    if (open) {
+      resolveClientId()
+    }
+  }, [form.clientName, form.clientId, open])
 
   // Auto-match salesperson name to user list, or resolve mock/invalid salesPersonId
   useEffect(() => {
@@ -98,9 +163,15 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
   }, [users, form.salesPersonName, form.salesPersonId])
 
   const calculateTotals = (items: SalesDocumentItem[]) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0)
-    const taxAmount = items.reduce((sum, item) => sum + ((item.total || 0) * (item.gstRate / 100)), 0)
-    const totalAmount = subtotal + taxAmount
+    const grossTotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
+    const totalDiscount = items.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)
+    const totalAmount = grossTotal - totalDiscount
+    const subtotal = items.reduce((sum, item) => {
+      const netItemTotal = (item.unitPrice - ((item as any).discountAmount || 0)) * item.quantity
+      const itemBase = netItemTotal / (1 + (item.gstRate || 0) / 100)
+      return sum + itemBase
+    }, 0)
+    const taxAmount = totalAmount - subtotal
     return { subtotal, taxAmount, totalAmount }
   }
 
@@ -109,21 +180,40 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
   }
 
   const onProductSelect = (product: any, variant: any) => {
+    const sku = `${product.baseSKU}${variant.skuSuffix}`
+    const exists = (form.items || []).some(item => item.sku === sku)
+    if (exists) {
+      toast.error(`"${product.productName} - ${variant.variantName}" is already included in this quotation.`)
+      return
+    }
+
+    const isForeign = form.paymentType === "Foreign"
+    const price = isForeign ? (variant.usdAmount || variant.exportSellingPrice || 0) : variant.sellingPrice
+
     const newItem: SalesDocumentItem = {
       id: Math.random().toString(36).substring(2, 9).slice(0, 8),
       productId: product.productId.toString(),
       productName: product.productName,
       name: variant.variantName,
-      sku: `${product.baseSKU}${variant.skuSuffix}`,
+      sku: sku,
       quantity: 1,
-      unitPrice: variant.sellingPrice,
-      total: variant.sellingPrice,
-      gstRate: variant.gstPercentage ?? 18,
+      unitPrice: price,
+      total: price,
+      gstRate: isForeign ? 0 : (variant.gstPercentage ?? product.gstPercentage ?? 18),
       imageUrl: variant.variantImage || product.imageUrl || "" 
     }
     // Initialize discount fields
     ;(newItem as any).discountPercentage = 0
     ;(newItem as any).discountAmount = 0
+    ;(newItem as any).stock = variant.currentQuantity ?? 0
+    ;(newItem as any).sellingPrice = variant.sellingPrice
+    ;(newItem as any).usdAmount = variant.usdAmount || variant.exportSellingPrice || 0
+    ;(newItem as any).gstRateOriginal = variant.gstPercentage ?? product.gstPercentage ?? 18
+
+    if ((variant.currentQuantity ?? 0) < 1) {
+      toast.warning(`Warning: "${product.productName} - ${variant.variantName}" is currently out of stock.`)
+    }
+
     const newItems = [...(form.items || []), newItem]
     const totals = calculateTotals(newItems)
     setForm(prev => ({ ...prev, items: newItems, ...totals }))
@@ -132,6 +222,13 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
   const updateItem = (id: string, field: keyof SalesDocumentItem | "discountPercentage", value: any) => {
     const newItems = (form.items || []).map(item => {
       if (item.id === id) {
+        if (field === "quantity") {
+          const qty = parseInt(value) || 0
+          const stock = (item as any).stock
+          if (stock !== undefined && qty > stock) {
+            toast.error(`Requested quantity (${qty}) exceeds available stock (${stock}) for "${item.productName}".`)
+          }
+        }
         const updatedItem = { ...item, [field]: value } as any
         if (field === "quantity" || field === "unitPrice" || field === "discountPercentage") {
           const qty = updatedItem.quantity || 0
@@ -139,7 +236,15 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
           const discPct = updatedItem.discountPercentage || 0
           const discAmt = price * discPct / 100
           updatedItem.discountAmount = discAmt
-          updatedItem.total = (price - discAmt) * qty
+          updatedItem.total = price * qty
+
+          if (field === "unitPrice") {
+            if (form.paymentType === "Foreign") {
+              updatedItem.usdAmount = price
+            } else {
+              updatedItem.sellingPrice = price
+            }
+          }
         }
         return updatedItem as SalesDocumentItem
       }
@@ -147,6 +252,20 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     })
     const totals = calculateTotals(newItems)
     setForm(prev => ({ ...prev, items: newItems, ...totals }))
+  }
+
+  const handlePaymentTypeChange = (newPaymentType: string) => {
+    const newCurrency = newPaymentType === "Domestic" ? "INR" : "USD"
+    setForm(prev => ({
+      ...prev,
+      paymentType: newPaymentType,
+      currencyType: newCurrency,
+      items: [],
+      subtotal: 0,
+      taxAmount: 0,
+      totalAmount: 0
+    }))
+    toast.success("Payment type changed. Product selection cleared.")
   }
 
   const removeItem = (id: string) => {
@@ -182,6 +301,8 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         createdAt: new Date().toISOString(),
         updatedAt: null,
         status: form.status || "Draft",
+        paymentType: form.paymentType || "Domestic",
+        currencyType: form.currencyType || "INR",
         items: (form.items || []).map(item => ({
           quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           quotationId: quotation?.id && !isNaN(parseInt(quotation.id)) ? parseInt(quotation.id) : 0,
@@ -241,6 +362,30 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
               <div className="space-y-2">
                 <Label>Valid Until</Label>
                 <Input type="date" value={form.validUntil ? form.validUntil.split("T")[0] : ""} onChange={(e) => set("validUntil", e.target.value)} />
+              </div>
+            </div>
+
+            {/* Payment Type + Currency Type */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Payment Type</Label>
+                <Select value={form.paymentType || "Domestic"} onValueChange={(v) => handlePaymentTypeChange(v as string)}>
+                  <SelectTrigger className="border-slate-200"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Domestic">Domestic</SelectItem>
+                    <SelectItem value="Foreign">Foreign</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Currency Type</Label>
+                <Select value={form.currencyType || "INR"} disabled>
+                  <SelectTrigger className="border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INR">INR (₹)</SelectItem>
+                    <SelectItem value="USD">USD ($)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -325,103 +470,103 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Line Items</h3>
-                <ProductSelector onSelect={onProductSelect} />
+                <ProductSelector onSelect={onProductSelect} paymentType={form.paymentType} />
               </div>
 
               <div className="border rounded-md overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
-                      <TableHead className="w-[25%]">Product</TableHead>
+                      <TableHead className="w-[20%]">Product</TableHead>
                       <TableHead>SKU</TableHead>
-                      <TableHead className="w-[10%] text-center">Qty</TableHead>
-                      <TableHead className="w-[12%] text-right">Price</TableHead>
-                      <TableHead className="w-[12%] text-center">Disc %</TableHead>
-                      <TableHead className="w-[12%] text-center">GST %</TableHead>
-                      <TableHead className="w-[15%] text-right">Total</TableHead>
+                      <TableHead className="w-[8%] text-center">Qty</TableHead>
+                      <TableHead className="w-[10%] text-right">Price</TableHead>
+                      <TableHead className="w-[8%] text-center">Disc %</TableHead>
+                      <TableHead className="w-[11%] text-right">Disc Amt</TableHead>
+                      <TableHead className="w-[9%] text-center">GST %</TableHead>
+                      <TableHead className="w-[12%] text-right">Total</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(form.items || []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">
+                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground italic">
                           No items added. Click "Add Product" to search the inventory.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      (form.items || []).map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-3">
-                              {(item as any).imageUrl && (
-                                <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
-                                  <img src={(item as any).imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                      (form.items || []).map((item) => {
+                        const isOverStock = (item as any).stock !== undefined && item.quantity > (item as any).stock
+                        return (
+                          <TableRow 
+                            key={item.id} 
+                            className={isOverStock ? "bg-orange-50/80 hover:bg-orange-100/80 border-orange-200 transition-colors" : "hover:bg-slate-50/50"}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-3">
+                                {(item as any).imageUrl && (
+                                  <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
+                                    <img src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""} alt={item.productName} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-medium text-slate-900">{item.productName}</div>
+                                  {item.name && <div className="text-xs text-slate-500">{item.name}</div>}
                                 </div>
-                              )}
-                              <div>
-                                <div className="font-medium text-slate-900">{item.productName}</div>
-                                {item.name && <div className="text-xs text-slate-500">{item.name}</div>}
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs font-mono">{item.sku}</TableCell>
-                          <TableCell>
-                            <Input 
-                              type="number" 
-                              min="1" 
-                              value={item.quantity ?? ""} 
-                              onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 0)}
-                              className="h-8 text-center"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input 
-                              type="number" 
-                              value={item.unitPrice ?? ""} 
-                              onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
-                              className="h-8 text-right"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input 
-                              type="number" 
-                              min="0"
-                              max="100"
-                              value={(item as any).discountPercentage ?? 0} 
-                              onChange={(e) => updateItem(item.id, "discountPercentage", parseFloat(e.target.value) || 0)}
-                              className="h-8 text-center"
-                              placeholder="0"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select 
-                              value={item.gstRate.toString()} 
-                              onValueChange={(v) => v && updateItem(item.id, "gstRate", parseInt(v))}
-                            >
-                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {GST_RATES.map(rate => (
-                                  <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            ₹{item.total.toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => removeItem(item.id)}
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            </TableCell>
+                            <TableCell className="text-xs font-mono">{item.sku}</TableCell>
+                            <TableCell>
+                              <Input 
+                                type="number" 
+                                min="1" 
+                                value={item.quantity ?? ""} 
+                                onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 0)}
+                                className="h-8 text-center"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input 
+                                type="number" 
+                                value={item.unitPrice ?? ""} 
+                                onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                                className="h-8 text-right"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input 
+                                type="number" 
+                                min="0"
+                                max="100"
+                                value={(item as any).discountPercentage ?? 0} 
+                                onChange={(e) => updateItem(item.id, "discountPercentage", parseFloat(e.target.value) || 0)}
+                                className="h-8 text-center"
+                                placeholder="0"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right text-slate-600 font-medium">
+                              {getCurrencySymbol(form.currencyType)}{(((item as any).discountAmount || 0) * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-center font-medium text-slate-600 bg-slate-50/50">
+                              {item.gstRate}%
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {getCurrencySymbol(form.currencyType)}{item.total.toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => removeItem(item.id)}
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -453,23 +598,32 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
 
               <div className="bg-muted/30 p-6 rounded-xl space-y-4 border border-muted-foreground/10">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal (Gross)</span>
-                  <span className="font-medium">₹{form.items?.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)?.toLocaleString()}</span>
+                  <span className="text-muted-foreground">{form.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
+                  <span className="font-medium">{getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 {form.items?.some(item => (item as any).discountAmount > 0) && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Total Discount</span>
-                    <span className="font-medium text-rose-600">- ₹{form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString()}</span>
+                    <span className="font-medium text-rose-600">- {getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total GST</span>
-                  <span className="font-medium text-amber-600">+ ₹{form.taxAmount?.toLocaleString()}</span>
-                </div>
+                {form.paymentType !== "Foreign" && (
+                  <>
+                    <Separator className="bg-slate-200/50" />
+                    <div className="flex justify-between text-xs text-muted-foreground italic">
+                      <span>Subtotal (Excl. GST)</span>
+                      <span>{getCurrencySymbol(form.currencyType)}{form.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground italic">
+                      <span>Total GST (Included)</span>
+                      <span className="text-amber-600">{getCurrencySymbol(form.currencyType)}{form.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                )}
                 <Separator />
                 <div className="flex justify-between font-bold text-xl items-baseline">
                   <span>Grand Total</span>
-                  <span className="text-primary tracking-tight font-extrabold text-2xl">₹{form.totalAmount?.toLocaleString()}</span>
+                  <span className="text-primary tracking-tight font-extrabold text-2xl">{getCurrencySymbol(form.currencyType)}{form.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="pt-2 flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-widest font-semibold opacity-60">
                   <Calculator className="h-3 w-3" />

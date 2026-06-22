@@ -33,11 +33,23 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { quotationsApi } from "@/lib/api"
+import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { toast } from "sonner"
 import { QuotationFormDialog } from "../quotation-form-dialog"
 
 interface QuotationDetailsViewProps {
   quotation: Quotation
+}
+
+const getCurrencySymbol = (currency?: string) => {
+  if (!currency) return "₹"
+  switch (currency.toUpperCase()) {
+    case "USD": return "$"
+    case "EUR": return "€"
+    case "GBP": return "£"
+    case "INR": return "₹"
+    default: return currency
+  }
 }
 
 export function QuotationDetailsView({ quotation: initialQuotation }: QuotationDetailsViewProps) {
@@ -82,6 +94,8 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: "Converted to Proforma",
+        paymentType: quotation.paymentType || "Domestic",
+        currencyType: quotation.currencyType || "INR",
         items: quotation.items.map(item => ({
           quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           quotationId: quotation.quotationId,
@@ -210,7 +224,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                           <div className="flex items-center gap-3">
                             {item.imageUrl && (
                               <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0">
-                                <img src={item.imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                                <img src={getGoogleDrivePreviewUrl(item.imageUrl) || ""} alt={item.productName} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
                               </div>
                             )}
                             <div>
@@ -221,7 +235,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                         </TableCell>
                         <TableCell className="text-xs font-mono text-slate-500">{item.sku}</TableCell>
                         <TableCell className="text-center font-medium">{item.quantity}</TableCell>
-                        <TableCell className="text-right">₹{item.unitPrice.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-right">{getCurrencySymbol(quotation.currencyType)}{item.unitPrice.toLocaleString("en-IN")}</TableCell>
                         <TableCell className="text-right">
                           {discountPercentage > 0 ? (
                             <div className="flex flex-col items-end">
@@ -229,7 +243,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                                 -{discountPercentage}%
                               </span>
                               <span className="text-[10px] text-slate-400">
-                                (₹{discountAmount.toLocaleString("en-IN")} off)
+                                ({getCurrencySymbol(quotation.currencyType)}{(discountAmount * item.quantity).toLocaleString("en-IN")} off)
                               </span>
                             </div>
                           ) : (
@@ -237,7 +251,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                           )}
                         </TableCell>
                         <TableCell className="text-center text-slate-500">{item.gstRate}%</TableCell>
-                        <TableCell className="text-right font-bold text-slate-900">₹{item.total.toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-right font-bold text-slate-900">{getCurrencySymbol(quotation.currencyType)}{(item.unitPrice * item.quantity).toLocaleString("en-IN")}</TableCell>
                       </TableRow>
                     )
                   })}
@@ -247,23 +261,32 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
               <div className="mt-8 flex justify-end">
                 <div className="w-80 space-y-3 bg-slate-50 p-6 rounded-xl border border-slate-100">
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Subtotal (Gross)</span>
-                    <span className="font-medium">₹{originalSubtotal.toLocaleString("en-IN")}</span>
+                    <span className="text-slate-500">{quotation.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
+                    <span className="font-medium">{getCurrencySymbol(quotation.currencyType)}{originalSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   {hasDiscounts && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">Total Discount</span>
-                      <span className="text-rose-600 font-medium">- ₹{totalDiscount.toLocaleString("en-IN")}</span>
+                      <span className="text-slate-500 font-medium">Total Discount (Deducted)</span>
+                      <span className="text-rose-600 font-medium">- {getCurrencySymbol(quotation.currencyType)}{totalDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Calculated Tax</span>
-                    <span className="text-blue-600 font-medium">+ ₹{quotation.taxAmount.toLocaleString("en-IN")}</span>
-                  </div>
+                  {quotation.paymentType !== "Foreign" && (
+                    <>
+                      <Separator className="my-1.5 opacity-50" />
+                      <div className="flex justify-between text-xs text-slate-500 italic">
+                        <span>Subtotal (Excl. GST)</span>
+                        <span>{getCurrencySymbol(quotation.currencyType)}{quotation.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-slate-500 italic">
+                        <span>Total GST (Included)</span>
+                        <span className="text-amber-600">{getCurrencySymbol(quotation.currencyType)}{quotation.taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  )}
                   <Separator className="bg-slate-200" />
                   <div className="flex justify-between font-bold text-lg pt-2">
                     <span className="text-slate-700">Grand Total</span>
-                    <span className="text-primary text-2xl tracking-tight">₹{quotation.totalAmount.toLocaleString("en-IN")}</span>
+                    <span className="text-primary text-2xl tracking-tight">{getCurrencySymbol(quotation.currencyType)}{quotation.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>
@@ -481,13 +504,15 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                   <div className="grid grid-cols-[180px_1fr] divide-x-2 divide-slate-800">
                     <div className="p-1 font-bold bg-slate-100 flex items-center">Price</div>
                     <div className="p-1 flex items-center font-semibold">
-                      Rs {item.unitPrice.toLocaleString("en-IN")} /-
+                      {getCurrencySymbol(quotation.currencyType)} {item.unitPrice.toLocaleString("en-IN")}{quotation.currencyType === "INR" ? " /-" : ""}
                       {discountPercentage > 0 && (
                         <span className="text-rose-600 ml-1">
-                          ({discountPercentage}% Disc. applied: Rs {(item.unitPrice - discountAmount).toLocaleString("en-IN")}/-)
+                          ({discountPercentage}% Disc. applied: {getCurrencySymbol(quotation.currencyType)} {(item.unitPrice - discountAmount).toLocaleString("en-IN")}{quotation.currencyType === "INR" ? " /-" : ""})
                         </span>
                       )}
-                      &nbsp;+ GST({item.gstRate}%) per pcs
+                      {quotation.paymentType !== "Foreign" && (
+                        <>&nbsp;+ GST({item.gstRate}%) per pcs</>
+                      )}
                     </div>
                   </div>
                   {/* Row 3 */}
@@ -500,7 +525,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                 </div>
                 {item.imageUrl && (
                   <div className="w-[180px] border-l-2 border-slate-800 p-2 flex items-center justify-center bg-white flex-shrink-0">
-                    <img src={item.imageUrl} alt={item.productName} className="max-h-[110px] max-w-full object-contain" />
+                    <img src={getGoogleDrivePreviewUrl(item.imageUrl) || ""} alt={item.productName} className="max-h-[110px] max-w-full object-contain" referrerPolicy="no-referrer" />
                   </div>
                 )}
               </div>
@@ -514,10 +539,12 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
         {/* Terms & Details Table */}
         <table className="w-full border-2 border-slate-800 border-collapse text-sm mb-8">
           <tbody>
-            <tr className="border-b-2 border-slate-800 divide-x-2 divide-slate-800">
-              <td className="w-1/3 p-1 font-normal bg-slate-100">Taxes:</td>
-              <td className="p-1 font-normal">GST extra as Applicable</td>
-            </tr>
+            {quotation.paymentType !== "Foreign" && (
+              <tr className="border-b-2 border-slate-800 divide-x-2 divide-slate-800">
+                <td className="w-1/3 p-1 font-normal bg-slate-100">Taxes:</td>
+                <td className="p-1 font-normal">GST extra as Applicable</td>
+              </tr>
+            )}
             <tr className="border-b-2 border-slate-800 divide-x-2 divide-slate-800">
               <td className="p-1 font-normal bg-slate-100">GSTIN No:</td>
               <td className="p-1 font-normal">{quotation.gstinNo || "27AAUFT6646F1ZJ"}</td>

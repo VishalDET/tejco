@@ -26,6 +26,17 @@ const getStatusBadge = (status: SalesDocumentStatus) => {
   }
 }
 
+const getCurrencySymbol = (currency?: string) => {
+  if (!currency) return "₹"
+  switch (currency.toUpperCase()) {
+    case "USD": return "$"
+    case "EUR": return "€"
+    case "GBP": return "£"
+    case "INR": return "₹"
+    default: return currency
+  }
+}
+
 export default function QuotationsPage() {
   const router = useRouter()
   const [quotations, setQuotations] = React.useState<Quotation[]>([])
@@ -80,6 +91,8 @@ export default function QuotationsPage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: "Converted to Proforma",
+        paymentType: q.paymentType || "Domestic",
+        currencyType: q.currencyType || "INR",
         items: q.items.map(item => ({
           quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           quotationId: q.quotationId,
@@ -234,8 +247,10 @@ export default function QuotationsPage() {
                     <TableCell className="text-slate-600 font-medium">{q.validUntil ? new Date(q.validUntil).toLocaleDateString("en-GB") : "-"}</TableCell>
                     <TableCell className="text-right py-4">
                       <div className="flex flex-col items-end">
-                        <span className="font-bold text-slate-900">₹{q.totalAmount.toLocaleString()}</span>
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Incl. GST</span>
+                        <span className="font-bold text-slate-900">{getCurrencySymbol((q as any).currencyType)}{q.totalAmount.toLocaleString()}</span>
+                        {(!q.paymentType || q.paymentType === "Domestic") && (
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Incl. GST</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(q.status)}</TableCell>

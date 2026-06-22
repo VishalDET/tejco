@@ -25,6 +25,7 @@ export interface ApiProforma {
   piNo?: string
   proformaDate?: string
   piDate?: string
+  clientId?: number
   clientName?: string
   billingName?: string
   clientAddress?: string
@@ -40,12 +41,15 @@ export interface ApiProforma {
   salesPersonCell: string
   salesPersonId?: string
   sourceQuotationId?: string
+  linkedQuotationId?: number
   freight?: number
   totalAmount?: number
   status?: string
   createdAt: string
   updatedAt: string | null
   items: ApiProformaItem[]
+  paymentType?: string
+  currencyType?: string
 }
 
 export interface ProformaInvoiceItem extends SalesDocumentItem {
@@ -105,8 +109,15 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     }
   })
 
-  const subtotal = items.reduce((acc, item) => acc + ((item as any).discountedUnitPrice * item.quantity), 0)
-  const taxAmount = items.reduce((acc, item) => acc + ((item as any).discountedUnitPrice * item.quantity * item.gstRate / 100), 0)
+  const isForeign = raw.paymentType === "Foreign"
+  const subtotal = items.reduce((acc, item) => {
+    const netItemTotal = (item as any).discountedUnitPrice * item.quantity
+    const itemBase = isForeign ? netItemTotal : (netItemTotal / (1 + (item.gstRate || 0) / 100))
+    return acc + itemBase
+  }, 0)
+
+  const calculatedTotalAmount = items.reduce((acc, item) => acc + ((item as any).discountedUnitPrice * item.quantity), 0)
+  const taxAmount = isForeign ? 0 : (calculatedTotalAmount - subtotal)
 
   const dateValue = raw.piDate || raw.proformaDate || new Date().toISOString()
   const parsedDate = dateValue ? new Date(dateValue) : null
@@ -127,7 +138,7 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     proformaId: Number(idValue) || 0,
     number: numberValue,
     proformaNumber: numberValue,
-    clientId: "",
+    clientId: raw.clientId ? String(raw.clientId) : "",
     clientName: clientNameValue,
     date: dateValue.split("T")[0],
     validUntil,
@@ -135,7 +146,7 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     items,
     subtotal,
     taxAmount,
-    totalAmount: raw.totalAmount ?? subtotal + taxAmount + (raw.freight || 0),
+    totalAmount: subtotal + taxAmount + (raw.freight || 0),
     billingAddress: addressValue,
     shippingAddress: addressValue,
     notes: raw.paymentTerms || raw.subject || "",
@@ -149,7 +160,10 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     salesPersonCell: raw.salesPersonCell || "",
     salesPersonId: raw.salesPersonId ? String(raw.salesPersonId) : "",
     gstinNo: raw.gstinNo || "",
-    sourceQuotationId: raw.sourceQuotationId,
+    sourceQuotationId: raw.sourceQuotationId
+      || (raw.linkedQuotationId ? String(raw.linkedQuotationId) : undefined),
     freight: raw.freight ?? 0,
+    paymentType: raw.paymentType || "Domestic",
+    currencyType: raw.currencyType || "INR",
   }
 }

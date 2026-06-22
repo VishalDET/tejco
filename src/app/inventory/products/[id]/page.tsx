@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation"
 import { ArrowLeft, Save, X, Plus, Trash2, Package, Tag, IndianRupee, Layers, Barcode, RefreshCcw, Loader2, AlertCircle, UploadCloud, Image as ImageIcon } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
+import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -129,7 +130,7 @@ export default function EditProductPage() {
                             warehouseId: v.warehouseId?.toString() || "",
                             rackLocation: v.rackLocation || "",
                             barcode: v.barcodeNumber || "",
-                            image: v.variantImage || null
+                            image: getGoogleDrivePreviewUrl(v.variantImage) || null
                         })))
                     } else {
                         setVariants([{ id: 1, name: "Default", sku_suffix: "-DEF", purchasePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
@@ -177,8 +178,9 @@ export default function EditProductPage() {
     }
 
     const handleVariantChange = (id: number, field: string, value: string) => {
+        const finalValue = field === "image" ? (getGoogleDrivePreviewUrl(value) || "") : value
         setVariants(variants.map(v =>
-            v.id === id ? { ...v, [field]: value } : v
+            v.id === id ? { ...v, [field]: finalValue } : v
         ))
     }
 
@@ -590,7 +592,7 @@ export default function EditProductPage() {
                                                 <div className="relative aspect-square w-full rounded-lg border-2 border-dashed border-muted-foreground/20 bg-white flex items-center justify-center overflow-hidden group">
                                                     {v.image ? (
                                                         <>
-                                                            <img src={v.image} alt="Variant Preview" className="w-full h-full object-cover" />
+                                                            <img src={v.image} alt="Variant Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                                             <div className="absolute inset-0 bg-black/40 z-20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                                                 <Button
                                                                     type="button"

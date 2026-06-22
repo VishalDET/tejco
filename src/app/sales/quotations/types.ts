@@ -32,6 +32,8 @@ export interface ApiQuotation {
   createdAt: string
   updatedAt: string | null
   items: ApiQuotationItem[]
+  paymentType?: string
+  currencyType?: string
 }
 
 export interface Quotation extends SalesDocument {
@@ -80,8 +82,15 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     }
   })
 
-  const subtotal = items.reduce((acc, item) => acc + (item.discountedUnitPrice * item.quantity), 0)
-  const taxAmount = items.reduce((acc, item) => acc + (item.discountedUnitPrice * item.quantity * item.gstRate / 100), 0)
+  const isForeign = (raw as any).paymentType === "Foreign"
+  const subtotal = items.reduce((acc, item) => {
+    const netItemTotal = item.discountedUnitPrice * item.quantity
+    const itemBase = isForeign ? netItemTotal : (netItemTotal / (1 + (item.gstRate || 0) / 100))
+    return acc + itemBase
+  }, 0)
+
+  const totalAmount = items.reduce((acc, item) => acc + (item.discountedUnitPrice * item.quantity), 0)
+  const taxAmount = isForeign ? 0 : (totalAmount - subtotal)
 
   return {
     id: String(raw.quotationId),
@@ -96,7 +105,7 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     items,
     subtotal,
     taxAmount,
-    totalAmount: subtotal + taxAmount,
+    totalAmount,
     billingAddress: raw.clientAddress,
     shippingAddress: raw.clientAddress,
     notes: raw.subject,
@@ -107,6 +116,8 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     salesPersonName: raw.salesPersonName,
     salesPersonCell: raw.salesPersonCell,
     salesPersonId: (raw as any).salesPersonId ? String((raw as any).salesPersonId) : "",
-    gstinNo: raw.gstinNo
+    gstinNo: raw.gstinNo,
+    paymentType: (raw as any).paymentType || "Domestic",
+    currencyType: (raw as any).currencyType || "INR",
   }
 }

@@ -133,7 +133,7 @@ const data = {
                 { title: "Categories", url: "/system/masters/categories" },
                 { title: "Countries", url: "/system/masters/countries" },
                 { title: "Users & Employees", url: "/system/masters/users" },
-                { title: "General Settings", url: "/system/settings" },
+                // { title: "General Settings", url: "/system/settings" },
             ],
         },
     ],
@@ -180,8 +180,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
                 <CollapsibleTrigger
                     render={
-                        <SidebarMenuButton 
-                            tooltip={item.title} 
+                        <SidebarMenuButton
+                            tooltip={item.title}
                             className={`group/trigger transition-all duration-200 ease-in-out hover:bg-indigo-50 hover:text-indigo-600 rounded-md py-2.5 ${isActive ? 'text-indigo-600 font-medium' : 'text-slate-600'}`}
                         >
                             {item.icon && <item.icon className={`transition-colors duration-200 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover/trigger:text-indigo-500'}`} />}

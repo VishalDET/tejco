@@ -203,11 +203,11 @@ export const vendorsApi = {
 // TODO: import Product type from inventory module once types are defined
 
 export const productsApi = {
-  /** GET /api/Products */
-  getAll: () => apiClient.get<unknown[]>("/api/Products"),
+  /** GET /api/Product/GetAll */
+  getAll: () => apiClient.get<any>("/api/Product/GetAll"),
 
-  /** GET /api/Products/{id} */
-  getById: (id: string) => apiClient.get<unknown>(`/api/Products/${id}`),
+  /** GET /api/Product/GetById/{id} */
+  getById: (id: string | number) => apiClient.get<any>(`/api/Product/GetById/${id}`),
 
   /** POST /api/Product/Create */
   create: (data: any) => apiClient.post<any>("/api/Product/Create", data),
@@ -476,6 +476,10 @@ export const salesOrderApi = {
 
   /** PUT /api/SalesOrder/Update/{id} */
   update: (id: string, data: any) => apiClient.put<any>(`/api/SalesOrder/Update/${id}`, data),
+
+  /** PUT /api/SalesOrder/{id}/Status */
+  updateStatus: (id: string | number, newStatus: string, remarks?: string) =>
+    apiClient.put<any>(`/api/SalesOrder/${id}/Status`, { newStatus, remarks: remarks || "" }),
 
   /** GET /api/SalesOrder/GetAll */
   getAll: () => apiClient.get<any[]>("/api/SalesOrder/GetAll"),

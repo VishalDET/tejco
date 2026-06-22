@@ -16,6 +16,7 @@ interface ProductVariant {
   skuSuffix: string
   purchasePrice: number
   sellingPrice: number
+  usdAmount?: number
   currentQuantity: number
   variantImage?: string
 }
@@ -29,9 +30,10 @@ interface Product {
 
 interface ProductSelectorProps {
   onSelect: (product: Product, variant: ProductVariant) => void
+  paymentType?: string
 }
 
-export function ProductSelector({ onSelect }: ProductSelectorProps) {
+export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps) {
   const [open, setOpen] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -114,7 +116,11 @@ export function ProductSelector({ onSelect }: ProductSelectorProps) {
                       </div>
                     </div>
                     <div className="flex flex-col items-end">
-                      <div className="font-semibold">₹{item.variant.sellingPrice.toLocaleString()}</div>
+                      <div className="font-semibold">
+                        {paymentType === "Foreign" 
+                          ? `$${(item.variant.usdAmount ?? 0).toLocaleString()}` 
+                          : `₹${item.variant.sellingPrice.toLocaleString()}`}
+                      </div>
                       <div className="text-[10px] text-muted-foreground">Stock: {item.variant.currentQuantity}</div>
                     </div>
                   </button>

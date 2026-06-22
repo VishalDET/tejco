@@ -75,6 +75,17 @@ const getStatusBadge = (status: OrderStatus) => {
     }
 }
 
+const getCurrencySymbol = (currency?: string) => {
+    if (!currency) return "₹"
+    switch (currency.toUpperCase()) {
+        case "USD": return "$"
+        case "EUR": return "€"
+        case "GBP": return "£"
+        case "INR": return "₹"
+        default: return currency
+    }
+}
+
 export default function OrdersPage() {
     const router = useRouter()
     const [orders, setOrders] = React.useState<Order[]>([])
@@ -230,7 +241,7 @@ export default function OrdersPage() {
                                                 <TableCell>{order.clientName}</TableCell>
                                                 <TableCell>{new Date(order.date).toLocaleDateString("en-GB")}</TableCell>
                                                 <TableCell>{order.items.length} items</TableCell>
-                                                <TableCell className="text-right font-semibold">₹{order.totalAmount.toLocaleString()}</TableCell>
+                                                <TableCell className="text-right font-semibold">{getCurrencySymbol((order as any).currencyType)}{order.totalAmount.toLocaleString()}</TableCell>
                                                 <TableCell>{getStatusBadge(order.status)}</TableCell>
                                                 <TableCell>
                                                     <Badge variant="outline" className={order.paymentStatus === "Paid" ? "text-emerald-500 border-emerald-200" : "text-amber-500 border-amber-200"}>

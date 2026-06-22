@@ -250,19 +250,63 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
 
   async function handleCompleteOutward() {
     try {
-      await orderOutwardApi.updateStatus(outwardOrder.id, "Picked", "All items scanned and completed via scan console")
+      // Create outward order record only when scanning is completed
+      const payload = {
+        outwardOrderId: 0,
+        orderId: outwardOrder.orderId ? Number(outwardOrder.orderId) : parseInt(outwardOrder.id) || 0,
+        orderNumber: outwardOrder.orderNumber,
+        clientName: outwardOrder.clientName,
+        warehouseName: outwardOrder.warehouseName,
+        warehouseCode: outwardOrder.warehouseCode,
+        shippingAddress: outwardOrder.shippingAddress,
+        orderDate: outwardOrder.orderDate,
+        promisedDate: outwardOrder.promisedDate,
+        status: "Completed",
+        priority: outwardOrder.priority || "Normal",
+        pickerName: outwardOrder.pickerName || "Warehouse Operator",
+        items: outwardOrder.items.map((item) => ({
+          outwardOrderItemId: 0,
+          outwardOrderId: 0,
+          productId: parseInt(item.productId) || 0,
+          productName: item.productName,
+          variantName: item.variantName || "",
+          sku: item.sku,
+          barcode: item.barcode,
+          orderedQty: item.orderedQty,
+          scannedQty: item.scannedQty,
+          locationCode: item.locationCode || "A-1"
+        })),
+        scanHistory: outwardOrder.scanHistory.map((sh) => ({
+          scanId: 0,
+          outwardOrderId: 0,
+          barcode: sh.barcode,
+          message: sh.message,
+          scanType: sh.scanType || "Pick",
+          productName: sh.productName || "",
+          scannedAt: sh.timestamp
+        }))
+      }
+
+      const created = await orderOutwardApi.create(payload)
+      const responseData = (created as any)?.data || created
+      const finalId = responseData?.outwardOrderId || responseData?.id || outwardOrder.id
+
+      // Update status to Picked
+      await orderOutwardApi.updateStatus(finalId, "Picked", "All items scanned and completed via scan console")
+      
       setOutwardOrder((currentOrder) => ({
         ...currentOrder,
+        id: String(finalId),
         status: "Completed",
       }))
-      toast.success("Order status updated to Picked on server")
+      toast.success("Order outward created and verified on server")
     } catch (apiErr) {
-      console.warn("Failed to update status on server:", apiErr)
+      console.warn("Failed to create/complete outward on server:", apiErr)
       setOutwardOrder((currentOrder) => ({
         ...currentOrder,
         status: "Completed",
       }))
-      toast.success("Order outward completed")
+      toast.success("Order outward completed locally")
     }
   }
 

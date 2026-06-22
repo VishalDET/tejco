@@ -27,4 +27,6 @@ export interface SalesDocument {
   shippingAddress: string
   notes?: string
   sourceId?: string // ID of the document it was converted from
+  paymentType?: string
+  currencyType?: string
 }

@@ -6,6 +6,7 @@ import { ArrowLeft, Edit, Trash2, Package, Tag, Layers, AlertCircle, RefreshCcw,
 
 import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
+import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import {
     Card,
     CardContent,
@@ -328,7 +329,7 @@ export default function ViewProductPage() {
                                             <div className="md:col-span-2 flex flex-col gap-3">
                                                 {v.variantImage ? (
                                                     <div className="aspect-square w-full rounded-lg border overflow-hidden">
-                                                        <img src={v.variantImage} alt={v.variantName} className="w-full h-full object-cover" />
+                                                        <img src={getGoogleDrivePreviewUrl(v.variantImage) || ""} alt={v.variantName} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                                     </div>
                                                 ) : (
                                                     <div className="aspect-square w-full rounded-lg border border-dashed bg-muted flex items-center justify-center">

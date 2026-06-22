@@ -26,6 +26,17 @@ const getStatusBadge = (status: SalesDocumentStatus) => {
   }
 }
 
+const getCurrencySymbol = (currency?: string) => {
+  if (!currency) return "₹"
+  switch (currency.toUpperCase()) {
+    case "USD": return "$"
+    case "EUR": return "€"
+    case "GBP": return "£"
+    case "INR": return "₹"
+    default: return currency
+  }
+}
+
 export default function ProformaInvoicesPage() {
   const router = useRouter()
   const [proformas, setProformas] = React.useState<ProformaInvoice[]>([])
@@ -114,6 +125,8 @@ export default function ProformaInvoicesPage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: "Converted to Sales Order",
+        paymentType: p.paymentType || "Domestic",
+        currencyType: p.currencyType || "INR",
         items: (p.items || []).map(item => ({
           proformaInvoiceItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           proformaInvoiceId: p.proformaId,
@@ -137,6 +150,8 @@ export default function ProformaInvoicesPage() {
     localStorage.setItem("convert_source_data", JSON.stringify({
       ...p,
       sourceId: p.id,
+      proformaId: p.proformaId,
+      quotationId: p.sourceQuotationId ? parseInt(String(p.sourceQuotationId)) : 0,
       number: "",
       status: "Pending",
       paymentStatus: "Unpaid",
@@ -258,8 +273,10 @@ export default function ProformaInvoicesPage() {
                     <TableCell className="text-slate-600 font-medium">{p.validUntil ? new Date(p.validUntil).toLocaleDateString("en-GB") : "-"}</TableCell>
                     <TableCell className="text-right py-4">
                       <div className="flex flex-col items-end">
-                        <span className="font-bold text-slate-900">₹{p.totalAmount.toLocaleString()}</span>
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Incl. GST</span>
+                        <span className="font-bold text-slate-900">{getCurrencySymbol((p as any).currencyType)}{p.totalAmount.toLocaleString()}</span>
+                        {(!p.paymentType || p.paymentType === "Domestic") && (
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Incl. GST</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(p.status)}</TableCell>

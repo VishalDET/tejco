@@ -29,9 +29,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getOutwardProgress, mapApiOutwardOrder, type OutwardOrder, type OutwardStatus } from "./types"
-import { orderOutwardApi } from "@/lib/api"
+import { orderOutwardApi, salesOrderApi, warehousesApi, apiClient, productsApi } from "@/lib/api"
+import { mapApiSalesOrder } from "../../sales/orders/types"
 
 const tabFilters: Array<{ label: string; value: "all" | OutwardStatus }> = [
   { label: "All", value: "all" },
@@ -106,11 +108,74 @@ export default function OrderOutwardPage() {
   const fetchOrders = React.useCallback(async () => {
     setIsLoading(true)
     try {
-      const res = await orderOutwardApi.getAll()
-      const rawList = Array.isArray(res) ? res : ((res as any)?.data && Array.isArray((res as any).data) ? (res as any).data : [])
-      setOrders(rawList.map(mapApiOutwardOrder))
+      // Parallel fetch for Sales Orders, Products Catalog, and Warehouses
+      const [resOrders, resProducts, resWarehouses] = await Promise.all([
+        salesOrderApi.getAll(),
+        productsApi.getAll(),
+        warehousesApi.getAll()
+      ])
+
+      const rawList = Array.isArray(resOrders) ? resOrders : ((resOrders as any)?.data && Array.isArray((resOrders as any).data) ? (resOrders as any).data : [])
+      const mappedOrders = rawList.map(mapApiSalesOrder)
+      // Only show orders which are approved by status (status === "Approved")
+      const approvedOrders = mappedOrders.filter((order: any) => order.status === "Approved")
+
+      // Process product catalog to map SKU to Barcode
+      const productCatalog = resProducts?.success && Array.isArray(resProducts.data) ? resProducts.data : []
+      const barcodeMap = new Map<string, { barcode: string; variantName: string }>()
+      productCatalog.forEach((prod: any) => {
+        if (prod.variants && Array.isArray(prod.variants)) {
+          prod.variants.forEach((v: any) => {
+            const sku = `${prod.baseSKU || ""}${v.skuSuffix || ""}`
+            if (sku) {
+              barcodeMap.set(sku.toLowerCase(), {
+                barcode: v.barcode || v.sku || sku,
+                variantName: v.variantName || ""
+              })
+            }
+          })
+        }
+      })
+
+      // Select first active warehouse or use fallback
+      const defaultWarehouse = resWarehouses.find((w: any) => w.status === "Active") || resWarehouses[0]
+      const whName = defaultWarehouse?.name || "Main Warehouse"
+      const whCode = defaultWarehouse?.id ? `WH-${defaultWarehouse.id}` : "M-WH"
+
+      // Map Order UI types to OutwardOrder types needed by the list view
+      const outwardOrders: OutwardOrder[] = approvedOrders.map((order: any) => ({
+        id: order.id,
+        orderId: order.orderId,
+        orderNumber: order.orderNumber,
+        clientName: order.clientName,
+        warehouseName: whName,
+        warehouseCode: whCode,
+        shippingAddress: order.shippingAddress,
+        orderDate: order.date,
+        promisedDate: order.deliveryDate || order.date,
+        status: "Ready", // Outward processing status defaults to Ready
+        priority: "Normal",
+        items: order.items.map((item: any) => {
+          const skuLower = (item.sku || "").toLowerCase()
+          const resolved = barcodeMap.get(skuLower)
+          return {
+            id: item.id,
+            productId: item.productId,
+            productName: item.productName,
+            sku: item.sku,
+            barcode: resolved?.barcode || item.sku, // Resolved barcode from Product variants
+            variantName: resolved?.variantName || item.name || "",
+            orderedQty: item.quantity,
+            scannedQty: 0,
+            locationCode: "A-1"
+          }
+        }),
+        scanHistory: []
+      }))
+
+      setOrders(outwardOrders)
     } catch (err) {
-      console.error("Failed to load outward orders:", err)
+      console.error("Failed to load outward orders from approved sales orders:", err)
       setOrders([])
     } finally {
       setIsLoading(false)
@@ -281,7 +346,10 @@ export default function OrderOutwardPage() {
                               size="sm"
                               variant={order.status === "Completed" ? "outline" : "default"}
                               className="gap-2"
-                              onClick={() => router.push(`/inventory/order-outward/${order.id}`)}
+                              disabled={isLoading}
+                              onClick={async () => {
+                                router.push(`/inventory/order-outward/${order.id}`)
+                              }}
                             >
                               {order.status === "Completed" ? (
                                 <CheckCircle2 className="h-4 w-4" />

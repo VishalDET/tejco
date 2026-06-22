@@ -119,7 +119,9 @@ export function mapApiOutwardScanEvent(raw: ApiOutwardScanEvent): OutwardScanEve
   }
 }
 
-export function mapApiOutwardOrder(raw: ApiOutwardOrder): OutwardOrder {
+export function mapApiOutwardOrder(rawInput: ApiOutwardOrder | any): OutwardOrder {
+  const raw = (rawInput?.success && rawInput?.data) ? rawInput.data : rawInput;
+
   // Translate backend status to match UI status expectation
   let status: OutwardStatus = "Ready"
   if (raw.status) {

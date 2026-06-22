@@ -37,6 +37,8 @@ export interface Order {
   notes?: string
   quotationId?: string | number
   proformaId?: string | number
+  paymentType?: string
+  currencyType?: string
 }
 
 export interface ApiSalesOrderItem {
@@ -57,25 +59,38 @@ export interface ApiSalesOrder {
   orderId: number
   orderNumber: string
   orderDate: string
+  targetDeliveryDate?: string
   deliveryDate?: string
-  clientName: string
-  clientAddress: string
+  clientId?: number
+  clientName?: string
+  billingAddress?: string
+  shippingAddress?: string
+  clientAddress?: string
   clientMobileNo?: string
   gstinNo?: string
+  salesPersonId?: number | string
   salesPersonName?: string
   salesPersonCell?: string
-  salesPersonId?: string
+  orderStatus?: string
   status?: string
   paymentStatus?: string
   subtotal?: number
+  gstAmount?: number
   taxAmount?: number
   totalAmount?: number
+  orderNotes?: string
   notes?: string
+  linkedQuotationId?: number
+  linkedProformaInvoiceId?: number
   quotationId?: string | number
   proformaId?: string | number
+  parentOrderId?: number
+  paymentType?: string
+  currencyType?: string
   createdAt?: string
   updatedAt?: string | null
-  items: ApiSalesOrderItem[]
+  lineItems?: ApiSalesOrderItem[]
+  items?: ApiSalesOrderItem[]
 }
 
 export function mapApiSalesOrder(raw: any): Order {
@@ -110,35 +125,59 @@ export function mapApiSalesOrder(raw: any): Order {
     }
   })
 
-  const subtotal = items.reduce((acc: number, item: OrderItem) => {
-    const discountedPrice = item.unitPrice - (item.discountAmount || 0)
-    return acc + (discountedPrice * item.quantity)
-  }, 0)
-  
-  const taxAmount = items.reduce((acc: number, item: OrderItem) => {
-    const discountedPrice = item.unitPrice - (item.discountAmount || 0)
-    return acc + (discountedPrice * item.quantity * item.gstRate / 100)
-  }, 0)
+  const isForeign = raw.paymentType === "Foreign"
+
+  // Use API-provided subtotal/gst/total if available (no line items returned from GetAll)
+  const apiSubtotal = raw.subtotal ?? 0
+  const apiGst = raw.gstAmount ?? raw.taxAmount ?? 0
+  const apiTotal = raw.totalAmount ?? 0
+
+  // Recalculate from items only if items are present
+  let subtotal = apiSubtotal
+  let taxAmount = apiGst
+  let totalAmount = apiTotal
+
+  if (items.length > 0) {
+    const calcTotal = items.reduce((acc: number, item: OrderItem) => {
+      return acc + ((item.unitPrice - (item.discountAmount || 0)) * item.quantity)
+    }, 0)
+    const calcSubtotal = items.reduce((acc: number, item: OrderItem) => {
+      const netItemTotal = (item.unitPrice - (item.discountAmount || 0)) * item.quantity
+      const itemBase = isForeign ? netItemTotal : (netItemTotal / (1 + (item.gstRate || 0) / 100))
+      return acc + itemBase
+    }, 0)
+    subtotal = calcSubtotal
+    taxAmount = isForeign ? 0 : (calcTotal - calcSubtotal)
+    totalAmount = calcTotal
+  }
+
+  // Resolve client name from billingAddress if not provided directly
+  const clientName = raw.clientName
+    || (raw.billingAddress ? raw.billingAddress.split("|")[0].split(",")[0] : "Client #" + raw.clientId)
 
   return {
     id: String(raw.orderId || raw.id),
     orderId: raw.orderId,
     orderNumber: raw.orderNumber || raw.number || "",
     clientId: String(raw.clientId || ""),
-    clientName: raw.clientName || (raw.billingAddress ? raw.billingAddress.split(",")[0] : "Client #" + raw.clientId),
+    clientName,
     salesPersonId: raw.salesPersonId ? String(raw.salesPersonId) : undefined,
     date: (raw.orderDate || raw.date || new Date().toISOString()).split("T")[0],
-    deliveryDate: (raw.targetDeliveryDate || raw.deliveryDate) ? (raw.targetDeliveryDate || raw.deliveryDate).split("T")[0] : undefined,
+    deliveryDate: (raw.targetDeliveryDate || raw.deliveryDate)
+      ? (raw.targetDeliveryDate || raw.deliveryDate).split("T")[0]
+      : undefined,
     status: (raw.orderStatus || raw.status || "Pending") as OrderStatus,
     paymentStatus: (raw.paymentStatus || "Unpaid") as PaymentStatus,
     items,
-    subtotal: raw.subtotal || subtotal,
-    taxAmount: raw.gstAmount || raw.taxAmount || taxAmount,
-    totalAmount: raw.totalAmount || (subtotal + taxAmount),
+    subtotal,
+    taxAmount,
+    totalAmount,
     billingAddress: raw.billingAddress || raw.clientAddress || "",
     shippingAddress: raw.shippingAddress || raw.clientAddress || "",
     notes: raw.orderNotes || raw.notes || raw.subject || "",
-    quotationId: raw.linkedQuotationId || raw.quotationId,
-    proformaId: raw.linkedProformaInvoiceId || raw.proformaId,
+    quotationId: raw.linkedQuotationId || raw.quotationId || undefined,
+    proformaId: raw.linkedProformaInvoiceId || raw.proformaId || undefined,
+    paymentType: raw.paymentType || "Domestic",
+    currencyType: raw.currencyType || "INR",
   }
 }

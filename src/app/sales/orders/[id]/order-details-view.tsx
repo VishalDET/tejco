@@ -18,6 +18,7 @@ import {
   ChevronRight
 } from "lucide-react"
 import { Order, OrderStatus } from "@/app/sales/orders/types"
+import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -36,8 +37,22 @@ interface OrderDetailsViewProps {
   order: Order
 }
 
+const getCurrencySymbol = (currency?: string) => {
+  if (!currency) return "₹"
+  switch (currency.toUpperCase()) {
+    case "USD": return "$"
+    case "EUR": return "€"
+    case "GBP": return "£"
+    case "INR": return "₹"
+    default: return currency
+  }
+}
+
 export function OrderDetailsView({ order }: OrderDetailsViewProps) {
   const router = useRouter()
+  const originalSubtotal = (order.items || []).reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
+  const totalDiscount = (order.items || []).reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)
+  const hasDiscounts = totalDiscount > 0
 
   const getStatusIcon = (status: OrderStatus) => {
     switch (status) {
@@ -105,10 +120,11 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product</TableHead>
+                    <TableHead className="w-[30%]">Product</TableHead>
                     <TableHead>SKU</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Unit Price</TableHead>
+                    <TableHead className="text-right">Disc Amt</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -119,7 +135,7 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
                         <div className="flex items-center gap-3">
                           {(item as any).imageUrl && (
                             <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
-                              <img src={(item as any).imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                              <img src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""} alt={item.productName} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
                             </div>
                           )}
                           <div>
@@ -130,8 +146,15 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
                       </TableCell>
                       <TableCell className="text-xs font-mono">{item.sku}</TableCell>
                       <TableCell className="text-right">{item.quantity}</TableCell>
-                      <TableCell className="text-right">₹{item.unitPrice.toLocaleString()}</TableCell>
-                      <TableCell className="text-right font-medium">₹{item.total.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{getCurrencySymbol(order.currencyType)}{item.unitPrice.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-slate-500">
+                        {(item as any).discountAmount && (item as any).discountAmount > 0 ? (
+                          <span className="text-rose-600 font-medium">
+                            -{getCurrencySymbol(order.currencyType)}{((item as any).discountAmount * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{getCurrencySymbol(order.currencyType)}{(item.unitPrice * item.quantity).toLocaleString()}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -140,17 +163,32 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
               <div className="mt-6 flex justify-end">
                 <div className="w-64 space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span>₹{order.subtotal.toLocaleString()}</span>
+                    <span className="text-muted-foreground">{order.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
+                    <span>{getCurrencySymbol(order.currencyType)}{originalSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">GST (18%)</span>
-                    <span>₹{order.taxAmount.toLocaleString()}</span>
-                  </div>
+                  {hasDiscounts && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total Discount (Deducted)</span>
+                      <span className="text-rose-600 font-medium">- {getCurrencySymbol(order.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  {order.paymentType !== "Foreign" && (
+                    <>
+                      <Separator />
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Subtotal (Excl. GST)</span>
+                        <span>{getCurrencySymbol(order.currencyType)}{order.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total GST (Included)</span>
+                        <span>{getCurrencySymbol(order.currencyType)}{order.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    </>
+                  )}
                   <Separator />
                   <div className="flex justify-between font-bold text-lg">
-                    <span>Total</span>
-                    <span className="text-primary">₹{order.totalAmount.toLocaleString()}</span>
+                    <span>Grand Total</span>
+                    <span className="text-primary">{getCurrencySymbol(order.currencyType)}{order.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>
@@ -235,7 +273,7 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="text-xs text-muted-foreground">Remaining: ₹{order.paymentStatus === "Paid" ? "0" : order.totalAmount.toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground">Remaining: {getCurrencySymbol(order.currencyType)}{order.paymentStatus === "Paid" ? "0" : order.totalAmount.toLocaleString()}</div>
                 {order.paymentStatus !== "Paid" && (
                   <Button variant="link" className="p-0 h-auto text-xs mt-2 uppercase font-bold text-primary">Record Payment</Button>
                 )}

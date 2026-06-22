@@ -14,8 +14,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2, Trash2, Receipt, Calculator } from "lucide-react"
 import { ClientSelector } from "@/components/sales/client-selector"
 import { ProductSelector } from "@/components/sales/product-selector"
-import { proformaApi, usersApi, serializeAddress } from "@/lib/api"
+import { proformaApi, usersApi, serializeAddress, countryMasterApi, clientsApi } from "@/lib/api"
 import { toast } from "sonner"
+import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 
 interface ProformaFormDialogProps {
   open: boolean
@@ -31,6 +32,40 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   const [isSaving, setIsSaving] = useState(false)
   const [users, setUsers] = useState<any[]>([])
   const [loadingUsers, setLoadingUsers] = useState(false)
+  const [currencies, setCurrencies] = useState<string[]>(["USD", "EUR", "GBP"])
+
+  useEffect(() => {
+    const fetchCurrencies = async () => {
+      try {
+        const res = await countryMasterApi.getAll()
+        const list = Array.isArray(res) ? res : ((res as any)?.data && Array.isArray((res as any).data) ? (res as any).data : [])
+        const uniqueCurrencies = Array.from(
+          new Set(
+            list
+              .map((c: any) => c.currencyType?.trim())
+              .filter((c: any) => c && c.toUpperCase() !== "INR")
+          )
+        ) as string[]
+        if (uniqueCurrencies.length > 0) {
+          setCurrencies(uniqueCurrencies)
+        }
+      } catch (err) {
+        console.error("Failed to fetch currencies from country master:", err)
+      }
+    }
+    fetchCurrencies()
+  }, [])
+
+  const getCurrencySymbol = (currency?: string) => {
+    if (!currency) return "₹"
+    switch (currency.toUpperCase()) {
+      case "USD": return "$"
+      case "EUR": return "€"
+      case "GBP": return "£"
+      case "INR": return "₹"
+      default: return currency
+    }
+  }
 
   // Fetch users for salesperson dropdown
   useEffect(() => {
@@ -55,6 +90,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
       setForm({
         ...proforma,
         date: proforma.date ? proforma.date.split("T")[0] : new Date().toISOString().split("T")[0],
+        paymentType: (proforma as any).paymentType || "Domestic",
+        currencyType: (proforma as any).currencyType || "INR",
       })
     } else {
       const year = new Date().getFullYear()
@@ -74,9 +111,35 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         salesPersonName: "",
         salesPersonCell: "",
         subject: "",
+        paymentType: "Domestic",
+        currencyType: "INR",
       })
     }
   }, [proforma, open])
+
+  useEffect(() => {
+    const resolveClientId = async () => {
+      if (form.clientName && !form.clientId) {
+        try {
+          const list = await clientsApi.getAll()
+          const match = list.find((c: any) => c.name?.toLowerCase().trim() === form.clientName?.toLowerCase().trim())
+          if (match) {
+            setForm(prev => ({
+              ...prev,
+              clientId: match.id,
+              billingAddress: prev.billingAddress || serializeAddress(match.billingAddress),
+              shippingAddress: prev.shippingAddress || serializeAddress(match.shippingAddress),
+            }))
+          }
+        } catch (err) {
+          console.error("Failed to resolve client ID by name:", err)
+        }
+      }
+    }
+    if (open) {
+      resolveClientId()
+    }
+  }, [form.clientName, form.clientId, open])
 
   // Auto-match salesperson name to user list, or resolve mock/invalid salesPersonId
   useEffect(() => {
@@ -102,9 +165,16 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   }, [users, form.salesPersonName, form.salesPersonId])
 
   const calculateTotals = (items: SalesDocumentItem[]) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.total || 0), 0)
-    const taxAmount = items.reduce((sum, item) => sum + ((item.total || 0) * (item.gstRate / 100)), 0)
-    return { subtotal, taxAmount, totalAmount: subtotal + taxAmount }
+    const grossTotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
+    const totalDiscount = items.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)
+    const totalAmount = grossTotal - totalDiscount
+    const subtotal = items.reduce((sum, item) => {
+      const netItemTotal = (item.unitPrice - ((item as any).discountAmount || 0)) * item.quantity
+      const itemBase = netItemTotal / (1 + (item.gstRate || 0) / 100)
+      return sum + itemBase
+    }, 0)
+    const taxAmount = totalAmount - subtotal
+    return { subtotal, taxAmount, totalAmount }
   }
 
   const set = (field: keyof ProformaInvoice, value: any) => {
@@ -112,20 +182,39 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   }
 
   const onProductSelect = (product: any, variant: any) => {
+    const sku = `${product.baseSKU}${variant.skuSuffix}`
+    const exists = (form.items || []).some(item => item.sku === sku)
+    if (exists) {
+      toast.error(`"${product.productName} - ${variant.variantName}" is already included in this proforma.`)
+      return
+    }
+
+    const isForeign = form.paymentType === "Foreign"
+    const price = isForeign ? (variant.usdAmount || variant.exportSellingPrice || 0) : variant.sellingPrice
+
     const newItem: SalesDocumentItem = {
       id: Math.random().toString(36).substring(2, 9).slice(0, 8),
       productId: product.productId.toString(),
       productName: product.productName,
       name: variant.variantName,
-      sku: `${product.baseSKU}${variant.skuSuffix}`,
+      sku: sku,
       quantity: 1,
-      unitPrice: variant.sellingPrice,
-      total: variant.sellingPrice,
-      gstRate: variant.gstPercentage ?? 18,
+      unitPrice: price,
+      total: price,
+      gstRate: isForeign ? 0 : (variant.gstPercentage ?? product.gstPercentage ?? 18),
       imageUrl: variant.variantImage || product.imageUrl || "",
     }
     ;(newItem as any).discountPercentage = 0
     ;(newItem as any).discountAmount = 0
+    ;(newItem as any).stock = variant.currentQuantity ?? 0
+    ;(newItem as any).sellingPrice = variant.sellingPrice
+    ;(newItem as any).usdAmount = variant.usdAmount || variant.exportSellingPrice || 0
+    ;(newItem as any).gstRateOriginal = variant.gstPercentage ?? product.gstPercentage ?? 18
+
+    if ((variant.currentQuantity ?? 0) < 1) {
+      toast.warning(`Warning: "${product.productName} - ${variant.variantName}" is currently out of stock.`)
+    }
+
     const newItems = [...(form.items || []), newItem]
     setForm(prev => ({ ...prev, items: newItems, ...calculateTotals(newItems) }))
   }
@@ -133,6 +222,13 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   const updateItem = (id: string, field: keyof SalesDocumentItem | "discountPercentage", value: any) => {
     const newItems = (form.items || []).map(item => {
       if (item.id === id) {
+        if (field === "quantity") {
+          const qty = parseInt(value) || 0
+          const stock = (item as any).stock
+          if (stock !== undefined && qty > stock) {
+            toast.error(`Requested quantity (${qty}) exceeds available stock (${stock}) for "${item.productName}".`)
+          }
+        }
         const updated = { ...item, [field]: value } as any
         if (field === "quantity" || field === "unitPrice" || field === "discountPercentage") {
           const qty = updated.quantity || 0
@@ -140,13 +236,35 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
           const discPct = updated.discountPercentage || 0
           const discAmt = price * discPct / 100
           updated.discountAmount = discAmt
-          updated.total = (price - discAmt) * qty
+          updated.total = price * qty
+
+          if (field === "unitPrice") {
+            if (form.paymentType === "Foreign") {
+              updated.usdAmount = price
+            } else {
+              updated.sellingPrice = price
+            }
+          }
         }
         return updated as SalesDocumentItem
       }
       return item
     })
     setForm(prev => ({ ...prev, items: newItems, ...calculateTotals(newItems) }))
+  }
+
+  const handlePaymentTypeChange = (newPaymentType: string) => {
+    const newCurrency = newPaymentType === "Domestic" ? "INR" : "USD"
+    setForm(prev => ({
+      ...prev,
+      paymentType: newPaymentType,
+      currencyType: newCurrency,
+      items: [],
+      subtotal: 0,
+      taxAmount: 0,
+      totalAmount: 0
+    }))
+    toast.success("Payment type changed. Product selection cleared.")
   }
 
   const removeItem = (id: string) => {
@@ -169,6 +287,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         proformaInvoiceId: existingId,
         piNo: form.number || "",
         piDate: new Date(form.date || new Date()).toISOString(),
+        clientId: form.clientId && !isNaN(parseInt(String(form.clientId))) ? parseInt(String(form.clientId)) : 0,
         billingName: form.clientName || "",
         billingAddress: form.billingAddress || "",
         freight: form.freight || 0,
@@ -181,6 +300,11 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         status: form.status || "Draft",
+        paymentType: form.paymentType || "Domestic",
+        currencyType: form.currencyType || "INR",
+        linkedQuotationId: form.sourceQuotationId && !isNaN(parseInt(String(form.sourceQuotationId)))
+          ? parseInt(String(form.sourceQuotationId))
+          : 0,
         items: (form.items || []).map(item => ({
           proformaInvoiceItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
           proformaInvoiceId: existingId,
@@ -191,7 +315,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
           rate: item.unitPrice || 0,
           discountPercentage: (item as any).discountPercentage || 0,
           discountAmount: (item as any).discountAmount || 0,
-          total: item.total || 0,
+          total: (item.unitPrice - ((item as any).discountAmount || 0)) * item.quantity,
         })),
       }
 
@@ -274,6 +398,30 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
               </div>
             </div>
 
+            {/* Payment Type + Currency Type */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Payment Type</Label>
+                <Select value={form.paymentType || "Domestic"} onValueChange={(v) => handlePaymentTypeChange(v as string)}>
+                  <SelectTrigger className="border-slate-200"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Domestic">Domestic</SelectItem>
+                    <SelectItem value="Foreign">Foreign</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Currency Type</Label>
+                <Select value={form.currencyType || "INR"} disabled>
+                  <SelectTrigger className="border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="INR">INR (₹)</SelectItem>
+                    <SelectItem value="USD">USD ($)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* Sales Person */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-2">
@@ -337,96 +485,96 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold uppercase tracking-widest text-slate-500">Line Items</h3>
-                <ProductSelector onSelect={onProductSelect} />
+                <ProductSelector onSelect={onProductSelect} paymentType={form.paymentType} />
               </div>
 
               <div className="border border-slate-200 rounded-lg overflow-hidden shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead className="w-[28%] font-bold">Product</TableHead>
+                      <TableHead className="w-[24%] font-bold">Product</TableHead>
                       <TableHead className="font-bold">SKU</TableHead>
                       <TableHead className="w-[8%] text-center font-bold">Qty</TableHead>
-                      <TableHead className="w-[11%] text-right font-bold">Price</TableHead>
-                      <TableHead className="w-[9%] text-center font-bold">Disc%</TableHead>
-                      <TableHead className="w-[10%] text-center font-bold">GST %</TableHead>
-                      <TableHead className="w-[13%] text-right font-bold">Total</TableHead>
+                      <TableHead className="w-[10%] text-right font-bold">Price</TableHead>
+                      <TableHead className="w-[8%] text-center font-bold">Disc%</TableHead>
+                      <TableHead className="w-[11%] text-right font-bold">Disc Amt</TableHead>
+                      <TableHead className="w-[9%] text-center font-bold">GST %</TableHead>
+                      <TableHead className="w-[12%] text-right font-bold">Total</TableHead>
                       <TableHead className="w-12.5"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(form.items || []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic">
+                        <TableCell colSpan={9} className="h-24 text-center text-muted-foreground italic">
                           No items added. Click "Add Product" to search the inventory.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      (form.items || []).map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-3">
-                              {(item as any).imageUrl && (
-                                <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 shrink-0 flex items-center justify-center">
-                                  <img src={(item as any).imageUrl} alt={item.productName} className="h-full w-full object-contain" />
+                      (form.items || []).map((item) => {
+                        const isOverStock = (item as any).stock !== undefined && item.quantity > (item as any).stock
+                        return (
+                          <TableRow 
+                            key={item.id} 
+                            className={isOverStock ? "bg-orange-50/80 hover:bg-orange-100/80 border-orange-200 transition-colors" : "hover:bg-slate-50/50"}
+                          >
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-3">
+                                {(item as any).imageUrl && (
+                                  <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 shrink-0 flex items-center justify-center">
+                                    <img src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""} alt={item.productName} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
+                                  </div>
+                                )}
+                                <div>
+                                  <div className="font-medium text-slate-900">{item.productName}</div>
+                                  {item.name && <div className="text-xs text-slate-500">{item.name}</div>}
                                 </div>
-                              )}
-                              <div>
-                                <div className="font-medium text-slate-900">{item.productName}</div>
-                                {item.name && <div className="text-xs text-slate-500">{item.name}</div>}
                               </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs font-mono">{item.sku}</TableCell>
-                          <TableCell>
-                            <Input
-                              type="number" min="1" value={item.quantity ?? ""}
-                              onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 0)}
-                              className="h-8 text-center"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number" value={item.unitPrice ?? ""}
-                              onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
-                              className="h-8 text-right"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number" min="0" max="100"
-                              value={(item as any).discountPercentage ?? ""}
-                              onChange={(e) => updateItem(item.id, "discountPercentage", parseFloat(e.target.value) || 0)}
-                              className="h-8 text-center"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={item.gstRate.toString()}
-                              onValueChange={(v) => v && updateItem(item.id, "gstRate", parseInt(v))}
-                            >
-                              <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {GST_RATES.map(rate => (
-                                  <SelectItem key={rate} value={rate.toString()}>{rate}%</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            ₹{item.total.toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost" size="icon"
-                              onClick={() => removeItem(item.id)}
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                            </TableCell>
+                            <TableCell className="text-xs font-mono">{item.sku}</TableCell>
+                            <TableCell>
+                              <Input
+                                type="number" min="1" value={item.quantity ?? ""}
+                                onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 0)}
+                                className="h-8 text-center"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number" value={item.unitPrice ?? ""}
+                                onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                                className="h-8 text-right"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number" min="0" max="100"
+                                value={(item as any).discountPercentage ?? ""}
+                                onChange={(e) => updateItem(item.id, "discountPercentage", parseFloat(e.target.value) || 0)}
+                                className="h-8 text-center"
+                              />
+                            </TableCell>
+                            <TableCell className="text-right text-slate-600 font-medium">
+                              {getCurrencySymbol(form.currencyType)}{(((item as any).discountAmount || 0) * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </TableCell>
+                            <TableCell className="text-center font-medium text-slate-600 bg-slate-50/50">
+                              {item.gstRate}%
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {getCurrencySymbol(form.currencyType)}{item.total.toLocaleString()}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost" size="icon"
+                                onClick={() => removeItem(item.id)}
+                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
@@ -455,26 +603,34 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">{form.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
+                  <span className="font-medium">{getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
                 {(form.items || []).some(i => (i as any).discountPercentage > 0) && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Total Discount</span>
                     <span className="font-medium text-rose-600">
-                      - ₹{form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString()}
+                      - {getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString()}
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">₹{form.subtotal?.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total GST</span>
-                  <span className="font-medium text-amber-600">+ ₹{form.taxAmount?.toLocaleString()}</span>
-                </div>
+                {form.paymentType !== "Foreign" && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Subtotal (Excl. GST)</span>
+                      <span className="font-medium">{getCurrencySymbol(form.currencyType)}{form.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total GST (Included)</span>
+                      <span className="font-medium text-amber-600">{getCurrencySymbol(form.currencyType)}{form.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  </>
+                )}
                 <Separator />
                 <div className="flex justify-between font-bold text-xl items-baseline">
                   <span>Grand Total</span>
-                  <span className="text-primary tracking-tight font-extrabold text-2xl">₹{form.totalAmount?.toLocaleString()}</span>
+                  <span className="text-primary tracking-tight font-extrabold text-2xl">{getCurrencySymbol(form.currencyType)}{form.totalAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="pt-2 flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-widest font-semibold opacity-60">
                   <Calculator className="h-3 w-3" />

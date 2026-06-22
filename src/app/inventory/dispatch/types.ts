@@ -100,7 +100,9 @@ export function mapApiDispatchTimelineEvent(raw: ApiDispatchTimelineEvent): Disp
   }
 }
 
-export function mapApiDispatch(raw: ApiDispatch): OrderDispatch {
+export function mapApiDispatch(rawInput: ApiDispatch | any): OrderDispatch {
+  const raw = (rawInput?.success && rawInput?.data) ? rawInput.data : rawInput;
+
   let status: DispatchStatus = "Ready"
   if (raw.status) {
     if (raw.status === "Created" || raw.status === "Packed") {
