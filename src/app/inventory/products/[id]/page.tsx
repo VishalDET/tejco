@@ -296,7 +296,7 @@ export default function EditProductPage() {
                                             />
                                         </div>
                                         <div className="grid gap-2">
-                                            <Label htmlFor="sku">Base SKU</Label>
+                                            <Label htmlFor="sku">HSN Code</Label>
                                             <Input
                                                 id="sku"
                                                 value={sku}

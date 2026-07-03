@@ -37,6 +37,23 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import {
   getItemScanStatus,
   getOutwardProgress,
   type OutwardOrder,
@@ -44,7 +61,7 @@ import {
   type OutwardStatus,
   type ScanResultType,
 } from "../types"
-import { orderOutwardApi } from "@/lib/api"
+import { orderOutwardApi, dispatchApi } from "@/lib/api"
 
 interface OutwardScanViewProps {
   order: OutwardOrder
@@ -118,6 +135,96 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     order.scanHistory[0] ?? null
   )
 
+  const [isDispatchDialogOpen, setIsDispatchDialogOpen] = React.useState(false)
+  const [isSubmittingDispatch, setIsSubmittingDispatch] = React.useState(false)
+  const [dispatchForm, setDispatchForm] = React.useState({
+    partnerName: "",
+    partnerService: "Standard",
+    trackingNumber: "",
+    trackingLink: "",
+    expectedDeliveryDate: "",
+    packageCount: "1",
+    grossWeightKg: "",
+    freightCharges: "0",
+    freightPaymentMode: "Prepaid",
+    vehicleNumber: "",
+    driverName: "",
+    driverPhone: "",
+    challanNumber: "",
+    invoiceNumber: "",
+    ewayBillNumber: "",
+    remarks: ""
+  })
+
+  async function handleCreateDispatch() {
+    if (!dispatchForm.partnerName) {
+      toast.error("Please enter a shipping partner name")
+      return
+    }
+
+    try {
+      setIsSubmittingDispatch(true)
+      const payload = {
+        dispatchId: 0,
+        orderId: outwardOrder.orderId ? Number(outwardOrder.orderId) : parseInt(outwardOrder.id) || 0,
+        orderNumber: outwardOrder.orderNumber,
+        clientName: outwardOrder.clientName,
+        warehouseName: outwardOrder.warehouseName,
+        warehouseCode: outwardOrder.warehouseCode,
+        shippingAddress: outwardOrder.shippingAddress,
+        packedAt: new Date().toISOString(),
+        partnerName: dispatchForm.partnerName,
+        partnerService: dispatchForm.partnerService,
+        trackingNumber: dispatchForm.trackingNumber,
+        trackingLink: dispatchForm.trackingLink,
+        dispatchDate: new Date().toISOString(),
+        expectedDeliveryDate: dispatchForm.expectedDeliveryDate ? new Date(dispatchForm.expectedDeliveryDate).toISOString() : new Date().toISOString(),
+        packageCount: Number(dispatchForm.packageCount) || 0,
+        grossWeightKg: Number(dispatchForm.grossWeightKg) || 0,
+        freightCharges: Number(dispatchForm.freightCharges) || 0,
+        freightPaymentMode: dispatchForm.freightPaymentMode,
+        vehicleNumber: dispatchForm.vehicleNumber,
+        driverName: dispatchForm.driverName,
+        driverPhone: dispatchForm.driverPhone,
+        challanNumber: dispatchForm.challanNumber,
+        invoiceNumber: dispatchForm.invoiceNumber,
+        ewayBillNumber: dispatchForm.ewayBillNumber,
+        shippingLabelRef: "",
+        status: "Created",
+        remarks: dispatchForm.remarks,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        items: outwardOrder.items.map(item => ({
+          dispatchItemId: 0,
+          dispatchId: 0,
+          productName: item.productName,
+          sku: item.sku,
+          quantity: item.scannedQty
+        })),
+        timeline: [
+          {
+            timelineId: 0,
+            dispatchId: 0,
+            label: "Created",
+            description: `Dispatch record created for order ${outwardOrder.orderNumber}`,
+            timestamp: new Date().toISOString(),
+            status: "Created"
+          }
+        ]
+      }
+
+      await dispatchApi.create(payload)
+      toast.success("Dispatch created successfully!")
+      setIsDispatchDialogOpen(false)
+      router.push("/inventory/order-outward")
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err.message || "Failed to create dispatch")
+    } finally {
+      setIsSubmittingDispatch(false)
+    }
+  }
+
   const progress = getOutwardProgress(outwardOrder)
   const isDispatchReady = progress.isComplete
   const eventStyles = latestEvent ? getScanEventStyles(latestEvent.type) : null
@@ -157,15 +264,18 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
 
     // Check item index to register appropriate scan status to server
     const itemIndex = outwardOrder.items.findIndex((item) => item.barcode === barcode)
+    const productName = itemIndex === -1 ? "" : outwardOrder.items[itemIndex].productName
     
     // Register scan event on server
     try {
       const scanType = itemIndex === -1 ? "Error" : "Pick"
       await orderOutwardApi.scanBarcode(outwardOrder.id, {
+        scanId: 0,
         outwardOrderId: outwardOrder.outwardOrderId || parseInt(outwardOrder.id) || 0,
         barcode,
-        scanType,
         message: itemIndex === -1 ? "Barcode not found in this order" : "Product scanned successfully",
+        scanType,
+        productName,
         scannedAt: new Date().toISOString()
       })
     } catch (apiErr) {
@@ -332,19 +442,221 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button className="gap-2" disabled={!isDispatchReady} onClick={handleCompleteOutward}>
-            <Truck className="h-4 w-4" />
-            Complete Outward
-          </Button>
-          <Button
-            variant="outline"
-            className="gap-2"
-            disabled={!isDispatchReady}
-            onClick={() => router.push(`/inventory/dispatch/${outwardOrder.id}`)}
-          >
-            <PackageCheck className="h-4 w-4" />
-            Create Dispatch
-          </Button>
+          {outwardOrder.status !== "Completed" && (
+            <Button className="gap-2" disabled={!isDispatchReady} onClick={handleCompleteOutward}>
+              <Truck className="h-4 w-4" />
+              Complete Outward
+            </Button>
+          )}
+          <Dialog open={isDispatchDialogOpen} onOpenChange={setIsDispatchDialogOpen}>
+            <DialogTrigger
+              render={
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  disabled={!isDispatchReady}
+                >
+                  <PackageCheck className="h-4 w-4" />
+                  Create Dispatch
+                </Button>
+              }
+            />
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create Dispatch Details</DialogTitle>
+                <DialogDescription>
+                  Enter shipping partner and logistics details to create the dispatch record for order {outwardOrder.orderNumber}.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid gap-4 py-4">
+                {/* Logistics Partner */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="partnerName">Shipping Partner *</Label>
+                    <Input
+                      id="partnerName"
+                      placeholder="e.g. Delhivery, BlueDart, DHL"
+                      value={dispatchForm.partnerName}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, partnerName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="partnerService">Service Type</Label>
+                    <Input
+                      id="partnerService"
+                      placeholder="e.g. Express, Surface, Standard"
+                      value={dispatchForm.partnerService}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, partnerService: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Tracking Info */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="trackingNumber">Tracking Number</Label>
+                    <Input
+                      id="trackingNumber"
+                      placeholder="AWB / Tracking ID"
+                      value={dispatchForm.trackingNumber}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, trackingNumber: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="trackingLink">Tracking Link</Label>
+                    <Input
+                      id="trackingLink"
+                      placeholder="https://..."
+                      value={dispatchForm.trackingLink}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, trackingLink: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Dates & Weight */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="expectedDeliveryDate">Expected Delivery</Label>
+                    <Input
+                      id="expectedDeliveryDate"
+                      type="date"
+                      value={dispatchForm.expectedDeliveryDate}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, expectedDeliveryDate: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="packageCount">Package Count</Label>
+                    <Input
+                      id="packageCount"
+                      type="number"
+                      min="1"
+                      value={dispatchForm.packageCount}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, packageCount: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="grossWeightKg">Gross Weight (kg)</Label>
+                    <Input
+                      id="grossWeightKg"
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={dispatchForm.grossWeightKg}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, grossWeightKg: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Freight */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="freightCharges">Freight Charges (INR)</Label>
+                    <Input
+                      id="freightCharges"
+                      type="number"
+                      value={dispatchForm.freightCharges}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, freightCharges: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Freight Payment Mode</Label>
+                    <Select
+                      value={dispatchForm.freightPaymentMode}
+                      onValueChange={(val) => setDispatchForm(prev => ({ ...prev, freightPaymentMode: val || "Prepaid" }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Payment Mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Prepaid">Prepaid</SelectItem>
+                        <SelectItem value="To Pay">To Pay</SelectItem>
+                        <SelectItem value="COD">COD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Vehicle & Driver */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="vehicleNumber">Vehicle Number</Label>
+                    <Input
+                      id="vehicleNumber"
+                      placeholder="MH-12-XX-XXXX"
+                      value={dispatchForm.vehicleNumber}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, vehicleNumber: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="driverName">Driver Name</Label>
+                    <Input
+                      id="driverName"
+                      value={dispatchForm.driverName}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, driverName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="driverPhone">Driver Phone</Label>
+                    <Input
+                      id="driverPhone"
+                      placeholder="10-digit number"
+                      value={dispatchForm.driverPhone}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, driverPhone: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Documentation */}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="invoiceNumber">Invoice Number</Label>
+                    <Input
+                      id="invoiceNumber"
+                      value={dispatchForm.invoiceNumber}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, invoiceNumber: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="challanNumber">Challan Number</Label>
+                    <Input
+                      id="challanNumber"
+                      value={dispatchForm.challanNumber}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, challanNumber: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ewayBillNumber">E-way Bill Number</Label>
+                    <Input
+                      id="ewayBillNumber"
+                      value={dispatchForm.ewayBillNumber}
+                      onChange={(e) => setDispatchForm(prev => ({ ...prev, ewayBillNumber: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="remarks">Remarks</Label>
+                  <Textarea
+                    id="remarks"
+                    placeholder="Any specific delivery instructions or dispatch notes..."
+                    value={dispatchForm.remarks}
+                    onChange={(e) => setDispatchForm(prev => ({ ...prev, remarks: e.target.value }))}
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDispatchDialogOpen(false)} disabled={isSubmittingDispatch}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateDispatch} disabled={isSubmittingDispatch} className="gap-2">
+                  {isSubmittingDispatch ? "Creating..." : "Confirm & Dispatch"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 

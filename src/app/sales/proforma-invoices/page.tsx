@@ -108,6 +108,7 @@ export default function ProformaInvoicesPage() {
   }
 
   const handleConvertToOrder = async (p: ProformaInvoice) => {
+    if (p.status?.toLowerCase() === "converted to sales order") return
     try {
       const payload = {
         proformaInvoiceId: p.proformaId,
@@ -297,7 +298,7 @@ export default function ProformaInvoicesPage() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel className="text-xs font-bold uppercase text-slate-500 tracking-wider">Operations</DropdownMenuLabel>
-                          {p.status !== "Converted to Sales Order" && (
+                          {p.status?.toLowerCase() !== "converted to sales order" && (
                             <DropdownMenuItem
                               className="gap-2 text-emerald-600 font-semibold cursor-pointer focus:bg-emerald-50"
                               onClick={() => handleConvertToOrder(p)}

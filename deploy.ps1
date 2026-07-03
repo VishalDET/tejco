@@ -40,6 +40,9 @@ Remove-Item -Path "$dest\ecosystem.config.js" -Force -ErrorAction SilentlyContin
 if (Test-Path "$dest\.next") {
     Remove-Item -Path "$dest\.next" -Recurse -Force -ErrorAction SilentlyContinue
 }
+if (Test-Path "$dest\_next") {
+    Remove-Item -Path "$dest\_next" -Recurse -Force -ErrorAction SilentlyContinue
+}
 if (Test-Path "$dest\public") {
     Remove-Item -Path "$dest\public" -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -66,10 +69,10 @@ if (Test-Path "$source\.next\standalone") {
     exit 1
 }
 
-# Create .next/static directory on the server and copy static files (required for pages to load styles/JS)
-New-Item -ItemType Directory -Path "$dest\.next\static" -Force | Out-Null
+# Create _next/static directory on the server and copy static files (required for pages to load styles/JS)
+New-Item -ItemType Directory -Path "$dest\_next\static" -Force | Out-Null
 if (Test-Path "$source\.next\static") {
-    Copy-Item -Path "$source\.next\static\*" -Destination "$dest\.next\static\" -Recurse -Force
+    Copy-Item -Path "$source\.next\static\*" -Destination "$dest\_next\static\" -Recurse -Force
 }
 
 # Create public directory and copy public assets (images, icons, etc.)
@@ -86,12 +89,19 @@ if (Test-Path "$source\ecosystem.config.js") {
     Copy-Item -Path "$source\ecosystem.config.js" -Destination "$dest\ecosystem.config.js" -Force
 }
 
-# Copy production env config if present locally, and doesn't exist on server
+# Copy production env config if present locally, and doesn't exist on server (or contains placeholder)
 $destEnv = "$dest\.env.production"
-if (-not (Test-Path $destEnv)) {
+$hasPlaceholder = $false
+if (Test-Path $destEnv) {
+    $content = Get-Content $destEnv
+    if ($content -like "*api.yourdomain.com*") {
+        $hasPlaceholder = $true
+    }
+}
+if (-not (Test-Path $destEnv) -or $hasPlaceholder) {
     if (Test-Path "$source\.env.production") {
         Copy-Item -Path "$source\.env.production" -Destination $destEnv -Force
-        Write-Host "Copied .env.production to server." -ForegroundColor Gray
+        Write-Host "Copied/Updated .env.production to server." -ForegroundColor Gray
     }
 } else {
     Write-Host "Preserved existing .env.production on server." -ForegroundColor Gray

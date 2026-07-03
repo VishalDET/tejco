@@ -9,12 +9,13 @@ import {
     VisibilityState,
     flexRender,
     getCoreRowModel,
+    getExpandedRowModel,
     getFilteredRowModel,
     getPaginationRowModel,
     getSortedRowModel,
     useReactTable,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Plus, Search, Filter, Download, Loader2, AlertCircle } from "lucide-react"
+import { ArrowUpDown, ChevronDown, ChevronRight, MoreHorizontal, Plus, Search, Filter, Download, Loader2, AlertCircle } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
@@ -101,6 +102,7 @@ export type Product = {
     price: number
     stock: number
     status: "Active" | "Inactive" | "Low Stock"
+    rawVariants: ApiVariant[]
 }
 
 const ActionsCell = ({ row }: { row: any }) => {
@@ -138,10 +140,11 @@ const ActionsCell = ({ row }: { row: any }) => {
                     <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/view/${row.original.id}`}>View details</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => window.location.href = `/inventory/products/${row.original.id}`}>Edit product</DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <AlertDialogTrigger 
+                    <AlertDialogTrigger
+                        // @ts-ignore
                         nativeButton={false}
                         render={
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                                 onSelect={(e) => e.preventDefault()}
                                 className="text-destructive focus:bg-destructive/10 focus:text-destructive"
                             >
@@ -162,7 +165,7 @@ const ActionsCell = ({ row }: { row: any }) => {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction 
+                    <AlertDialogAction
                         onClick={(e) => {
                             e.preventDefault();
                             handleDelete();
@@ -180,6 +183,26 @@ const ActionsCell = ({ row }: { row: any }) => {
 
 export const columns: ColumnDef<Product>[] = [
     {
+        id: "expander",
+        header: () => null,
+        cell: ({ row }) => {
+            return row.original.variants > 0 ? (
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => row.toggleExpanded()}
+                >
+                    {row.getIsExpanded() ? (
+                        <ChevronDown className="h-4 w-4" />
+                    ) : (
+                        <ChevronRight className="h-4 w-4" />
+                    )}
+                </Button>
+            ) : null
+        },
+    },
+    {
         accessorKey: "name",
         header: ({ column }) => {
             return (
@@ -196,7 +219,7 @@ export const columns: ColumnDef<Product>[] = [
     },
     {
         accessorKey: "sku",
-        header: "SKU",
+        header: "HSN Code",
         cell: ({ row }) => <div className="font-mono text-xs">{row.getValue("sku")}</div>,
     },
     {
@@ -268,12 +291,12 @@ export default function ProductListPage() {
             try {
                 setIsLoading(true)
                 const response = await apiClient.get<ApiResponse>("/api/Product/GetAll")
-                
+
                 if (response.success && response.data) {
                     const mappedProducts: Product[] = response.data.map(p => {
                         const totalStock = p.variants.reduce((sum, v) => sum + v.currentQuantity, 0)
                         const minReorderLevel = p.variants.length > 0 ? Math.min(...p.variants.map(v => v.reorderLevel)) : 0
-                        
+
                         // Determine status
                         let status: Product["status"] = p.status ? "Active" : "Inactive"
                         if (p.status && totalStock <= minReorderLevel && totalStock > 0) {
@@ -290,7 +313,8 @@ export default function ProductListPage() {
                             variants: p.variants.length,
                             price: p.variants.length > 0 ? p.variants[0].sellingPrice : 0,
                             stock: totalStock,
-                            status: status
+                            status: status,
+                            rawVariants: p.variants
                         }
                     })
                     setProducts(mappedProducts)
@@ -317,8 +341,12 @@ export default function ProductListPage() {
         getPaginationRowModel: getPaginationRowModel(),
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
+        getExpandedRowModel: getExpandedRowModel(),
         onColumnVisibilityChange: setColumnVisibility,
         onRowSelectionChange: setRowSelection,
+        initialState: {
+            expanded: true,
+        },
         state: {
             sorting,
             columnFilters,
@@ -414,46 +442,133 @@ export default function ProductListPage() {
                             </div>
                         ) : (
                             <Table>
-                            <TableHeader className="bg-muted/50">
-                                {table.getHeaderGroups().map((headerGroup) => (
-                                    <TableRow key={headerGroup.id}>
-                                        {headerGroup.headers.map((header) => {
-                                            return (
-                                                <TableHead key={header.id}>
-                                                    {header.isPlaceholder
-                                                        ? null
-                                                        : flexRender(
-                                                            header.column.columnDef.header,
-                                                            header.getContext()
-                                                        )}
-                                                </TableHead>
-                                            )
-                                        })}
-                                    </TableRow>
-                                ))}
-                            </TableHeader>
-                            <TableBody>
-                                {table.getRowModel().rows?.length ? (
-                                    table.getRowModel().rows.map((row) => (
-                                        <TableRow
-                                            key={row.id}
-                                            data-state={row.getIsSelected() && "selected"}
-                                        >
-                                            {row.getVisibleCells().map((cell) => (
-                                                <TableCell key={cell.id}>
-                                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                                </TableCell>
-                                            ))}
+                                <TableHeader className="bg-muted/50">
+                                    {table.getHeaderGroups().map((headerGroup) => (
+                                        <TableRow key={headerGroup.id}>
+                                            {headerGroup.headers.map((header) => {
+                                                return (
+                                                    <TableHead key={header.id}>
+                                                        {header.isPlaceholder
+                                                            ? null
+                                                            : flexRender(
+                                                                header.column.columnDef.header,
+                                                                header.getContext()
+                                                            )}
+                                                    </TableHead>
+                                                )
+                                            })}
                                         </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow>
-                                        <TableCell colSpan={columns.length} className="h-24 text-center">
-                                            No results.
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
+                                    ))}
+                                </TableHeader>
+                                <TableBody>
+                                    {table.getRowModel().rows?.length ? (
+                                        table.getRowModel().rows.map((row) => (
+                                            <React.Fragment key={row.id}>
+                                                <TableRow
+                                                    data-state={row.getIsSelected() && "selected"}
+                                                    className={row.getIsExpanded() ? "border-b-0 bg-muted/20" : ""}
+                                                >
+                                                    {row.getVisibleCells().map((cell) => (
+                                                        <TableCell key={cell.id}>
+                                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                                        </TableCell>
+                                                    ))}
+                                                </TableRow>
+                                                {row.getIsExpanded() && (
+                                                    <TableRow className="bg-muted/10 hover:bg-muted/10">
+                                                        <TableCell colSpan={columns.length} className="p-0 border-t-0">
+                                                            <div className="p-5 bg-muted/30 border-t border-b space-y-4">
+                                                                <div className="flex items-center justify-between px-1">
+                                                                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Product Variants ({row.original.rawVariants.length})</h4>
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        HSN: <span className="font-mono bg-background px-1.5 py-0.5 rounded border text-[11px]">{row.original.sku}</span>
+                                                                    </span>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                    {row.original.rawVariants.map((v) => {
+                                                                        const isLowStock = v.currentQuantity <= v.reorderLevel;
+                                                                        const maxRatio = v.reorderLevel > 0 ? (v.currentQuantity / (v.reorderLevel * 2)) * 100 : 100;
+                                                                        const stockPercent = Math.min(100, Math.max(5, maxRatio));
+
+                                                                        return (
+                                                                            <div
+                                                                                key={v.variantId}
+                                                                                className="relative flex flex-col justify-between overflow-hidden rounded-xl border bg-background p-4 shadow-sm transition-all hover:shadow-md hover:border-muted-foreground/30"
+                                                                            >
+                                                                                <div>
+                                                                                    <div className="flex items-start justify-between gap-2">
+                                                                                        <div>
+                                                                                            <h5 className="font-semibold text-sm leading-tight text-foreground">{v.variantName}</h5>
+                                                                                            <p className="text-[11px] text-muted-foreground mt-1">
+                                                                                                Suffix: <span className="font-mono bg-muted px-1.5 py-0.5 rounded text-[10px]">{v.skuSuffix || "-"}</span>
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        <Badge
+                                                                                            variant={v.status ? "default" : "secondary"}
+                                                                                            className={v.status ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 border-emerald-500/20" : "bg-muted text-muted-foreground"}
+                                                                                        >
+                                                                                            {v.status ? "Active" : "Inactive"}
+                                                                                        </Badge>
+                                                                                    </div>
+
+                                                                                    <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t border-dashed">
+                                                                                        <div>
+                                                                                            <span className="text-[10px] text-muted-foreground block uppercase font-medium tracking-wider">Purchase Price</span>
+                                                                                            <span className="text-xs font-semibold font-mono text-foreground">
+                                                                                                {new Intl.NumberFormat("en-IN", {
+                                                                                                    style: "currency",
+                                                                                                    currency: "INR",
+                                                                                                    maximumFractionDigits: 0
+                                                                                                }).format(v.purchasePrice)}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div>
+                                                                                            <span className="text-[10px] text-muted-foreground block uppercase font-medium tracking-wider">Selling Price</span>
+                                                                                            <span className="text-sm font-bold font-mono text-primary">
+                                                                                                {new Intl.NumberFormat("en-IN", {
+                                                                                                    style: "currency",
+                                                                                                    currency: "INR",
+                                                                                                    maximumFractionDigits: 0
+                                                                                                }).format(v.sellingPrice)}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                <div className="mt-4 pt-3 border-t">
+                                                                                    <div className="flex items-center justify-between text-xs mb-1.5">
+                                                                                        <span className="text-muted-foreground font-medium">Stock Status</span>
+                                                                                        <span className={`font-mono font-semibold ${isLowStock ? "text-destructive" : "text-emerald-600"}`}>
+                                                                                            {v.currentQuantity} / {v.reorderLevel} <span className="text-[10px] text-muted-foreground font-normal">(Min)</span>
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                                                                        <div
+                                                                                            className={`h-full rounded-full transition-all ${isLowStock ? "bg-destructive animate-pulse" : "bg-emerald-500"
+                                                                                                }`}
+                                                                                            style={{ width: `${stockPercent}%` }}
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </React.Fragment>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={columns.length} className="h-24 text-center">
+                                                No results.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
                             </Table>
                         )}
                     </div>

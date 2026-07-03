@@ -23,6 +23,15 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
+import * as XLSX from "xlsx"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
 import { warehousesApi, productsApi, categoriesApi } from "@/lib/api"
 import type { Warehouse } from "@/app/supply-chain/warehouse/types"
@@ -59,6 +68,191 @@ export default function AddProductPage() {
     const [warehouses, setWarehouses] = React.useState<Warehouse[]>([])
     // Placeholder for product ID used in barcode generation
     const [tempProdId, setTempProdId] = React.useState("0000")
+
+    // Excel Import States
+    const [isImportOpen, setIsImportOpen] = React.useState(false)
+    const [previewData, setPreviewData] = React.useState<any>(null)
+
+    const downloadTemplate = () => {
+        const headers = [
+            "Product Name",
+            "HSN Code",
+            "Brand",
+            "Unit",
+            "Description",
+            "Tagging No",
+            "Category Path",
+            "Variant Name",
+            "SKU Suffix",
+            "Cost Price (INR)",
+            "Sale Price IND (INR)",
+            "Sale Price INTL (USD)",
+            "GST %",
+            "Initial Stock",
+            "Warehouse Name/ID",
+            "Rack Location",
+            "Image URL"
+        ]
+
+        const sampleRow = [
+            "Analyser-ASL (3 Lense)",
+            "ASL-3",
+            "Aram Huvis",
+            "PCS",
+            "Premium skin and hair analyser system",
+            "TAG-8080",
+            "Hair & Skin > Consultation Tools",
+            "Default",
+            "-DEF",
+            "59289",
+            "147500",
+            "0",
+            "18",
+            "Main Hub Mumbai",
+            "Aisle 1, Rack B",
+            "https://example.com/image.jpg"
+        ]
+
+        const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow])
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Product & Variants")
+        XLSX.writeFile(wb, "Tejco_Product_Import_Template.xlsx")
+    }
+
+    const getWarehouseId = (inputVal: string) => {
+        if (!inputVal) return ""
+        const numericId = parseInt(inputVal)
+        if (!isNaN(numericId)) {
+            const found = warehouses.find(w => w.id === String(numericId))
+            if (found) return String(found.id)
+        }
+        const foundByName = warehouses.find(w => w.name.toLowerCase().trim() === inputVal.toLowerCase().trim())
+        if (foundByName) return String(foundByName.id)
+        return ""
+    }
+
+    const getWarehouseName = (idOrName: string) => {
+        if (!idOrName) return "-"
+        const found = warehouses.find(w => String(w.id) === idOrName || w.name.toLowerCase().trim() === idOrName.toLowerCase().trim())
+        return found ? found.name : idOrName
+    }
+
+    const resolveCategoryPath = (pathStr: string) => {
+        if (!pathStr) return []
+        const parts = pathStr.split(">").map(p => p.trim())
+        const resolvedIds: number[] = []
+        let currentOptions: (Category | Subcategory)[] = categories
+
+        for (const part of parts) {
+            const found = currentOptions.find(o => 
+                ((o as any).subcategoryName || (o as any).categoryName).toLowerCase() === part.toLowerCase()
+            )
+            if (found) {
+                resolvedIds.push((found as any).subcategoryId || (found as any).categoryId)
+                currentOptions = found.subcategories || []
+            } else {
+                break
+            }
+        }
+        return resolvedIds
+    }
+
+    const parseExcel = (file: File) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+            try {
+                const data = e.target?.result
+                if (!data) return
+                const workbook = XLSX.read(data, { type: "binary" })
+                const sheetName = workbook.SheetNames[0]
+                const sheet = workbook.Sheets[sheetName]
+                const rows = XLSX.utils.sheet_to_json<any>(sheet)
+                if (rows.length === 0) {
+                    toast.error("The Excel sheet has no data.")
+                    return
+                }
+
+                // Extract product info from the first row
+                const firstRow = rows[0]
+                const productName = firstRow["Product Name"] || firstRow["Name"] || ""
+                const baseSKU = firstRow["HSN Code"] || firstRow["Base SKU"] || firstRow["SKU"] || ""
+                const brand = firstRow["Brand"] || ""
+                const unit = firstRow["Unit"] || "PCS"
+                const description = firstRow["Description"] || ""
+                const taggingNo = firstRow["Tagging No"] || firstRow["Product Tagging No"] || ""
+                const categoryPath = firstRow["Category Path"] || firstRow["Category"] || ""
+
+                // Extract variants from all rows
+                const parsedVariants = rows.map((row: any, index: number) => {
+                    return {
+                        id: index + 1,
+                        name: row["Variant Name"] || row["Variant"] || `Variant ${index + 1}`,
+                        sku_suffix: row["SKU Suffix"] || row["Suffix"] || "",
+                        salesPrice: String(row["Sale Price IND (INR)"] || row["Sale Price IND"] || row["Sale Price"] || row["Selling Price"] || ""),
+                        exportSalesPrice: String(row["Sale Price INTL (USD)"] || row["Sale Price INTL"] || row["Export Price"] || row["USD Amount"] || ""),
+                        gstPercentage: String(row["GST %"] || row["GST Percentage"] || row["GST"] || "18"),
+                        costPrice: String(row["Cost Price (INR)"] || row["Cost Price"] || ""),
+                        stock: String(row["Initial Stock"] || row["Stock Quantity"] || row["Stock"] || row["Quantity"] || row["Qty"] || ""),
+                        warehouseId: String(row["Warehouse Name/ID"] || row["Warehouse"] || row["Warehouse ID"] || ""),
+                        rackLocation: row["Rack Location"] || row["Rack"] || row["Location"] || "",
+                        image: row["Image URL"] || row["Image"] || null
+                    }
+                })
+
+                setPreviewData({
+                    product: { productName, baseSKU, brand, unit, description, taggingNo, categoryPath },
+                    variants: parsedVariants
+                })
+                toast.success("Excel file parsed successfully. Preview loaded.")
+            } catch (err) {
+                console.error("Error parsing Excel:", err)
+                toast.error("Failed to parse Excel file. Please verify sheet formatting.")
+            }
+        }
+        reader.readAsBinaryString(file)
+    }
+
+    const handleImportApply = () => {
+        if (!previewData) return
+        setName(previewData.product.productName)
+        setBaseSKU(previewData.product.baseSKU)
+        setBrand(previewData.product.brand)
+        setUnit(previewData.product.unit)
+        setDescription(previewData.product.description)
+        setTaggingNo(previewData.product.taggingNo)
+
+        let activePath = selectedCategoryIds
+        if (previewData.product.categoryPath) {
+            const resolvedPath = resolveCategoryPath(previewData.product.categoryPath)
+            if (resolvedPath.length > 0) {
+                activePath = resolvedPath
+                setSelectedCategoryIds(resolvedPath)
+            }
+        }
+
+        const mappedVariants = previewData.variants.map((v: any, index: number) => {
+            const wId = getWarehouseId(v.warehouseId)
+            return {
+                id: v.id,
+                name: v.name,
+                sku_suffix: v.sku_suffix,
+                salesPrice: v.salesPrice,
+                exportSalesPrice: v.exportSalesPrice,
+                gstPercentage: v.gstPercentage,
+                costPrice: v.costPrice,
+                stock: v.stock,
+                barcode: generateVariantBarcode(index, activePath),
+                warehouseId: wId,
+                rackLocation: v.rackLocation,
+                image: v.image
+            }
+        })
+
+        setVariants(mappedVariants)
+        setIsImportOpen(false)
+        setPreviewData(null)
+        toast.success("Imported details successfully loaded into the form.")
+    }
 
     // Generate a random product ID only on the client to avoid hydration mismatch
     React.useEffect(() => {
@@ -240,6 +434,9 @@ export default function AddProductPage() {
                         <p className="text-muted-foreground">Create a new item in your catalog with variants and stock levels.</p>
                     </div>
                 </div>
+                <Button type="button" variant="outline" onClick={() => setIsImportOpen(true)} className="gap-2">
+                    <UploadCloud className="h-4 w-4" /> Import from Excel
+                </Button>
             </div>
 
             <form onSubmit={onSubmit}>
@@ -268,7 +465,7 @@ export default function AddProductPage() {
                                         />
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="sku">Base SKU</Label>
+                                        <Label htmlFor="sku">HSN Code</Label>
                                         <Input
                                             id="sku"
                                             placeholder="e.g., SB-010"
@@ -582,24 +779,6 @@ export default function AddProductPage() {
                                                     </>
                                                 ) : (
                                                     <div className="flex flex-col gap-2 w-full p-2">
-                                                        {/* <Label className="flex flex-col items-center gap-1.5 cursor-pointer hover:text-primary transition-colors py-3 border-2 border-dashed border-muted-foreground/10 rounded-lg bg-muted/5">
-                                                            <UploadCloud className="h-5 w-5 text-muted-foreground" />
-                                                            <span className="text-[9px] font-bold uppercase tracking-tight">Upload File</span>
-                                                            <input
-                                                                type="file"
-                                                                className="hidden"
-                                                                accept="image/*"
-                                                                onChange={(e) => {
-                                                                    const file = e.target.files?.[0]
-                                                                    if (file) handleImageChange(v.id, file)
-                                                                }}
-                                                            />
-                                                        </Label> 
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="h-px flex-1 bg-muted-foreground/10" />
-                                                            <span className="text-[8px] font-bold text-muted-foreground/60">OR</span>
-                                                            <div className="h-px flex-1 bg-muted-foreground/10" />
-                                                        </div>*/}
                                                         <div className="relative">
                                                             <ImageIcon className="absolute left-2 top-2 h-3 w-3 text-muted-foreground/50" />
                                                             <Input
@@ -655,6 +834,118 @@ export default function AddProductPage() {
                     </div>
                 </div>
             </form>
+
+            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-6">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                            <UploadCloud className="h-5 w-5 text-primary" />
+                            Import Product & Variants via Excel
+                        </DialogTitle>
+                        <DialogDescription>
+                            Upload an Excel sheet to populate the form fields and variants. You can download the template below.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex flex-col gap-4 overflow-y-auto pr-1 py-2 flex-1">
+                        <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl">
+                            <div className="grid gap-1">
+                                <p className="text-sm font-semibold">Step 1: Download Template</p>
+                                <p className="text-xs text-muted-foreground">Use our standardized template to format your product data correctly.</p>
+                            </div>
+                            <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
+                                Download Excel Template
+                            </Button>
+                        </div>
+
+                        <div className="grid gap-2">
+                            <p className="text-sm font-semibold">Step 2: Upload Excel File</p>
+                            <label className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-2 hover:bg-muted/10 transition-colors cursor-pointer border-muted-foreground/20">
+                                <UploadCloud className="h-8 w-8 text-muted-foreground/60" />
+                                <span className="text-sm font-medium">Click to upload or drag & drop</span>
+                                <span className="text-xs text-muted-foreground">Supports .xlsx and .xls formats</span>
+                                <input
+                                    type="file"
+                                    className="hidden"
+                                    accept=".xlsx, .xls"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) parseExcel(file)
+                                    }}
+                                />
+                            </label>
+                        </div>
+
+                        {previewData && (
+                            <div className="border rounded-xl p-4 bg-slate-50/50 space-y-4">
+                                <div className="flex items-center justify-between border-b pb-2">
+                                    <h3 className="font-bold text-sm text-slate-800">Preview Data</h3>
+                                    <span className="text-xs font-semibold text-primary">{previewData.variants.length} Variants Found</span>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                    <div>
+                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Product Name</p>
+                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.productName || "-"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">HSN Code</p>
+                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.baseSKU || "-"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Brand / Unit</p>
+                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.brand || "-"} / {previewData.product.unit || "PCS"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Category Path</p>
+                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.categoryPath || "-"}</p>
+                                    </div>
+                                </div>
+
+                                <div className="max-h-[220px] overflow-y-auto border rounded-lg bg-white">
+                                    <table className="w-full text-xs text-left border-collapse">
+                                        <thead className="bg-slate-50 sticky top-0 border-b">
+                                            <tr>
+                                                <th className="p-2 font-semibold text-slate-600">Variant Name</th>
+                                                <th className="p-2 font-semibold text-slate-600">SKU Suffix</th>
+                                                <th className="p-2 font-semibold text-slate-600 text-right">Cost Price</th>
+                                                <th className="p-2 font-semibold text-slate-600 text-right">Sale Price IND</th>
+                                                <th className="p-2 font-semibold text-slate-600 text-right">Sale Price INTL</th>
+                                                <th className="p-2 font-semibold text-slate-600 text-center">GST %</th>
+                                                <th className="p-2 font-semibold text-slate-600 text-right">Stock</th>
+                                                <th className="p-2 font-semibold text-slate-600">Warehouse</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {previewData.variants.map((v: any) => (
+                                                <tr key={v.id} className="border-b last:border-0 hover:bg-slate-50/50">
+                                                    <td className="p-2 text-slate-700 font-medium">{v.name}</td>
+                                                    <td className="p-2 text-slate-500 font-mono">{v.sku_suffix || "-"}</td>
+                                                    <td className="p-2 text-slate-700 text-right font-mono">₹{v.costPrice || "0"}</td>
+                                                    <td className="p-2 text-slate-700 text-right font-mono">₹{v.salesPrice || "0"}</td>
+                                                    <td className="p-2 text-slate-700 text-right font-mono">${v.exportSalesPrice || "0"}</td>
+                                                    <td className="p-2 text-slate-500 text-center font-mono">{v.gstPercentage}%</td>
+                                                    <td className="p-2 text-slate-700 text-right font-mono">{v.stock || "0"}</td>
+                                                    <td className="p-2 text-slate-500 truncate max-w-[120px]">{getWarehouseName(v.warehouseId)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="gap-2 border-t pt-4">
+                        <Button type="button" variant="outline" onClick={() => { setIsImportOpen(false); setPreviewData(null); }}>
+                            Close
+                        </Button>
+                        <Button type="button" disabled={!previewData} onClick={handleImportApply} className="px-6 font-semibold">
+                            Apply to Form
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

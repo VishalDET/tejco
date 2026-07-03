@@ -57,12 +57,12 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   }, [])
 
   const getCurrencySymbol = (currency?: string) => {
-    if (!currency) return "₹"
+    if (!currency) return "\u20B9"
     switch (currency.toUpperCase()) {
       case "USD": return "$"
-      case "EUR": return "€"
-      case "GBP": return "£"
-      case "INR": return "₹"
+      case "EUR": return "\u20AC"
+      case "GBP": return "\u00A3"
+      case "INR": return "\u20B9"
       default: return currency
     }
   }
@@ -415,7 +415,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                 <Select value={form.currencyType || "INR"} disabled>
                   <SelectTrigger className="border-slate-200 bg-slate-50 text-slate-500 cursor-not-allowed"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="INR">INR (₹)</SelectItem>
+                    <SelectItem value="INR">INR (&#8377;)</SelectItem>
                     <SelectItem value="USD">USD ($)</SelectItem>
                   </SelectContent>
                 </Select>

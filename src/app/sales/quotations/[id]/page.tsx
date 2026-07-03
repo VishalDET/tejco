@@ -1,24 +1,54 @@
-import { notFound } from "next/navigation"
+"use client"
+
+import * as React from "react"
+import { useParams, notFound } from "next/navigation"
 import { QuotationDetailsView } from "./quotation-details-view"
-import { SalesDocument } from "@/app/sales/types"
 import { Quotation } from "@/app/sales/quotations/types"
-
 import { quotationsApi } from "@/lib/api"
+import { Loader } from "@/components/ui/loader"
 
-async function getQuotation(id: string): Promise<Quotation | null> {
-  try {
-    return await quotationsApi.getById(id)
-  } catch (error) {
-    console.error("Error fetching quotation:", error)
-    return null
+export default function QuotationDetailsPage() {
+  const params = useParams()
+  const id = params?.id as string
+  const [quotation, setQuotation] = React.useState<Quotation | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<any>(null)
+
+  React.useEffect(() => {
+    if (!id) return
+    let active = true
+    setLoading(true)
+    setError(null)
+    
+    quotationsApi.getById(id)
+      .then(data => {
+        if (active) {
+          setQuotation(data)
+          setLoading(false)
+        }
+      })
+      .catch(err => {
+        if (active) {
+          console.error("Error loading quotation:", err)
+          setError(err)
+          setLoading(false)
+        }
+      })
+      
+    return () => {
+      active = false
+    }
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader layout="container" size="lg" text="Loading quotation details..." />
+      </div>
+    )
   }
-}
 
-export default async function QuotationDetailsPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params
-  const quotation = await getQuotation(params.id)
-
-  if (!quotation) {
+  if (error || !quotation) {
     notFound()
   }
 

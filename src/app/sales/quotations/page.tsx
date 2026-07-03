@@ -17,13 +17,14 @@ import { QuotationFormDialog } from "./quotation-form-dialog"
 import { toast } from "sonner"
 
 const getStatusBadge = (status: SalesDocumentStatus) => {
-  switch (status) {
-    case "Draft": return <Badge variant="secondary" className="bg-slate-100 text-slate-800 border-none">Draft</Badge>
-    case "Issued": return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-none">Issued</Badge>
-    case "Converted to Proforma": return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Converted to Proforma</Badge>
-    case "Cancelled": return <Badge variant="destructive">Cancelled</Badge>
-    default: return <Badge variant="outline">{status}</Badge>
+  const norm = String(status || "").toLowerCase()
+  if (norm === "draft") return <Badge variant="secondary" className="bg-slate-100 text-slate-800 border-none">Draft</Badge>
+  if (norm === "issued") return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-none">Issued</Badge>
+  if (norm === "converted to proforma" || norm === "converted to pi") {
+    return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Converted to Proforma</Badge>
   }
+  if (norm === "cancelled") return <Badge variant="destructive">Cancelled</Badge>
+  return <Badge variant="outline">{status}</Badge>
 }
 
 const getCurrencySymbol = (currency?: string) => {
@@ -49,7 +50,7 @@ export default function QuotationsPage() {
   const fetchQuotations = async (silent = false) => {
     if (!silent) setIsLoading(true)
     else setIsRefreshing(true)
-    
+
     try {
       const data = await quotationsApi.getAll()
       setQuotations(data)
@@ -143,7 +144,7 @@ export default function QuotationsPage() {
     fetchQuotations(true)
   }
 
-  const filtered = quotations.filter(o => 
+  const filtered = quotations.filter(o =>
     o.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
     o.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (o.notes && o.notes.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -157,10 +158,10 @@ export default function QuotationsPage() {
           <p className="text-muted-foreground">Manage and track product quotations sent to clients.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="icon" 
-            onClick={() => fetchQuotations(true)} 
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fetchQuotations(true)}
             disabled={isLoading || isRefreshing}
             className="hover:rotate-180 transition-transform duration-500"
           >
@@ -172,18 +173,18 @@ export default function QuotationsPage() {
         </div>
       </div>
 
-      <Card className="shadow-xl border-none ring-1 ring-slate-200 overflow-hidden">
+      <Card className="shadow-xl border-none ring-1 ring-slate-200 overflow-hidden pt-0">
         <CardHeader className="bg-slate-50/50 flex flex-row items-center justify-between space-y-0 pb-6">
-          <div className="space-y-1">
+          <div className="space-y-1 pt-2">
             <CardTitle className="text-xl font-semibold">Quotation History</CardTitle>
             <CardDescription>A list of all quotes generated for doctors and hospitals.</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search quotations..." 
-                className="pl-9 w-[200px] md:w-[300px] bg-white/50 backdrop-blur-sm border-slate-200 focus:bg-white transition-all duration-200" 
+              <Input
+                placeholder="Search quotations..."
+                className="pl-9 w-[200px] md:w-[300px] bg-white/50 backdrop-blur-sm border-slate-200 focus:bg-white transition-all duration-200"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -256,7 +257,7 @@ export default function QuotationsPage() {
                     <TableCell>{getStatusBadge(q.status)}</TableCell>
                     <TableCell className="text-right py-4 px-6">
                       <DropdownMenu>
-                        <DropdownMenuTrigger 
+                        <DropdownMenuTrigger
                           render={
                             <Button variant="ghost" size="icon" className="rounded-full hover:bg-white hover:shadow-sm">
                               <MoreVertical className="h-4 w-4" />
@@ -273,9 +274,9 @@ export default function QuotationsPage() {
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuLabel className="text-xs font-bold uppercase text-slate-500 tracking-wider">Operations</DropdownMenuLabel>
-                          {q.status !== "Converted to Proforma" && (
-                            <DropdownMenuItem 
-                              className="gap-2 text-primary font-semibold cursor-pointer focus:text-primary focus:bg-primary/5" 
+                          {q.status?.toLowerCase() !== "converted to proforma" && q.status?.toLowerCase() !== "converted to pi" && (
+                            <DropdownMenuItem
+                              className="gap-2 text-primary font-semibold cursor-pointer focus:text-primary focus:bg-primary/5"
                               onClick={() => handleConvertToProforma(q)}
                             >
                               <RefreshCw className="h-4 w-4" /> Convert to Proforma
@@ -294,7 +295,7 @@ export default function QuotationsPage() {
         </CardContent>
       </Card>
 
-      <QuotationFormDialog 
+      <QuotationFormDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         quotation={selectedQuotation}

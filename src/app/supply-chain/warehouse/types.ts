@@ -39,12 +39,13 @@ export interface Warehouse {
   racks: Rack[]
 }
 
-/** Raw shape returned by the backend for /api/Warehouse */
 export interface ApiWarehouse {
   warehouseId: number
   warehouseName: string
-  address: string // Format: "street|city|state|pincode|country|||RacksJSON"
+  address: WarehouseAddress | string // Format: object or "street|city|state|pincode|country|||RacksJSON"
   contactPerson: string
   contactNumber: string
   status: boolean
+  racks?: Rack[]
 }
+

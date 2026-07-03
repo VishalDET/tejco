@@ -94,78 +94,86 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
   }
 
   async function markDispatched() {
+    if (form.status === "Dispatched" || form.status === "In Transit" || form.status === "Delivered") {
+      toast.info("Order is already marked as Dispatched")
+      return
+    }
+
     if (!readiness.isReady) {
       toast.error("Add delivery partner, tracking number, package count, and dispatch date first.")
       return
     }
 
-    const nextTimeline = [
-      {
-        id: `tl-${Date.now()}`,
-        label: "Dispatched",
-        description: `${form.partnerName} tracking ${form.trackingNumber} recorded.`,
-        timestamp: new Date().toISOString(),
-        status: "current",
-      },
-      ...form.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
-    ]
-
-    const nextForm = {
-      ...form,
-      status: "Dispatched" as DispatchStatus,
-      timeline: nextTimeline
-    }
-
-    setForm(nextForm)
-
     try {
-      const apiPayload = mapOrderDispatchToApi(nextForm)
+      // 1. Save all fields with the CURRENT status first
+      const apiPayload = mapOrderDispatchToApi(form)
       await dispatchApi.update(form.id, apiPayload)
+
+      // 2. Transition status on server
       await dispatchApi.updateStatus(form.id, "Dispatched", "Order marked as Dispatched")
+
+      // 3. Update local state
+      const nextTimeline = [
+        {
+          id: `tl-${Date.now()}`,
+          label: "Dispatched",
+          description: `${form.partnerName} tracking ${form.trackingNumber} recorded.`,
+          timestamp: new Date().toISOString(),
+          status: "current",
+        },
+        ...form.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
+      ]
+
+      const nextForm = {
+        ...form,
+        status: "Dispatched" as DispatchStatus,
+        timeline: nextTimeline
+      }
+
+      setForm(nextForm)
       toast.success("Order marked as dispatched on server")
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to update status on server:", err)
-      toast.success("Order marked as dispatched locally")
+      toast.error(err.message || "Failed to update status on server")
     }
   }
 
   async function updateStatus(status: DispatchStatus) {
-    const nextTimeline = [
-      {
-        id: `tl-${Date.now()}`,
-        label: status,
-        description:
-          status === "Delivered"
-            ? "Delivery confirmation recorded."
-            : status === "Exception"
-              ? "Delivery exception reported for warehouse follow-up."
-              : `Shipment status updated to ${status}.`,
-        timestamp: new Date().toISOString(),
-        status: status === "Exception" ? "exception" : "current",
-      },
-      ...form.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
-    ]
-
-    const nextForm = {
-      ...form,
-      status,
-      timeline: nextTimeline
-    }
-
-    setForm(nextForm)
-
     try {
-      const apiPayload = mapOrderDispatchToApi(nextForm)
-      await dispatchApi.update(form.id, apiPayload)
-      
-      let apiStatus = status
+      let apiStatus = status as string
       if (status === "In Transit") apiStatus = "InTransit"
       
+      // 1. Transition status on server
       await dispatchApi.updateStatus(form.id, apiStatus, `Shipment status updated to ${status}`)
+
+      // 2. Update local state
+      const nextTimeline = [
+        {
+          id: `tl-${Date.now()}`,
+          label: status,
+          description:
+            status === "Delivered"
+              ? "Delivery confirmation recorded."
+              : status === "Exception"
+                ? "Delivery exception reported for warehouse follow-up."
+                : `Shipment status updated to ${status}.`,
+          timestamp: new Date().toISOString(),
+          status: status === "Exception" ? "exception" : "current",
+        },
+        ...form.timeline.map((event) => ({ ...event, status: event.status === "current" ? "complete" : event.status })),
+      ]
+
+      const nextForm = {
+        ...form,
+        status,
+        timeline: nextTimeline
+      }
+
+      setForm(nextForm)
       toast.success(`Dispatch status updated to ${status} on server`)
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to update status on server:", err)
-      toast.success(`Dispatch status updated to ${status} locally`)
+      toast.error(err.message || `Failed to update status to ${status}`)
     }
   }
 
@@ -191,15 +199,19 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={() => window.print()}>
             <Printer className="h-4 w-4" />
-            Print Label
+            Print Slip
           </Button>
           <Button variant="outline" className="gap-2" onClick={saveDraft}>
             <Save className="h-4 w-4" />
             Save Draft
           </Button>
-          <Button className="gap-2" onClick={markDispatched}>
+          <Button
+            className="gap-2"
+            onClick={markDispatched}
+            disabled={form.status === "Dispatched" || form.status === "In Transit" || form.status === "Delivered"}
+          >
             <Truck className="h-4 w-4" />
             Mark Dispatched
           </Button>
@@ -496,6 +508,124 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
               </div>
             </CardContent>
           </Card>
+        </div>
+      </div>
+
+      {/* Print Style Injector */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #dispatch-slip-print, #dispatch-slip-print * {
+            visibility: visible !important;
+          }
+          #dispatch-slip-print {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: block !important;
+            background: white !important;
+            color: black !important;
+          }
+        }
+      ` }} />
+
+      {/* Printable Dispatch Slip */}
+      <div id="dispatch-slip-print" className="hidden print:block p-8 font-sans bg-white text-black">
+        <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight uppercase">Tejco Logistics</h1>
+            <p className="text-xs text-gray-500 uppercase mt-0.5 font-semibold">Warehouse Dispatch Slip</p>
+          </div>
+          <div className="text-right">
+            <div className="font-bold text-lg">{form.orderNumber}</div>
+            <div className="text-xs text-gray-500">Date: {new Date(form.dispatchDate || new Date()).toLocaleDateString("en-GB")}</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
+          <div>
+            <h3 className="font-bold uppercase text-xs text-gray-500 border-b pb-1 mb-2">Ship To</h3>
+            <p className="font-bold">{form.clientName}</p>
+            <p className="text-xs text-gray-600 mt-1 whitespace-pre-line leading-relaxed">{form.shippingAddress}</p>
+          </div>
+          <div>
+            <h3 className="font-bold uppercase text-xs text-gray-500 border-b pb-1 mb-2">Dispatch Details</h3>
+            <table className="w-full text-xs">
+              <tbody>
+                <tr>
+                  <td className="text-gray-500 py-1">From Warehouse:</td>
+                  <td className="font-medium text-right py-1">{form.warehouseName} ({form.warehouseCode})</td>
+                </tr>
+                <tr>
+                  <td className="text-gray-500 py-1">Shipping Partner:</td>
+                  <td className="font-medium text-right py-1">{form.partnerName || "—"}</td>
+                </tr>
+                <tr>
+                  <td className="text-gray-500 py-1">Service Type:</td>
+                  <td className="font-medium text-right py-1">{form.partnerService || "—"}</td>
+                </tr>
+                <tr>
+                  <td className="text-gray-500 py-1">Tracking ID:</td>
+                  <td className="font-mono text-right py-1 font-bold">{form.trackingNumber || "—"}</td>
+                </tr>
+                <tr>
+                  <td className="text-gray-500 py-1">Package Count:</td>
+                  <td className="font-medium text-right py-1">{form.packageCount} pkg</td>
+                </tr>
+                <tr>
+                  <td className="text-gray-500 py-1">Gross Weight:</td>
+                  <td className="font-medium text-right py-1">{form.grossWeightKg ? `${form.grossWeightKg} kg` : "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <h3 className="font-bold uppercase text-xs text-gray-500 border-b pb-1 mb-2">Packed Items</h3>
+        <table className="w-full text-left border-collapse text-xs mb-8">
+          <thead>
+            <tr className="border-b-2 border-gray-300">
+              <th className="py-2 w-12 text-center">S.No</th>
+              <th className="py-2">Item Name / Product</th>
+              <th className="py-2">SKU</th>
+              <th className="py-2 text-right w-24">Quantity</th>
+            </tr>
+          </thead>
+          <tbody>
+            {form.items.map((item, index) => (
+              <tr key={item.id || index} className="border-b border-gray-200">
+                <td className="py-2 text-center">{index + 1}</td>
+                <td className="py-2 font-medium">{item.productName}</td>
+                <td className="py-2 font-mono text-gray-600">{item.sku}</td>
+                <td className="py-2 text-right font-bold">{item.quantity}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {form.remarks && (
+          <div className="mb-8 p-3 bg-gray-100 rounded text-xs border border-gray-200">
+            <span className="font-bold uppercase text-[10px] text-gray-500 block mb-1">Remarks / Special Instructions</span>
+            <p className="text-gray-700">{form.remarks}</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-8 mt-16 text-center text-xs pt-8 border-t border-dashed border-gray-300">
+          <div>
+            <div className="h-12 border-b border-gray-400 mx-auto w-40"></div>
+            <p className="mt-2 text-gray-500 uppercase text-[10px] font-bold">Prepared By</p>
+          </div>
+          <div>
+            <div className="h-12 border-b border-gray-400 mx-auto w-40"></div>
+            <p className="mt-2 text-gray-500 uppercase text-[10px] font-bold">Verified By</p>
+          </div>
+          <div>
+            <div className="h-12 border-b border-gray-400 mx-auto w-40"></div>
+            <p className="mt-2 text-gray-500 uppercase text-[10px] font-bold">Receiver Signature</p>
+          </div>
         </div>
       </div>
     </div>

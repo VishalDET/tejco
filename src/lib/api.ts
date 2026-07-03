@@ -12,7 +12,7 @@ import { apiClient } from "./api-client"
 export { apiClient }
 import type { Client, ClientDelivery, Address, ClientContact } from "@/app/stakeholders/clients/types"
 import type { Vendor } from "@/app/supply-chain/vendors/types"
-import type { Warehouse, ApiWarehouse } from "@/app/supply-chain/warehouse/types"
+import type { Warehouse, ApiWarehouse, Rack } from "@/app/supply-chain/warehouse/types"
 
 // Helpers
 export const serializeAddress = (a?: Address) => a ? `${a.street1}|${a.street2 || ""}|${a.city}|${a.state}|${a.pincode}|${a.country}` : ""
@@ -94,6 +94,8 @@ export function mapApiClient(raw: ApiClient): Client {
     shippingAddress: extra.shippingAddress || parseAddr(mainShippingAddress),
     gstin: raw.gstin || undefined,
     contacts: (raw as any).contacts || extra.contacts || [],
+    instagramUrl: (raw as any).instagramUrl || extra.instagramUrl || "",
+    dateOfBirth: (raw as any).dateOfBirth || extra.dateOfBirth || undefined,
   }
 }
 
@@ -144,6 +146,8 @@ export const clientsApi = {
       shippingAddress: data.shippingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
       contacts: data.contacts ?? [],
       branches: data.branches ?? [],
+      instagramUrl: data.instagramUrl ?? "",
+      dateOfBirth: data.dateOfBirth || null,
     }
     return apiClient.post<any>("/api/Client/Create", payload)
   },
@@ -166,6 +170,8 @@ export const clientsApi = {
       shippingAddress: data.shippingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
       contacts: data.contacts ?? [],
       branches: data.branches ?? [],
+      instagramUrl: data.instagramUrl ?? "",
+      dateOfBirth: data.dateOfBirth || null,
     }
     return apiClient.put<any>(`/api/Client/Update/${id}`, payload)
   },
@@ -225,31 +231,51 @@ export const productsApi = {
 // ---------------------------------------------------------------------------
 
 export function mapApiWarehouse(raw: ApiWarehouse): Warehouse {
-  const address = typeof raw.address === "string" ? raw.address : ""
-  const [addressRaw, racksRaw] = address.split("|||")
-  const addressParts = (addressRaw || "").split("|")
-
-  let racks: any[] = []
-  try {
-    if (racksRaw) {
-      racks = JSON.parse(racksRaw)
-    }
-  } catch (e) {
-    console.error("Failed to parse racks data:", e)
+  let addrObj = {
+    street: "",
+    city: "",
+    state: "",
+    pincode: "",
+    country: "India",
   }
+  let racks: Rack[] = []
 
-  return {
-    id: String(raw.warehouseId),
-    name: raw.warehouseName,
-    address: {
+  if (raw.address && typeof raw.address === "object") {
+    const addr = raw.address as any
+    addrObj = {
+      street: addr.street || "",
+      city: addr.city || "",
+      state: addr.state || "",
+      pincode: addr.pincode || "",
+      country: addr.country || "India",
+    }
+    racks = Array.isArray(raw.racks) ? raw.racks : []
+  } else if (typeof raw.address === "string") {
+    const address = raw.address as string
+    const [addressRaw, racksRaw] = address.split("|||")
+    const addressParts = (addressRaw || "").split("|")
+    addrObj = {
       street: addressParts[0] || "",
       city: addressParts[1] || "",
       state: addressParts[2] || "",
       pincode: addressParts[3] || "",
       country: addressParts[4] || "India",
-    },
-    contactPerson: raw.contactPerson,
-    contactNumber: raw.contactNumber,
+    }
+    try {
+      if (racksRaw) {
+        racks = JSON.parse(racksRaw)
+      }
+    } catch (e) {
+      console.error("Failed to parse racks data:", e)
+    }
+  }
+
+  return {
+    id: String(raw.warehouseId),
+    name: raw.warehouseName,
+    address: addrObj,
+    contactPerson: raw.contactPerson || "",
+    contactNumber: raw.contactNumber || "",
     status: raw.status ? "Active" : "Inactive",
     racks: racks,
   }
@@ -278,42 +304,40 @@ export const warehousesApi = {
 
   /** POST /api/Warehouse */
   create: (data: Partial<Warehouse>) => {
-    const addr = data.address
-    const serializedAddress = addr
-      ? `${addr.street}|${addr.city}|${addr.state}|${addr.pincode}|${addr.country}`
-      : ""
-
-    const racksJson = data.racks ? JSON.stringify(data.racks) : "[]"
-    const finalAddress = `${serializedAddress}|||${racksJson}`
-
     const payload = {
       warehouseId: 0,
-      warehouseName: data.name,
-      address: finalAddress,
-      contactPerson: data.contactPerson,
-      contactNumber: data.contactNumber,
+      warehouseName: data.name ?? "",
+      address: {
+        street: data.address?.street ?? "",
+        city: data.address?.city ?? "",
+        state: data.address?.state ?? "",
+        pincode: data.address?.pincode ?? "",
+        country: data.address?.country ?? "India",
+      },
+      contactPerson: data.contactPerson ?? "",
+      contactNumber: data.contactNumber ?? "",
       status: data.status === "Active",
+      racks: data.racks ?? [],
     }
     return apiClient.post<any>("/api/Warehouse", payload)
   },
 
   /** PUT /api/Warehouse/{id} */
   update: (id: string, data: Partial<Warehouse>) => {
-    const addr = data.address
-    const serializedAddress = addr
-      ? `${addr.street}|${addr.city}|${addr.state}|${addr.pincode}|${addr.country}`
-      : ""
-
-    const racksJson = data.racks ? JSON.stringify(data.racks) : "[]"
-    const finalAddress = `${serializedAddress}|||${racksJson}`
-
     const payload = {
       warehouseId: parseInt(id),
-      warehouseName: data.name,
-      address: finalAddress,
-      contactPerson: data.contactPerson,
-      contactNumber: data.contactNumber,
+      warehouseName: data.name ?? "",
+      address: {
+        street: data.address?.street ?? "",
+        city: data.address?.city ?? "",
+        state: data.address?.state ?? "",
+        pincode: data.address?.pincode ?? "",
+        country: data.address?.country ?? "India",
+      },
+      contactPerson: data.contactPerson ?? "",
+      contactNumber: data.contactNumber ?? "",
       status: data.status === "Active",
+      racks: data.racks ?? [],
     }
     return apiClient.put<any>(`/api/Warehouse/${id}`, payload)
   },

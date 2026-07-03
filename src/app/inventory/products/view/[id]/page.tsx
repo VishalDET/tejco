@@ -36,16 +36,35 @@ export default function ViewProductPage() {
     const [isDeleting, setIsDeleting] = React.useState(false)
     const [error, setError] = React.useState<string | null>(null)
     const [product, setProduct] = React.useState<any>(null)
-    const [categoriesMap, setCategoriesMap] = React.useState<Record<number, string>>({})
+    const [categories, setCategories] = React.useState<any[]>([])
     const [warehousesMap, setWarehousesMap] = React.useState<Record<number, string>>({})
 
-    const buildCategoryPath = (p: any, map: Record<number, string>) => {
-        const path = []
-        if (p.categoryId && map[p.categoryId]) path.push(map[p.categoryId])
-        if (p.subcategoryId && map[p.subcategoryId]) path.push(map[p.subcategoryId])
-        if (p.subcategoryL2Id && map[p.subcategoryL2Id]) path.push(map[p.subcategoryL2Id])
-        if (p.subcategoryL3Id && map[p.subcategoryL3Id]) path.push(map[p.subcategoryL3Id])
-        if (p.subcategoryL4Id && map[p.subcategoryL4Id]) path.push(map[p.subcategoryL4Id])
+    const buildCategoryPath = (p: any, categoriesList: any[]) => {
+        if (!categoriesList || categoriesList.length === 0) return "Uncategorized"
+        
+        const path: string[] = []
+        let currentOptions = categoriesList
+        
+        const ids = [
+            p.categoryId,
+            p.subcategoryId,
+            p.subcategoryL2Id,
+            p.subcategoryL3Id,
+            p.subcategoryL4Id
+        ].filter(id => id && id !== 0)
+        
+        for (const selectedId of ids) {
+            const found = currentOptions.find(o => 
+                ((o as any).subcategoryId || (o as any).categoryId) === selectedId
+            )
+            if (found) {
+                path.push((found as any).subcategoryName || (found as any).categoryName)
+                currentOptions = found.subcategories || []
+            } else {
+                break
+            }
+        }
+        
         return path.join(" > ") || "Uncategorized"
     }
 
@@ -59,20 +78,9 @@ export default function ViewProductPage() {
                 ])
                 
                 const cats = Array.isArray(catRes) ? catRes : (catRes as any).data || []
-                const catMap: Record<number, string> = {}
-                
-                const extractCats = (list: any[]) => {
-                    list.forEach(c => {
-                        const id = c.categoryId || c.subcategoryId
-                        const name = c.categoryName || c.subcategoryName
-                        if (id && name) catMap[id] = name
-                        if (c.subcategories && c.subcategories.length > 0) {
-                            extractCats(c.subcategories)
-                        }
-                    })
-                }
-                extractCats(cats)
-                setCategoriesMap(catMap)
+                console.log("[ViewProduct] Fetched categories list raw:", catRes)
+                console.log("[ViewProduct] Extracted categories list:", cats)
+                setCategories(cats)
 
                 const wMap: Record<number, string> = {}
                 wRes.forEach((w: any) => {
@@ -83,6 +91,7 @@ export default function ViewProductPage() {
                 if (!params.id) return
 
                 const response = await apiClient.get<any>(`/api/Product/GetById/${params.id}`)
+                console.log("[ViewProduct] Fetched product response:", response)
                 if (response.success && response.data) {
                     setProduct(response.data)
                 } else {
@@ -204,7 +213,7 @@ export default function ViewProductPage() {
                                         <p className="text-base font-medium mt-1">{product.productName}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Base SKU</p>
+                                        <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">HSN Code</p>
                                         <p className="text-base font-mono mt-1">{product.baseSKU}</p>
                                     </div>
                                 </div>
@@ -228,7 +237,7 @@ export default function ViewProductPage() {
                             <CardContent className="grid gap-6">
                                 <div>
                                     <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Category Path</p>
-                                    <p className="text-base mt-1">{buildCategoryPath(product, categoriesMap)}</p>
+                                    <p className="text-base mt-1">{buildCategoryPath(product, categories)}</p>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>

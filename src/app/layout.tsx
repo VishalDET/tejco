@@ -32,6 +32,10 @@ export default function RootLayout({
 
   return (
     <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <link rel="icon" href="/assets/images/tejco_favicon.ico" sizes="any" />
+      </head>
       <body className={`${firaSans.variable} ${firaCode.variable} min-h-screen bg-background antialiased font-sans`}>
         <TooltipProvider>
           {isLoginPage ? (

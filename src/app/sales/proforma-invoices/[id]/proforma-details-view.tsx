@@ -2,15 +2,15 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { 
-  ArrowLeft, 
-  Printer, 
-  FileDown, 
-  Edit, 
-  Receipt, 
-  CheckCircle2, 
-  Circle, 
-  Clock, 
+import {
+  ArrowLeft,
+  Printer,
+  FileDown,
+  Edit,
+  Receipt,
+  CheckCircle2,
+  Circle,
+  Clock,
   ShoppingCart,
   Calculator,
   RefreshCw
@@ -25,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ProformaFormDialog } from "../proforma-form-dialog"
-import { proformaApi, quotationsApi } from "@/lib/api"
+import { proformaApi, quotationsApi, productsApi } from "@/lib/api"
 import { toast } from "sonner"
 
 interface ProformaDetailsViewProps {
@@ -39,7 +39,7 @@ const COMPANY = {
   bankDetails: [
     "INR BANK DETAILS",
     "Name of the Company: TEJCO GLOBAL LLP",
-    "Branch Name : Bandra (West), Mumbai – 400 050.",
+    "Branch Name : Bandra (West), Mumbai \u2013 400 050.",
     "Bank Account No : 012800000002727",
     "Type of Account : Current Account",
     "IFSC Code : IOBA0000128",
@@ -47,12 +47,12 @@ const COMPANY = {
 }
 
 const getCurrencySymbol = (currency?: string) => {
-  if (!currency) return "₹"
+  if (!currency) return "\u20B9"
   switch (currency.toUpperCase()) {
     case "USD": return "$"
-    case "EUR": return "€"
-    case "GBP": return "£"
-    case "INR": return "₹"
+    case "EUR": return "\u20AC"
+    case "GBP": return "\u00A3"
+    case "INR": return "\u20B9"
     default: return currency
   }
 }
@@ -81,8 +81,81 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
     fetchLinkedQuotation()
   }, [proforma.sourceQuotationId])
 
+  const enrichProformaWithGst = async (targetProforma: ProformaInvoice): Promise<ProformaInvoice> => {
+    if (!targetProforma.items || targetProforma.items.length === 0) return targetProforma
+
+    try {
+      const updatedItems = await Promise.all(
+        targetProforma.items.map(async (item) => {
+          if (!item.productId) return item
+          try {
+            const prodRes = await productsApi.getById(item.productId)
+            const product = prodRes?.data || prodRes
+
+            let gstRate = item.gstRate
+            if (product) {
+              if (product.variants && Array.isArray(product.variants)) {
+                // Robust matching:
+                // 1. Try SKU matching
+                // 2. Try variantName matching against item.name
+                // 3. Fall back to the first variant
+                const variant = product.variants.find((v: any) => {
+                  const sku = `${product.baseSKU || ""}${v.skuSuffix || ""}`
+                  return sku.toLowerCase() === item.sku.toLowerCase() ||
+                    v.variantName?.toLowerCase() === item.name?.toLowerCase()
+                }) || product.variants[0]
+
+                if (variant) {
+                  gstRate = variant.gstPercentage ?? product.gstPercentage ?? gstRate
+                } else {
+                  gstRate = product.gstPercentage ?? gstRate
+                }
+              } else {
+                gstRate = product.gstPercentage ?? gstRate
+              }
+            }
+
+            return {
+              ...item,
+              gstRate: gstRate || 0
+            }
+          } catch (err) {
+            console.error(`Failed to fetch GST rate for product ID ${item.productId}:`, err)
+            return item
+          }
+        })
+      )
+
+      const isForeign = targetProforma.paymentType === "Foreign"
+      const subtotal = updatedItems.reduce((acc, item) => {
+        const netItemTotal = (item as any).discountedUnitPrice * item.quantity
+        const itemBase = isForeign ? netItemTotal : (netItemTotal / (1 + (item.gstRate || 0) / 100))
+        return acc + itemBase
+      }, 0)
+
+      const calculatedTotalAmount = updatedItems.reduce((acc, item) => acc + ((item as any).discountedUnitPrice * item.quantity), 0)
+      const taxAmount = isForeign ? 0 : (calculatedTotalAmount - subtotal)
+
+      return {
+        ...targetProforma,
+        items: updatedItems,
+        subtotal,
+        taxAmount,
+        totalAmount: subtotal + taxAmount + (targetProforma.freight || 0)
+      }
+    } catch (err) {
+      console.error("Failed to update GST rates dynamically:", err)
+      return targetProforma
+    }
+  }
+
+  // Fetch correct GST rates on mount or when initialProforma items/settings change
+  React.useEffect(() => {
+    enrichProformaWithGst(initialProforma).then(setProforma)
+  }, [initialProforma.items, initialProforma.paymentType, initialProforma.freight])
+
   const handleConvertToOrder = async () => {
-    if (proforma.status === "Converted to Sales Order") return
+    if (proforma.status?.toLowerCase() === "converted to sales order") return
     setIsConverting(true)
     try {
       const payload = {
@@ -141,7 +214,8 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
   const handleSave = async () => {
     try {
       const updated = await proformaApi.getById(String(initialProforma.proformaId))
-      setProforma(updated)
+      const enriched = await enrichProformaWithGst(updated)
+      setProforma(enriched)
       router.refresh()
     } catch (err) {
       console.error("Failed to refresh proforma after edit:", err)
@@ -189,10 +263,10 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
 
   return (
     <>
-      {/* ═══════════════════════════════════════════════════════════
-          SCREEN VIEW — Normal dashboard card layout
+      {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+          SCREEN VIEW â€” Normal dashboard card layout
           Hidden during print via CSS: .screen-only { display: none }
-      ═══════════════════════════════════════════════════════════ */}
+      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
       <div className="screen-only flex flex-col gap-6">
         {/* Header Actions */}
         <div className="flex items-center justify-between">
@@ -214,12 +288,20 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="gap-2 border-slate-200 shadow-sm" onClick={() => window.print()}>
+            <Button variant="outline" className="gap-2 border-slate-200 shadow-sm" onClick={() => {
+              const el = document.getElementById('proforma-print-area')
+              if (el) {
+                el.style.display = 'flex'
+                el.style.flexDirection = 'column'
+                window.onafterprint = () => { el.style.display = 'none' }
+              }
+              window.print()
+            }}>
               <Printer className="h-4 w-4 text-slate-600" /> Print PI
             </Button>
-            <Button variant="outline" className="gap-2 border-slate-200 shadow-sm">
+            {/* <Button variant="outline" className="gap-2 border-slate-200 shadow-sm">
               <FileDown className="h-4 w-4 text-slate-600" /> Download
-            </Button>
+            </Button> */}
             <Button className="gap-2 bg-primary hover:bg-primary/90 shadow-md" onClick={() => setIsDialogOpen(true)}>
               <Edit className="h-4 w-4" /> Edit Details
             </Button>
@@ -276,7 +358,7 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
                             <span className="text-rose-600 font-medium">
                               -{getCurrencySymbol(proforma.currencyType)}{(item.discountAmount * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
-                          ) : "—"}
+                          ) : "\u2014"}
                         </TableCell>
                         <TableCell className="text-center font-bold text-slate-500 bg-slate-50/50">{item.gstRate}%</TableCell>
                         <TableCell className="text-right pr-6 font-extrabold text-slate-900">{getCurrencySymbol(proforma.currencyType)}{(item.unitPrice * item.quantity).toLocaleString()}</TableCell>
@@ -291,25 +373,23 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
                       <span className="text-slate-500 font-medium">{proforma.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
                       <span className="font-bold text-slate-800 text-lg">{getCurrencySymbol(proforma.currencyType)}{originalSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
-                    {hasDiscounts && (
-                      <div className="flex justify-between text-sm items-center">
-                        <span className="text-slate-500 font-medium">Total Discount (Deducted)</span>
-                        <span className="text-rose-600 font-bold text-lg">- {getCurrencySymbol(proforma.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
-                    )}
                     {proforma.paymentType !== "Foreign" && (
                       <>
                         <Separator className="my-1.5 opacity-50" />
-                        <div className="flex justify-between text-sm items-center">
-                          <span className="text-slate-500 font-medium">Subtotal (Excl. GST)</span>
-                          <span className="font-bold text-slate-800 text-lg">{getCurrencySymbol(proforma.currencyType)}{proforma.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                        </div>
+
                         <div className="flex justify-between text-sm items-center">
                           <span className="text-slate-500 font-medium">Total GST (Included)</span>
                           <span className="text-emerald-600 font-extrabold text-lg">{getCurrencySymbol(proforma.currencyType)}{proforma.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       </>
                     )}
+                    {hasDiscounts && (
+                      <div className="flex justify-between text-sm items-center">
+                        <span className="text-slate-500 font-medium">Total Discount (Deducted)</span>
+                        <span className="text-rose-600 font-bold text-lg">- {getCurrencySymbol(proforma.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+
                     {proforma.freight !== undefined && proforma.freight > 0 && (
                       <div className="flex justify-between text-sm items-center">
                         <span className="text-slate-500 font-medium">Freight Charges</span>
@@ -372,8 +452,8 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-3">Post-Issuance Actions</Label>
-                  {proforma.status !== "Converted to Sales Order" && (
-                    <Button 
+                  {proforma.status?.toLowerCase() !== "converted to sales order" && (
+                    <Button
                       className="w-full bg-emerald-600 hover:bg-emerald-700 font-bold gap-2 shadow-lg shadow-emerald-100"
                       onClick={handleConvertToOrder}
                       disabled={isConverting}
@@ -501,182 +581,268 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
         </div>
       </div>
 
-      <div className="print-only" style={{ fontFamily: "Arial, sans-serif", fontSize: "12px" }}>
-        <div style={{ display: "flex", borderBottom: "4px solid #374151" }}>
-          <div style={{ padding: "16px 24px", background: "#fff", minWidth: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg viewBox="0 0 80 80" style={{ width: 80, height: 80 }}>
-              <ellipse cx="20" cy="20" rx="18" ry="18" fill="#CC2229" />
-              <rect x="0" y="28" width="80" height="12" fill="#4A4A4A" />
-              <text x="6" y="60" fontSize="11" fontWeight="bold" fill="#1a1a1a" fontFamily="Arial">TEJCO</text>
-              <text x="6" y="72" fontSize="5.5" fill="#4A4A4A" fontFamily="Arial">Skin • Hair • Optics</text>
-            </svg>
-          </div>
-          <div style={{ width: 8, background: "#DC2626", flexShrink: 0 }} />
-          <div style={{ flex: 1, background: "#4B5563", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px 24px" }}>
-            <span style={{ color: "#fff", fontSize: 22, fontWeight: "bold", letterSpacing: 4, textTransform: "uppercase" }}>
-              {COMPANY.name}
-            </span>
-          </div>
-        </div>
+      {/* â”€â”€ Hidden Print Area â€” matches Proforma-Invoice.pdf exactly â”€â”€â”€ */}
+      <div
+        id="proforma-print-area"
+        className="hidden bg-white text-black"
+        style={{ width: "210mm", minHeight: "297mm", margin: "0 auto", fontFamily: "Arial, sans-serif", fontSize: "12px" }}
+      >
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          @media print {
+            body * { visibility: hidden; }
+            #proforma-print-area, #proforma-print-area * {
+              visibility: visible;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+            #proforma-print-area {
+              position: absolute;
+              left: 0; top: 0;
+              width: 210mm !important;
+              min-height: 297mm !important;
+              display: flex !important;
+              flex-direction: column !important;
+              background: white !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            @page { size: A4 portrait; margin: 0; }
+          }
+        `}} />
 
-        <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-          <div style={{ textAlign: "center", padding: "6px", fontWeight: "bold", fontSize: 13, background: "#F9FAFB", borderBottom: "1px solid #D1D5DB" }}>
-            PROFORMA INVOICE
-          </div>
-          <div style={{ textAlign: "center", padding: "4px", fontSize: 11, color: "#374151" }}>
-            GST NO :- {COMPANY.gst}
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid #D1D5DB" }}>
-          <div style={{ padding: "8px 12px", borderRight: "1px solid #D1D5DB", display: "flex", gap: 8, alignItems: "center" }}>
-            <strong>P.I No</strong>
-            <span style={{ marginLeft: 8 }}>{proforma.number}</span>
-          </div>
-          <div style={{ padding: "8px 12px", display: "flex", gap: 8, alignItems: "center" }}>
-            <strong>DATE</strong>
-            <span style={{ marginLeft: 8 }}>
-              {new Date(proforma.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-          <div style={{ padding: "6px 12px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
-            <strong>Billing Name &amp; Address</strong>
-          </div>
-          <div style={{ padding: "10px 16px", minHeight: 80, lineHeight: 1.6, fontSize: 12 }}>
-            <div style={{ fontWeight: "bold", fontSize: 13, marginBottom: 4 }}>{proforma.clientName}</div>
-            {renderAddressLinesPrint(proforma.billingAddress)}
-            {proforma.gstinNo && <div style={{ marginTop: 4, fontWeight: 600 }}>GSTIN: {proforma.gstinNo}</div>}
-          </div>
-        </div>
-
-        <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-            <thead>
-              <tr style={{ background: "#F9FAFB" }}>
-                <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "left", width: "35%" }}>Products</th>
-                <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "20%" }}>Images</th>
-                <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "10%" }}>Qty</th>
-                <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "17.5%" }}>Rate ({getCurrencySymbol(proforma.currencyType)})</th>
-                <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "17.5%" }}>Total ({getCurrencySymbol(proforma.currencyType)})</th>
-              </tr>
-            </thead>
-            <tbody>
-              {proforma.items.map((item) => (
-                <tr key={item.id}>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "10px", verticalAlign: "top" }}>
-                    <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                    {item.discountPercentage !== undefined && item.discountPercentage > 0 && (
-                      <div style={{ fontSize: 10, color: "#DC2626", marginTop: 2 }}>
-                        Discount: {item.discountPercentage}%
-                        {item.discountAmount !== undefined && ` (${getCurrencySymbol(proforma.currencyType)}${item.discountAmount.toLocaleString()})`}
-                      </div>
-                    )}
-                  </td>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>
-                    {item.imageUrl
-                      ? <img src={getGoogleDrivePreviewUrl(item.imageUrl) || ""} alt={item.productName} style={{ width: 48, height: 48, objectFit: "cover", margin: "0 auto", border: "1px solid #E5E7EB" }} referrerPolicy="no-referrer" />
-                      : <span style={{ color: "#CBD5E1", fontSize: 10 }}>—</span>
-                    }
-                  </td>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>{item.quantity}</td>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle" }}>{getCurrencySymbol(proforma.currencyType)}{item.unitPrice.toLocaleString()}</td>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle", fontWeight: "bold" }}>{getCurrencySymbol(proforma.currencyType)}{(item.unitPrice * item.quantity).toLocaleString()}</td>
-                </tr>
-              ))}
-
-              {/* Filler rows */}
-              {proforma.items.length < 3 && Array.from({ length: 3 - proforma.items.length }).map((_, idx) => (
-                <tr key={`empty-${idx}`}>
-                  {[0, 1, 2, 3, 4].map((c) => (
-                    <td key={c} style={{ border: "1px solid #D1D5DB", padding: "14px 10px" }}>&nbsp;</td>
-                  ))}
-                </tr>
-              ))}
-
-              {/* Freight */}
-              <tr style={{ background: "#F9FAFB" }}>
-                <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold" }}>FREIGHT</td>
-                <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold" }}>
-                  {proforma.freight !== undefined && proforma.freight > 0 ? `${getCurrencySymbol(proforma.currencyType)}${proforma.freight.toLocaleString()}` : "-"}
-                </td>
-              </tr>
-
-              {/* Total */}
-              <tr style={{ background: "#F3F4F6" }}>
-                <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold", fontSize: 12 }}>TOTAL</td>
-                <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold", fontSize: 13 }}>
-                  {getCurrencySymbol(proforma.currencyType)}{proforma.totalAmount.toLocaleString()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Payment Terms */}
-        <div style={{ borderBottom: "1px solid #D1D5DB", padding: "6px 12px" }}>
-          <strong>Payment Terms: </strong>
-          <span>{proforma.paymentTerms || proforma.notes || "100% Advance"}</span>
-        </div>
-
-        {/* Delivery Terms */}
-        <div style={{ borderBottom: "1px solid #D1D5DB", padding: "6px 12px" }}>
-          <strong>DELIVERY TERMS :- </strong>
-          <span>{proforma.deliveryTerms || proforma.deliveryTime || "Immediate Delivery"}</span>
-        </div>
-
-        {/* Footer: Sales Rep + Bank */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid #D1D5DB", minHeight: 120 }}>
-          {/* Left: Sales Rep */}
-          <div style={{ borderRight: "1px solid #D1D5DB", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ fontWeight: "bold" }}>{COMPANY.forLine}</div>
-            {proforma.salesPersonName && (
-              <div style={{ marginTop: 4 }}>
-                <div style={{ fontWeight: 600 }}>
-                  {proforma.salesPersonName}
-                  {proforma.salesPersonCell && `: +91 ${proforma.salesPersonCell}`}
-                </div>
-                {proforma.salesPersonCell && (
-                  <div style={{ color: "#2563EB", fontSize: 11, marginTop: 2 }}>{proforma.salesPersonCell}</div>
-                )}
-              </div>
-            )}
-            <div style={{ marginTop: "auto", color: "#2563EB", textDecoration: "underline", fontSize: 11 }}>
-              AUTHORISED SIGNATORY
+        {/* â•â• HEADER â€” matches PDF: white logo left, red slash, dark grey right â•â• */}
+        <div style={{ position: "relative", width: "100%", height: "105px", overflow: "hidden", flexShrink: 0, background: "#505052" }}>
+          {/* White logo zone â€” diagonal clip */}
+          <div style={{
+            position: "absolute", top: 0, left: 0,
+            width: "240px", height: "86px",
+            background: "white",
+            clipPath: "polygon(0 0, 82% 0, 100% 100%, 0 100%)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center"
+          }}>
+            <img
+              src="/assets/images/tejco_sidebar_logo.png"
+              alt="Tejco"
+              style={{ height: "50px", width: "auto", objectFit: "contain", marginLeft: "-28px" }}
+            />
+            <div style={{ fontSize: "7px", letterSpacing: "0.22em", textTransform: "uppercase", color: "#505052", marginLeft: "-28px", marginTop: "3px", fontFamily: "Verdana, sans-serif" }}>
+              Hair &bull; Skin &bull; Optics
             </div>
           </div>
 
-          {/* Right: Bank Details */}
-          <div style={{ padding: "14px 16px" }}>
-            <div style={{ color: "#2563EB", textDecoration: "underline", fontSize: 11, marginBottom: 6 }}>Bank Details</div>
-            {COMPANY.bankDetails.map((line, idx) => (
-              <div key={idx} style={{ fontSize: 11, lineHeight: 1.6, color: "#374151" }}>{line}</div>
-            ))}
+          {/* Red diagonal slash */}
+          <div style={{
+            position: "absolute", top: 0, left: "195px",
+            width: "58px", height: "86px",
+            background: "#d9232a",
+            clipPath: "polygon(38% 0, 100% 0, 62% 100%, 0 100%)"
+          }} />
+
+          {/* Company name â€” right of dark grey */}
+          <div style={{
+            position: "absolute", top: 0, right: 0, left: "230px", height: "86px",
+            display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "22px"
+          }}>
+            <span style={{ color: "white", fontSize: "21px", fontWeight: "bold", letterSpacing: "0.06em", fontFamily: "Calibri, Arial, sans-serif" }}>
+              TEJCO GLOBAL LLP
+            </span>
           </div>
+
+          {/* Red stripe */}
+          <div style={{ position: "absolute", top: "86px", left: 0, right: 0, height: "10px", background: "#d9232a" }} />
+          {/* Light grey stripe */}
+          <div style={{ position: "absolute", top: "96px", left: 0, right: 0, height: "9px", background: "#e6e6e6" }} />
         </div>
 
-        {/* Document footer */}
-        <div style={{ padding: "12px 16px", textAlign: "center" }}>
-          <p style={{ fontSize: 9, color: "#9CA3AF", letterSpacing: 1 }}>
-            This is a computer-generated document. No signature required.
-          </p>
+        {/* â•â• BODY â•â• */}
+        <div style={{ flex: "1 1 auto", padding: "0 0 16px 0" }}>
+
+          {/* Title rows */}
+          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
+            <div style={{ textAlign: "center", padding: "6px", fontWeight: "bold", fontSize: "13px", background: "#F9FAFB", borderBottom: "1px solid #D1D5DB" }}>
+              PROFORMA INVOICE
+            </div>
+            <div style={{ textAlign: "center", padding: "4px", fontSize: "11px", color: "#374151" }}>
+              GST NO :- {COMPANY.gst}
+            </div>
+          </div>
+
+          {/* PI No + Date */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid #D1D5DB" }}>
+            <div style={{ padding: "8px 12px", borderRight: "1px solid #D1D5DB", display: "flex", gap: "8px", alignItems: "center" }}>
+              <strong>P.I No</strong>
+              <span style={{ marginLeft: "8px" }}>{proforma.number}</span>
+            </div>
+            <div style={{ padding: "8px 12px", display: "flex", gap: "8px", alignItems: "center" }}>
+              <strong>DATE</strong>
+              <span style={{ marginLeft: "8px" }}>
+                {new Date(proforma.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}
+              </span>
+            </div>
+          </div>
+
+          {/* Billing Name & Address */}
+          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
+            <div style={{ padding: "6px 12px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+              <strong>Billing Name &amp; Address</strong>
+            </div>
+            <div style={{ padding: "10px 16px", minHeight: "80px", lineHeight: 1.6, fontSize: "12px" }}>
+              <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "4px" }}>{proforma.clientName}</div>
+              {renderAddressLinesPrint(proforma.billingAddress)}
+              {proforma.clientMobileNo && <div style={{ marginTop: "4px" }}>Mob: {proforma.clientMobileNo}</div>}
+              {proforma.gstinNo && <div style={{ marginTop: "4px", fontWeight: 600 }}>GSTIN: {proforma.gstinNo}</div>}
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+              <thead>
+                <tr style={{ background: "#F9FAFB" }}>
+                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "left", width: "35%" }}>Products</th>
+                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "20%" }}>Images</th>
+                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "10%" }}>Qty</th>
+                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "17.5%" }}>
+                    Rate ({proforma.currencyType === "INR" ? "Rs" : getCurrencySymbol(proforma.currencyType)})
+                  </th>
+                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "17.5%" }}>
+                    Total ({proforma.currencyType === "INR" ? "Rs" : getCurrencySymbol(proforma.currencyType)})
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {proforma.items.map((item) => {
+                  const discountedPrice = item.unitPrice - ((item as any).discountAmount || 0)
+                  const lineTotal = discountedPrice * item.quantity
+                  return (
+                    <tr key={item.id}>
+                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", verticalAlign: "top" }}>
+                        <div style={{ fontWeight: 600 }}>{item.productName}</div>
+                        {item.name && item.name !== item.productName && (
+                          <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "2px" }}>{item.name}</div>
+                        )}
+                        {(item as any).discountPercentage > 0 && (
+                          <div style={{ fontSize: "10px", color: "#DC2626", marginTop: "2px" }}>
+                            Disc: {(item as any).discountPercentage}% ({getCurrencySymbol(proforma.currencyType)}{(item as any).discountAmount?.toLocaleString()}/pc)
+                          </div>
+                        )}
+                        {proforma.paymentType !== "Foreign" && (
+                          <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "2px" }}>GST: {item.gstRate}%</div>
+                        )}
+                      </td>
+                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>
+                        {item.imageUrl
+                          ? <img src={getGoogleDrivePreviewUrl(item.imageUrl) || ""} alt={item.productName} style={{ width: "48px", height: "48px", objectFit: "contain", margin: "0 auto" }} referrerPolicy="no-referrer" />
+                          : <span style={{ color: "#CBD5E1", fontSize: "10px" }}>\u2014</span>
+                        }
+                      </td>
+                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>{item.quantity}</td>
+                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle" }}>
+                        {getCurrencySymbol(proforma.currencyType)}{item.unitPrice.toLocaleString()}
+                        {(item as any).discountAmount > 0 && (
+                          <div style={{ fontSize: "10px", color: "#DC2626" }}>
+                            Net: {getCurrencySymbol(proforma.currencyType)}{discountedPrice.toLocaleString()}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle", fontWeight: "bold" }}>
+                        {getCurrencySymbol(proforma.currencyType)}{lineTotal.toLocaleString()}
+                      </td>
+                    </tr>
+                  )
+                })}
+
+                {/* Filler rows if few items */}
+                {proforma.items.length < 2 && Array.from({ length: 2 - proforma.items.length }).map((_, idx) => (
+                  <tr key={`empty-${idx}`}>
+                    {[0, 1, 2, 3, 4].map((c) => (
+                      <td key={c} style={{ border: "1px solid #D1D5DB", padding: "20px 10px" }}>&nbsp;</td>
+                    ))}
+                  </tr>
+                ))}
+
+                {/* Freight row */}
+                <tr style={{ background: "#F9FAFB" }}>
+                  <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold" }}>FREIGHT</td>
+                  <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold" }}>
+                    {proforma.freight && proforma.freight > 0
+                      ? `${getCurrencySymbol(proforma.currencyType)}${proforma.freight.toLocaleString()}`
+                      : "-"}
+                  </td>
+                </tr>
+
+                {/* Total row */}
+                <tr style={{ background: "#F3F4F6" }}>
+                  <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold", fontSize: "12px" }}>TOTAL</td>
+                  <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold", fontSize: "13px" }}>
+                    {getCurrencySymbol(proforma.currencyType)}{proforma.totalAmount.toLocaleString()}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* Payment Terms */}
+          <div style={{ borderBottom: "1px solid #D1D5DB", padding: "6px 12px" }}>
+            <strong>Payment Terms: </strong>
+            <span>{proforma.paymentTerms || proforma.notes || "100% Advance"}</span>
+          </div>
+
+          {/* Delivery Terms */}
+          <div style={{ borderBottom: "1px solid #D1D5DB", padding: "6px 12px" }}>
+            <strong>DELIVERY TERMS :- </strong>
+            <span>{proforma.deliveryTerms || proforma.deliveryTime || "Immediate Delivery"}</span>
+          </div>
+
+          {/* Sales Rep + Bank Details â€” 2-column footer */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "2px solid #374151", minHeight: "120px" }}>
+            {/* Left: Sales Rep */}
+            <div style={{ borderRight: "1px solid #D1D5DB", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
+              <div style={{ fontWeight: "bold" }}>{COMPANY.forLine}</div>
+              {proforma.salesPersonName && (
+                <div style={{ marginTop: "4px" }}>
+                  <div style={{ fontWeight: 600 }}>
+                    {proforma.salesPersonName}{proforma.salesPersonCell && `: ${proforma.salesPersonCell}`}
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: "auto", color: "#2563EB", textDecoration: "underline", fontSize: "11px" }}>
+                AUTHORISED SIGNATORY
+              </div>
+            </div>
+
+            {/* Right: Bank Details */}
+            <div style={{ padding: "14px 16px" }}>
+              <div style={{ color: "#2563EB", textDecoration: "underline", fontSize: "11px", marginBottom: "6px" }}>Bank Details</div>
+              {COMPANY.bankDetails.map((line, idx) => (
+                <div key={idx} style={{ fontSize: "11px", lineHeight: 1.6, color: "#374151", fontWeight: idx === 0 ? "bold" : "normal" }}>
+                  {line}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Footer note */}
+          <div style={{ padding: "10px 16px", textAlign: "center" }}>
+            <p style={{ fontSize: "9px", color: "#9CA3AF", letterSpacing: "1px" }}>
+              This is a computer-generated document. No signature required.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* ── Global print CSS injected inline ─────────────────────── */}
+      {/* â”€â”€ Global print CSS â”€â”€ */}
       <style>{`
-        @media print {
-          .screen-only { display: none !important; }
-          .print-only  { display: block !important; }
-          body { margin: 0; padding: 0; }
-        }
         @media screen {
-          .print-only  { display: none !important; }
           .screen-only { display: flex; }
+          #proforma-print-area { display: none; }
         }
       `}</style>
+
       <ProformaFormDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}

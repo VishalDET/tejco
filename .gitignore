@@ -20,6 +20,9 @@
 # production
 /build
 /dist
+/tejco-release
+/tejco-release/*
+
 # misc
 .DS_Store
 *.pem

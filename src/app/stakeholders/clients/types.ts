@@ -41,6 +41,8 @@ export interface Client {
   shippingAddress: Address
   gstin?: string
   contacts: ClientContact[]
+  instagramUrl?: string
+  dateOfBirth?: string
 }
 
 export interface ClientDelivery {

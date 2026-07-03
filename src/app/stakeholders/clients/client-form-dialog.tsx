@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -11,8 +11,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { clientsApi } from "@/lib/api"
 import { apiClient } from "@/lib/api-client"
-import { Loader2, Plus, Trash2, UserPlus, Users, Mail, Phone, Building2, Hospital, Stethoscope, Building, MapPin, Globe, Map } from "lucide-react"
+import { Loader2, Plus, Trash2, UserPlus, Users, Mail, Phone, Building2, Hospital, Stethoscope, Building, MapPin, Globe, Map, UploadCloud } from "lucide-react"
 import { Client, ClientContact, ClientBranch, ClientType, Address } from "./types"
+import * as XLSX from "xlsx"
+import { toast } from "sonner"
 
 const emptyAddress: Address = {
   street1: "",
@@ -35,6 +37,208 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [countries, setCountries] = useState<any[]>([])
+
+  // Client Excel Import State
+  const [isImportOpen, setIsImportOpen] = useState(false)
+  const [previewData, setPreviewData] = useState<any>(null)
+
+  const downloadTemplate = () => {
+    const headers = [
+      "Client Name",
+      "Short Name / Alias",
+      "GSTIN",
+      "Client Status",
+      "Client Type",
+      "Primary Email",
+      "Primary Phone",
+      "Website",
+      "Billing Street 1",
+      "Billing Street 2",
+      "Billing City",
+      "Billing State",
+      "Billing Pincode",
+      "Billing Country",
+      "Shipping Street 1",
+      "Shipping Street 2",
+      "Shipping City",
+      "Shipping State",
+      "Shipping Pincode",
+      "Shipping Country",
+      "Contact Name",
+      "Contact Designation",
+      "Contact Email",
+      "Contact Phone",
+      "Branch Name",
+      "Branch Street 1",
+      "Branch Street 2",
+      "Branch City",
+      "Branch State",
+      "Branch Pincode",
+      "Branch Country",
+      "Branch Contact Name",
+      "Branch Contact Designation",
+      "Branch Contact Email",
+      "Branch Contact Phone"
+    ]
+
+    const sampleRow = [
+      "Tejco Healthcare",
+      "Tejco",
+      "22AAAAA0000A1Z5",
+      "Lead",
+      "Clinic",
+      "info@tejco.com",
+      "+91 9876543210",
+      "https://tejco.com",
+      "123 Main Street",
+      "Apt 4B",
+      "Mumbai",
+      "Maharashtra",
+      "400001",
+      "India",
+      "123 Main Street",
+      "Apt 4B",
+      "Mumbai",
+      "Maharashtra",
+      "400001",
+      "India",
+      "Dr. Ramesh Mehta",
+      "Chief Dermatologist",
+      "ramesh@tejco.com",
+      "+91 9876543211",
+      "South Mumbai Branch",
+      "456 Link Road",
+      "",
+      "Mumbai",
+      "Maharashtra",
+      "400002",
+      "India",
+      "Amit Shah",
+      "Branch Manager",
+      "amit@tejco.com",
+      "+91 9876543212"
+    ]
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Client Template")
+    XLSX.writeFile(wb, "Tejco_Client_Import_Template.xlsx")
+  }
+
+  const parseExcel = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result
+        if (!data) return
+        const workbook = XLSX.read(data, { type: "binary" })
+        const sheetName = workbook.SheetNames[0]
+        const sheet = workbook.Sheets[sheetName]
+        const rows = XLSX.utils.sheet_to_json<any>(sheet)
+        if (rows.length === 0) {
+          toast.error("The Excel sheet has no data.")
+          return
+        }
+
+        const firstRow = rows[0]
+        const clientName = firstRow["Client Name"] || firstRow["Entity Name"] || ""
+        const shortName = firstRow["Short Name / Alias"] || firstRow["Short Name"] || ""
+        const gstin = firstRow["GSTIN"] || ""
+        const clientStatus = firstRow["Client Status"] || "Lead"
+        const clientType = firstRow["Client Type"] || "Clinic"
+        const email = firstRow["Primary Email"] || firstRow["Email"] || ""
+        const phone = firstRow["Primary Phone"] || firstRow["Phone"] || ""
+        const website = firstRow["Website"] || ""
+
+        const billingAddress = {
+          street1: firstRow["Billing Street 1"] || "",
+          street2: firstRow["Billing Street 2"] || "",
+          city: firstRow["Billing City"] || "",
+          state: firstRow["Billing State"] || "",
+          pincode: String(firstRow["Billing Pincode"] || ""),
+          country: firstRow["Billing Country"] || "India"
+        }
+
+        const shippingAddress = {
+          street1: firstRow["Shipping Street 1"] || "",
+          street2: firstRow["Shipping Street 2"] || "",
+          city: firstRow["Shipping City"] || "",
+          state: firstRow["Shipping State"] || "",
+          pincode: String(firstRow["Shipping Pincode"] || ""),
+          country: firstRow["Shipping Country"] || "India"
+        }
+
+        const contacts: ClientContact[] = []
+        const branches: ClientBranch[] = []
+
+        rows.forEach((row: any) => {
+          const cName = row["Contact Name"]
+          if (cName) {
+            contacts.push({
+              id: Math.random().toString(36).substr(2, 9),
+              name: cName,
+              designation: row["Contact Designation"] || "",
+              email: row["Contact Email"] || "",
+              phone: String(row["Contact Phone"] || "")
+            })
+          }
+
+          const bName = row["Branch Name"]
+          if (bName) {
+            const branchContacts: ClientContact[] = []
+            const bcName = row["Branch Contact Name"]
+            if (bcName) {
+              branchContacts.push({
+                id: Math.random().toString(36).substr(2, 9),
+                name: bcName,
+                designation: row["Branch Contact Designation"] || "",
+                email: row["Branch Contact Email"] || "",
+                phone: String(row["Branch Contact Phone"] || "")
+              })
+            }
+
+            branches.push({
+              id: Math.random().toString(36).substr(2, 9),
+              name: bName,
+              address: {
+                street1: row["Branch Street 1"] || "",
+                street2: row["Branch Street 2"] || "",
+                city: row["Branch City"] || "",
+                state: row["Branch State"] || "",
+                pincode: String(row["Branch Pincode"] || ""),
+                country: row["Branch Country"] || "India"
+              },
+              contacts: branchContacts
+            })
+          }
+        })
+
+        setPreviewData({
+          client: { name: clientName, company: shortName, gstin, status: clientStatus, clientType, email, phone, website, billingAddress, shippingAddress },
+          contacts,
+          branches
+        })
+        toast.success("Client data parsed. Preview loaded successfully.")
+      } catch (err) {
+        console.error("Error parsing Excel:", err)
+        toast.error("Failed to parse Excel file.")
+      }
+    }
+    reader.readAsBinaryString(file)
+  }
+
+  const handleImportApply = () => {
+    if (!previewData) return
+    setForm({
+      ...previewData.client,
+      contacts: previewData.contacts,
+      branches: previewData.branches,
+      hasBranches: previewData.branches.length > 0
+    })
+    setIsImportOpen(false)
+    setPreviewData(null)
+    toast.success("Excel details loaded into the client form.")
+  }
 
   useEffect(() => {
     const fetchCountries = async () => {
@@ -189,11 +393,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-2">
+        <DialogHeader className="p-6 pb-2 flex flex-row items-center justify-between pr-10">
           <DialogTitle className="text-2xl flex items-center gap-2">
             <Users className="h-6 w-6 text-primary" />
             {client ? "Edit Client Profile" : "Create New Client"}
           </DialogTitle>
+          {!client && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsImportOpen(true)} className="gap-2">
+              <UploadCloud className="h-4 w-4" /> Import Excel
+            </Button>
+          )}
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-6 pt-2">
@@ -270,6 +479,29 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   </div>
                 </div>
               </div>
+
+              {form.clientType === "Doctor" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                    <Input 
+                      id="dateOfBirth" 
+                      type="date" 
+                      value={form.dateOfBirth ? form.dateOfBirth.split("T")[0] : ""} 
+                      onChange={(e) => set("dateOfBirth", e.target.value)} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="instagramUrl">Instagram ID / URL</Label>
+                    <Input 
+                      id="instagramUrl" 
+                      placeholder="e.g. dr.johndoe" 
+                      value={form.instagramUrl ?? ""} 
+                      onChange={(e) => set("instagramUrl", e.target.value)} 
+                    />
+                  </div>
+                </div>
+              )}
 
               {(form.clientType === "Hospital" || form.clientType === "Clinic") && (
                 <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
@@ -515,6 +747,146 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <UploadCloud className="h-5 w-5 text-primary" />
+              Import Client & Profile Details via Excel
+            </DialogTitle>
+            <DialogDescription>
+              Upload an Excel sheet to populate the client's information, contacts list, and branches list.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-4 overflow-y-auto pr-1 py-2 flex-1">
+            <div className="flex items-center justify-between p-4 bg-muted/30 border rounded-xl">
+              <div className="grid gap-1">
+                <p className="text-sm font-semibold">Step 1: Download Template</p>
+                <p className="text-xs text-muted-foreground">Use our standardized template to format your client data correctly.</p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={downloadTemplate}>
+                Download Excel Template
+              </Button>
+            </div>
+
+            <div className="grid gap-2">
+              <p className="text-sm font-semibold">Step 2: Upload Excel File</p>
+              <label className="border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-2 hover:bg-muted/10 transition-colors cursor-pointer border-muted-foreground/20">
+                <UploadCloud className="h-8 w-8 text-muted-foreground/60" />
+                <span className="text-sm font-medium">Click to upload or drag & drop</span>
+                <span className="text-xs text-muted-foreground">Supports .xlsx and .xls formats</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  accept=".xlsx, .xls"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) parseExcel(file)
+                  }}
+                />
+              </label>
+            </div>
+
+            {previewData && (
+              <div className="border rounded-xl p-4 bg-slate-50/50 space-y-4">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <h3 className="font-bold text-sm text-slate-800">Preview Data</h3>
+                  <div className="flex gap-2">
+                    <span className="text-xs font-semibold text-primary">{previewData.contacts.length} Contacts</span>
+                    <span className="text-xs font-semibold text-blue-600">{previewData.branches.length} Branches</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Client Name</p>
+                    <p className="font-medium text-slate-700 mt-0.5">{previewData.client.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Short Name / Type</p>
+                    <p className="font-medium text-slate-700 mt-0.5">{previewData.client.company || "-"} ({previewData.client.clientType})</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Email & Phone</p>
+                    <p className="font-medium text-slate-700 mt-0.5 truncate">{previewData.client.email || "-"} / {previewData.client.phone || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Website</p>
+                    <p className="font-medium text-slate-700 mt-0.5 truncate">{previewData.client.website || "-"}</p>
+                  </div>
+                </div>
+
+                {previewData.contacts.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Contacts Preview</h4>
+                    <div className="max-h-[140px] overflow-y-auto border rounded-lg bg-white">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead className="bg-slate-50 sticky top-0 border-b">
+                          <tr>
+                            <th className="p-2 font-semibold text-slate-600">Contact Name</th>
+                            <th className="p-2 font-semibold text-slate-600">Designation</th>
+                            <th className="p-2 font-semibold text-slate-600">Email</th>
+                            <th className="p-2 font-semibold text-slate-600">Phone</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewData.contacts.map((c: any) => (
+                            <tr key={c.id} className="border-b last:border-0 hover:bg-slate-50/50">
+                              <td className="p-2 text-slate-700 font-medium">{c.name}</td>
+                              <td className="p-2 text-slate-500">{c.designation || "-"}</td>
+                              <td className="p-2 text-slate-500">{c.email || "-"}</td>
+                              <td className="p-2 text-slate-500 font-mono">{c.phone || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {previewData.branches.length > 0 && (
+                  <div className="space-y-1.5">
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Branches Preview</h4>
+                    <div className="max-h-[140px] overflow-y-auto border rounded-lg bg-white">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead className="bg-slate-50 sticky top-0 border-b">
+                          <tr>
+                            <th className="p-2 font-semibold text-slate-600">Branch Name</th>
+                            <th className="p-2 font-semibold text-slate-600">City & State</th>
+                            <th className="p-2 font-semibold text-slate-600">Branch Contact</th>
+                            <th className="p-2 font-semibold text-slate-600">Email & Phone</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewData.branches.map((b: any) => (
+                            <tr key={b.id} className="border-b last:border-0 hover:bg-slate-50/50">
+                              <td className="p-2 text-slate-700 font-medium">{b.name}</td>
+                              <td className="p-2 text-slate-500">{b.address.city || "-"}, {b.address.state || "-"}</td>
+                              <td className="p-2 text-slate-500">{b.contacts[0]?.name || "-"} ({b.contacts[0]?.designation || "-"})</td>
+                              <td className="p-2 text-slate-500 truncate">{b.contacts[0]?.email || "-"} / {b.contacts[0]?.phone || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 border-t pt-4">
+            <Button type="button" variant="outline" onClick={() => { setIsImportOpen(false); setPreviewData(null); }}>
+              Close
+            </Button>
+            <Button type="button" disabled={!previewData} onClick={handleImportApply} className="px-6 font-semibold">
+              Apply to Form
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

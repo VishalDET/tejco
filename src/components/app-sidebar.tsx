@@ -145,7 +145,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     function NavMainItem({ item, pathname }: { item: any; pathname: string | null }) {
         const isActive =
             item.url === pathname ||
-            (item.items?.some((subItem: any) => pathname === subItem.url));
+            (item.items?.some((subItem: any) => pathname?.startsWith(subItem.url)));
 
         const [open, setOpen] = React.useState(isActive)
 
@@ -193,7 +193,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
                     <SidebarMenuSub className="border-l-2 border-indigo-100/50 pl-4 ml-3 mt-1.5 space-y-1">
                         {item.items.map((subItem: any) => {
-                            const isSubActive = pathname === subItem.url;
+                            const isSubActive = pathname?.startsWith(subItem.url);
                             return (
                                 <SidebarMenuSubItem key={subItem.title}>
                                     <SidebarMenuSubButton
@@ -217,15 +217,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarHeader className="py-4 px-3 border-b border-slate-100">
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton size="lg" className="hover:bg-transparent cursor-default">
-                            <div className="flex aspect-square size-10 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-md transition-transform hover:scale-105 duration-300 ease-out">
-                                <Boxes className="size-5" />
-                            </div>
-                            <div className="flex flex-1 items-center ml-2">
-                                {/* Use Tejco text or logo with proper contrast */}
-                                <span className="text-xl font-bold tracking-tight text-slate-900">
-                                    Tejco<span className="text-indigo-600">ERP</span>
-                                </span>
+                        <SidebarMenuButton size="lg" className="hover:bg-transparent cursor-default h-12 flex items-center">
+                            <div className="flex h-10 w-auto items-center justify-start overflow-hidden">
+                                <img
+                                    src="/assets/images/tejco_sidebar_logo.png"
+                                    alt="Tejco Logo"
+                                    className="h-8 w-auto object-contain transition-transform hover:scale-[1.02] duration-300 ease-out"
+                                />
                             </div>
                         </SidebarMenuButton>
                     </SidebarMenuItem>

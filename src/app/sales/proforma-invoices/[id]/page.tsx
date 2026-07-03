@@ -1,20 +1,56 @@
-import { notFound } from "next/navigation"
-import { ProformaDetailsView } from "./proforma-details-view"
-import { proformaApi } from "@/lib/api"
+"use client"
 
-export default async function ProformaDetailsPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params
-  
-  try {
-    const proforma = await proformaApi.getById(params.id)
+import * as React from "react"
+import { useParams, notFound } from "next/navigation"
+import { ProformaDetailsView } from "./proforma-details-view"
+import { ProformaInvoice } from "@/app/sales/proforma-invoices/types"
+import { proformaApi } from "@/lib/api"
+import { Loader } from "@/components/ui/loader"
+
+export default function ProformaDetailsPage() {
+  const params = useParams()
+  const id = params?.id as string
+  const [proforma, setProforma] = React.useState<ProformaInvoice | null>(null)
+  const [loading, setLoading] = React.useState(true)
+  const [error, setError] = React.useState<any>(null)
+
+  React.useEffect(() => {
+    if (!id) return
+    let active = true
+    setLoading(true)
+    setError(null)
     
-    if (!proforma) {
-      notFound()
+    proformaApi.getById(id)
+      .then(data => {
+        if (active) {
+          setProforma(data)
+          setLoading(false)
+        }
+      })
+      .catch(err => {
+        if (active) {
+          console.error("Error loading proforma:", err)
+          setError(err)
+          setLoading(false)
+        }
+      })
+      
+    return () => {
+      active = false
     }
-    
-    return <ProformaDetailsView proforma={proforma} />
-  } catch (error) {
-    console.error(`Error loading proforma ${params.id}:`, error)
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Loader layout="container" size="lg" text="Loading proforma invoice details..." />
+      </div>
+    )
+  }
+
+  if (error || !proforma) {
     notFound()
   }
+
+  return <ProformaDetailsView proforma={proforma} />
 }
