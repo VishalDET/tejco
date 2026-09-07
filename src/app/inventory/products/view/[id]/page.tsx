@@ -1,8 +1,6 @@
-"use client"
-
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, Edit, Trash2, Package, Tag, Layers, AlertCircle, RefreshCcw, Loader2 } from "lucide-react"
+import { useNavigate, useParams } from "react-router-dom"
+import { ArrowLeft, Edit, Trash2, Package, Tag, Layers, AlertCircle, RefreshCcw, Loader2, ShoppingCart } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
@@ -15,8 +13,17 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Loader } from "@/components/ui/loader"
 import { toast } from "sonner"
-import { categoriesApi, warehousesApi } from "@/lib/api"
+import { categoriesApi, warehousesApi, productsApi } from "@/lib/api"
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -30,12 +37,14 @@ import {
 } from "@/components/ui/alert-dialog"
 
 export default function ViewProductPage() {
-    const router = useRouter()
+    const navigate = useNavigate()
     const params = useParams()
     const [isLoading, setIsLoading] = React.useState(true)
     const [isDeleting, setIsDeleting] = React.useState(false)
     const [error, setError] = React.useState<string | null>(null)
     const [product, setProduct] = React.useState<any>(null)
+    const [salesDetails, setSalesDetails] = React.useState<any[] | null>(null)
+    const [isSalesLoading, setIsSalesLoading] = React.useState(false)
     const [categories, setCategories] = React.useState<any[]>([])
     const [warehousesMap, setWarehousesMap] = React.useState<Record<number, string>>({})
 
@@ -90,12 +99,21 @@ export default function ViewProductPage() {
 
                 if (!params.id) return
 
-                const response = await apiClient.get<any>(`/api/Product/GetById/${params.id}`)
+                const [response, salesRes] = await Promise.all([
+                    apiClient.get<any>(`/api/Product/GetById/${params.id}`),
+                    productsApi.getSalesDetails(params.id).catch(() => null)
+                ])
+
                 console.log("[ViewProduct] Fetched product response:", response)
                 if (response.success && response.data) {
                     setProduct(response.data)
                 } else {
                     setError(response.message || "Product not found")
+                }
+
+                if (salesRes) {
+                    const sData = Array.isArray(salesRes) ? salesRes : salesRes.data || []
+                    setSalesDetails(sData)
                 }
             } catch (err: any) {
                 console.error("Error fetching data:", err)
@@ -113,7 +131,7 @@ export default function ViewProductPage() {
             const response = await apiClient.delete<any>(`/api/Product/Delete/${params.id}`)
             if (response.success) {
                 toast.success("Product deleted successfully")
-                router.push("/inventory/products")
+                navigate("/inventory/products")
             } else {
                 toast.error(response.message || "Failed to delete product")
                 setIsDeleting(false)
@@ -134,7 +152,7 @@ export default function ViewProductPage() {
         <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -143,7 +161,7 @@ export default function ViewProductPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => router.push(`/inventory/products/${params.id}`)}>
+                    <Button variant="outline" onClick={() => navigate(`/inventory/products/${params.id}`)}>
                         <Edit className="mr-2 h-4 w-4" /> Edit
                     </Button>
                     <AlertDialog>
@@ -178,10 +196,7 @@ export default function ViewProductPage() {
             </div>
 
             {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-4">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                    <p className="text-muted-foreground animate-pulse">Loading product details...</p>
-                </div>
+                <Loader layout="container" size="lg" text="Loading product details..." />
             ) : error || !product ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-4 border-2 border-dashed rounded-xl bg-destructive/5 border-destructive/20">
                     <AlertCircle className="h-12 w-12 text-destructive" />
@@ -197,7 +212,7 @@ export default function ViewProductPage() {
                 <div className="grid gap-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Card>
-                            <CardHeader>
+                            <CardHeader className="pt-4">
                                 <CardTitle className="flex items-center gap-2">
                                     <Package className="h-5 w-5 text-primary" />
                                     Product Information
@@ -206,7 +221,7 @@ export default function ViewProductPage() {
                                     Product ID: {product.productId}
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="grid gap-6">
+                            <CardContent className="grid gap-6 pb-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
                                         <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Product Name</p>
@@ -225,7 +240,7 @@ export default function ViewProductPage() {
                         </Card>
 
                         <Card>
-                            <CardHeader>
+                            <CardHeader className="pt-4">
                                 <CardTitle className="flex items-center gap-2">
                                     <Tag className="h-5 w-5 text-blue-600" />
                                     Classification
@@ -234,7 +249,7 @@ export default function ViewProductPage() {
                                     How this product is grouped.
                                 </CardDescription>
                             </CardHeader>
-                            <CardContent className="grid gap-6">
+                            <CardContent className="grid gap-6 pb-4">
                                 <div>
                                     <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Category Path</p>
                                     <p className="text-base mt-1">{buildCategoryPath(product, categories)}</p>
@@ -258,7 +273,7 @@ export default function ViewProductPage() {
                     </div>
 
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="pt-4">
                             <CardTitle className="flex items-center gap-2">
                                 <Layers className="h-5 w-5 text-violet-600" />
                                 Variants & Pricing
@@ -267,7 +282,7 @@ export default function ViewProductPage() {
                                 Available sizes, price points, and locations.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="grid gap-6">
+                        <CardContent className="grid gap-6 pb-4">
                             {!product.variants || product.variants.length === 0 ? (
                                 <p className="text-muted-foreground py-4 text-center">No variants found.</p>
                             ) : (
@@ -356,6 +371,56 @@ export default function ViewProductPage() {
                                         </div>
                                     </div>
                                 ))
+                            )}
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="pt-4">
+                            <CardTitle className="flex items-center gap-2">
+                                <ShoppingCart className="h-5 w-5 text-emerald-600" />
+                                Sales Records
+                            </CardTitle>
+                            <CardDescription>
+                                Recent sales and invoice history for this product.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-4">
+                            {!salesDetails || salesDetails.length === 0 ? (
+                                <p className="text-muted-foreground py-4 text-center">No sales records found for this product.</p>
+                            ) : (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Invoice # / Ref</TableHead>
+                                            <TableHead>Client</TableHead>
+                                            <TableHead>Variant</TableHead>
+                                            <TableHead className="text-right">Quantity</TableHead>
+                                            <TableHead className="text-right">Unit Price</TableHead>
+                                            <TableHead className="text-right">Total Amount</TableHead>
+                                            <TableHead>Date</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {salesDetails.map((item: any, idx: number) => (
+                                            <TableRow key={item.id || item.invoiceId || idx}>
+                                                <TableCell className="font-mono font-medium">
+                                                    {item.invoiceNumber || item.orderNumber || item.reference || `#${item.id || idx + 1}`}
+                                                </TableCell>
+                                                <TableCell>{item.clientName || item.customerName || "-"}</TableCell>
+                                                <TableCell>{item.variantName || "-"}</TableCell>
+                                                <TableCell className="text-right font-mono">{item.quantity || item.qty || 0}</TableCell>
+                                                <TableCell className="text-right font-mono">{formatCurrency(item.unitPrice || item.price || 0)}</TableCell>
+                                                <TableCell className="text-right font-mono font-semibold text-emerald-600">
+                                                    {formatCurrency(item.totalAmount || item.amount || (item.quantity * item.unitPrice) || 0)}
+                                                </TableCell>
+                                                <TableCell className="text-muted-foreground text-xs">
+                                                    {item.date || item.createdAt ? new Date(item.date || item.createdAt).toLocaleDateString("en-GB") : "-"}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             )}
                         </CardContent>
                     </Card>

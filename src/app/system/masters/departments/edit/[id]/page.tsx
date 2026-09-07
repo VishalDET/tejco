@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Save, X, LayoutGrid, User, Building2, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -39,7 +38,8 @@ type Department = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EditDepartmentPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const deptIdFromParams = params.id as string
 
@@ -81,7 +81,7 @@ export default function EditDepartmentPage() {
                 }
             } catch (err) {
                 toast.error("Failed to load data")
-                router.back()
+                navigate(-1)
             } finally {
                 setIsFetchingInitial(false)
             }
@@ -109,7 +109,7 @@ export default function EditDepartmentPage() {
         try {
             await apiClient.put(`/api/SystemMasters/departments/${deptIdFromParams}`, payload)
             toast.success("Department updated successfully")
-            router.push("/system/masters/departments")
+            navigate("/system/masters/departments")
         } catch (err: any) {
             toast.error(err.message || "Failed to update department")
         } finally {
@@ -129,7 +129,7 @@ export default function EditDepartmentPage() {
         <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -251,7 +251,7 @@ export default function EditDepartmentPage() {
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

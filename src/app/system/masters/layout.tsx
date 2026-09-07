@@ -1,8 +1,5 @@
-"use client"
-
 import * as React from "react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { Link, useLocation, Outlet } from "react-router-dom"
 import { Building2, GitBranch, LayoutGrid, Layers, ChevronRight, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -34,24 +31,21 @@ const navigation = [
     },
 ]
 
-export default function MastersLayout({
-    children,
-}: {
-    children: React.ReactNode
-}) {
-    const pathname = usePathname()
+export default function MastersLayout() {
+    const location = useLocation()
+    const pathname = location.pathname
     const isDashboard = pathname === "/system/masters"
 
     return (
         <div className="flex flex-col space-y-6">
             <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Link href="/system" className="hover:text-primary transition-colors">
+                    <Link to="/system" className="hover:text-primary transition-colors">
                         System
                     </Link>
                     <ChevronRight className="h-4 w-4" />
                     <Link
-                        href="/system/masters"
+                        to="/system/masters"
                         className={cn(
                             "hover:text-primary transition-colors",
                             isDashboard && "text-primary font-medium"
@@ -67,7 +61,7 @@ export default function MastersLayout({
                         return (
                             <Link
                                 key={item.name}
-                                href={item.href}
+                                to={item.href}
                                 className={cn(
                                     "flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all relative",
                                     isActive
@@ -83,7 +77,7 @@ export default function MastersLayout({
                 </nav>
             </div>
 
-            <main>{children}</main>
+            <main><Outlet /></main>
         </div>
     )
 }

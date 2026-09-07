@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect } from "react"
 import { SalesDocumentItem, SalesDocumentStatus } from "../types"
@@ -121,8 +120,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
     const resolveClientId = async () => {
       if (form.clientName && !form.clientId) {
         try {
-          const list = await clientsApi.getAll()
-          const match = list.find((c: any) => c.name?.toLowerCase().trim() === form.clientName?.toLowerCase().trim())
+          const res = await clientsApi.getAll()
+          const match = res.clients.find((c: any) => c.name?.toLowerCase().trim() === form.clientName?.toLowerCase().trim())
           if (match) {
             setForm(prev => ({
               ...prev,

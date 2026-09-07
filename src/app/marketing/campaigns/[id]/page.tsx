@@ -1,19 +1,23 @@
-import { notFound } from "next/navigation"
+import { useParams, Link } from "react-router-dom"
 import { MOCK_CAMPAIGNS, MOCK_TEMPLATES, MOCK_AUDIENCES, MOCK_CAMPAIGN_RECIPIENTS } from "../../data"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ArrowLeft, Users, MessageCircle, AlertCircle, CheckCircle2, Clock, Map, Send, Eye, RefreshCw, Smartphone } from "lucide-react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
-export default async function CampaignDetailsPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params
+export default function CampaignDetailsPage() {
+  const params = useParams()
   const campaign = MOCK_CAMPAIGNS.find((c) => c.id === params.id)
 
   if (!campaign) {
-    notFound()
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center space-y-2">
+        <h2 className="text-xl font-bold">Campaign Not Found</h2>
+        <p className="text-muted-foreground">The requested campaign does not exist.</p>
+      </div>
+    )
   }
 
   const template = MOCK_TEMPLATES.find((t) => t.id === campaign.templateId)
@@ -47,7 +51,7 @@ export default async function CampaignDetailsPage(props: { params: Promise<{ id:
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full">
       <div className="flex items-center gap-4">
-        <Link href="/marketing">
+        <Link to="/marketing">
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -137,7 +141,7 @@ export default async function CampaignDetailsPage(props: { params: Promise<{ id:
               <div className="space-y-2 border-b pb-4">
                 <p className="text-sm text-muted-foreground">Selected Audience</p>
                 <div>
-                  <Link href="/marketing/audiences" className="font-medium text-sm hover:underline">{audience?.name || campaign.audienceId}</Link>
+                  <Link to="/marketing/audiences" className="font-medium text-sm hover:underline">{audience?.name || campaign.audienceId}</Link>
                   <p className="text-xs text-muted-foreground mt-1">{audience?.description}</p>
                 </div>
               </div>
@@ -145,7 +149,7 @@ export default async function CampaignDetailsPage(props: { params: Promise<{ id:
               <div className="space-y-2 border-b pb-4">
                 <p className="text-sm text-muted-foreground">Template Utilized</p>
                 <div>
-                  <Link href="/marketing/templates" className="font-medium text-sm flex items-center gap-2 hover:underline">
+                  <Link to="/marketing/templates" className="font-medium text-sm flex items-center gap-2 hover:underline">
                     <MessageCircle className="h-4 w-4" />
                     {template?.name || campaign.templateId}
                   </Link>

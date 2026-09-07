@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import {
   AlertTriangle,
   ArrowLeft,
@@ -74,7 +73,8 @@ function cloneDispatch(dispatch: OrderDispatch): OrderDispatch {
 }
 
 export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const [form, setForm] = React.useState<OrderDispatch>(() => cloneDispatch(dispatch))
   const readiness = getDispatchReadiness(form)
 
@@ -181,7 +181,7 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -278,11 +278,11 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
       <div className="grid gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-8">
           <Card>
-            <CardHeader>
+            <CardHeader className="py-4">
               <CardTitle>Dispatch Info</CardTitle>
               <CardDescription>Record the delivery partner, tracking number, tracking link, charges, and dispatch date.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-5 sm:grid-cols-2">
+            <CardContent className="grid gap-5 sm:grid-cols-2 py-4">
               {/* Delivery Partner — full width */}
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="partnerName">Delivery Partner (Company Name) *</Label>
@@ -352,11 +352,11 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="py-4">
               <CardTitle>Packed Items</CardTitle>
               <CardDescription>Products included in this dispatch handoff.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-4">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
@@ -381,10 +381,10 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
 
         <div className="space-y-6 xl:col-span-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="py-4">
               <CardTitle className="text-lg">Shipping Address</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 py-4">
               <div className="flex gap-3">
                 <MapPin className="mt-1 h-4 w-4 text-muted-foreground" />
                 <div>
@@ -409,14 +409,14 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between py-4">
               <div>
                 <CardTitle className="text-lg">Tracking Timeline</CardTitle>
                 <CardDescription>Operational delivery events.</CardDescription>
               </div>
               <ClipboardList className="h-5 w-5 text-primary" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-4">
               <div className="space-y-5">
                 {form.timeline.map((event) => (
                   <div key={event.id} className="flex gap-4">
@@ -466,10 +466,10 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="py-4">
               <CardTitle className="text-lg">Dispatch Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+            <CardContent className="space-y-3 text-sm py-4">
               <div className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <Truck className="h-4 w-4" />

@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import {
     ColumnDef,
     flexRender,
@@ -235,7 +234,7 @@ export default function CategoriesPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export
                     </Button>
-                    <Button render={<Link href="/system/masters/categories/add" />} nativeButton={false}>
+                    <Button render={<Link to="/system/masters/categories/add" />} nativeButton={false}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Category
                     </Button>

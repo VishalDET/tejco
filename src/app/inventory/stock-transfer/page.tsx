@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit, ArrowRightLeft, Boxes, Warehouse, Clock, CheckCircle2, Truck, AlertCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -75,7 +74,8 @@ const getStatusBadge = (status: TransferStatus) => {
 }
 
 export default function StockTransferPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const [transfers, setTransfers] = React.useState<StockTransfer[]>(mockTransfers)
     const [isDialogOpen, setIsDialogOpen] = React.useState(false)
     const [selectedTransfer, setSelectedTransfer] = React.useState<StockTransfer | null>(null)
@@ -142,7 +142,7 @@ export default function StockTransferPage() {
 
                 <TabsContent value="all" className="mt-6">
                     <Card className="shadow-sm">
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pt-4 pb-7">
                             <div>
                                 <CardTitle className="text-lg">Transfer History</CardTitle>
                                 <CardDescription>Monitor and track internal stock movements.</CardDescription>
@@ -160,7 +160,7 @@ export default function StockTransferPage() {
                                 <Button variant="outline" size="icon"><Filter className="h-4 w-4" /></Button>
                             </div>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="pb-4">
                             <Table>
                                 <TableHeader className="bg-muted/50">
                                     <TableRow>
@@ -208,7 +208,7 @@ export default function StockTransferPage() {
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem 
                                                                 className="gap-2" 
-                                                                onClick={() => router.push(`/inventory/stock-transfer/${transfer.id}`)}
+                                                                onClick={() => navigate(`/inventory/stock-transfer/${transfer.id}`)}
                                                             >
                                                                 <Eye className="h-4 w-4" /> View Details
                                                             </DropdownMenuItem>

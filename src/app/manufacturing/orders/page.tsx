@@ -1,4 +1,3 @@
-"use client"
 
 import * as React from "react"
 import { Play, CheckCircle2, AlertCircle, Settings2, ArrowRight } from "lucide-react"

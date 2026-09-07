@@ -5,17 +5,7 @@
  */
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://tejco.digitaledgetech.in/api"
-
-// Bypass TLS certificate verification for local development on the server
-// This is necessary because Node.js rejects self-signed certificates by default.
-if (
-  typeof window === "undefined" &&
-  API_BASE_URL.includes("localhost") &&
-  process.env.NODE_ENV === "development"
-) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
-}
+  import.meta.env.VITE_API_BASE_URL ?? "http://tejco.digitaledgetech.in/api"
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown
@@ -27,11 +17,11 @@ async function request<T>(
 ): Promise<T> {
   const { body, headers, ...rest } = options
 
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log(`[apiClient] Fetching: ${API_BASE_URL}${path}`)
   }
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("tejco_auth_token") : null
+  const token = localStorage.getItem("tejco_auth_token")
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,

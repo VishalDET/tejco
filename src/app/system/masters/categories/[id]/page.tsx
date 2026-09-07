@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Save, X, Plus, Trash2, Layers, Tags, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -65,7 +64,8 @@ type ApiResponse<T> = {
 }
 
 export default function EditCategoryPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const categoryId = parseInt(params.id as string)
 
@@ -99,7 +99,7 @@ export default function EditCategoryPage() {
                 })))
             } catch (err: unknown) {
                 toast.error("Failed to load category details")
-                router.push("/system/masters/categories")
+                navigate("/system/masters/categories")
             } finally {
                 setIsFetching(false)
             }
@@ -146,7 +146,7 @@ export default function EditCategoryPage() {
         try {
             await apiClient.put(`/api/Category/Update/${categoryId}`, payload)
             toast.success(`Category updated successfully`)
-            router.push("/system/masters/categories")
+            navigate("/system/masters/categories")
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
             toast.error(`Failed to update category: ${message}`)
@@ -161,7 +161,7 @@ export default function EditCategoryPage() {
             await apiClient.delete(`/api/Category/Delete/${categoryId}`)
             toast.success("Category deleted successfully")
             setIsDeleteDialogOpen(false)
-            router.push("/system/masters/categories")
+            navigate("/system/masters/categories")
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
             toast.error(`Failed to delete category: ${message}`)
@@ -182,7 +182,7 @@ export default function EditCategoryPage() {
         <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" type="button" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" type="button" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -318,7 +318,7 @@ export default function EditCategoryPage() {
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

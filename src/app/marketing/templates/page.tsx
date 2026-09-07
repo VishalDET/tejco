@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -54,7 +53,7 @@ export default function TemplatesPage() {
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {templates.map((template) => (
             <Card key={template.id} className="flex flex-col h-full">
-              <CardHeader className="pb-3 flex flex-row items-start justify-between space-y-0">
+              <CardHeader className="pt-4 pb-3 flex flex-row items-start justify-between space-y-0">
                 <div className="space-y-1">
                   <CardTitle className="text-lg font-semibold flex items-center gap-2">
                     <MessageCircle className="h-4 w-4 text-muted-foreground" />
@@ -69,7 +68,7 @@ export default function TemplatesPage() {
                   {template.category}
                 </Badge>
               </CardHeader>
-              <CardContent className="flex-1">
+              <CardContent className="flex-1 pb-4">
                 <div className="rounded-md bg-muted/50 p-4 border relative">
                   <div className="absolute top-0 right-0 p-2 text-xs text-muted-foreground font-mono bg-muted rounded-bl-md border-b border-l">
                     {template.language}

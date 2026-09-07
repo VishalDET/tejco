@@ -1,7 +1,6 @@
-"use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,13 +8,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ArrowLeft, Send, Sparkles, AlertCircle } from "lucide-react"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import { MOCK_AUDIENCES, MOCK_TEMPLATES } from "../../data"
 import { RouteMobileService } from "../../route-mobile"
 import { MarketingCampaign, WhatsAppTemplate } from "../../types"
 
 export default function CreateCampaignPage() {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const [name, setName] = useState("")
   const [audienceId, setAudienceId] = useState("")
   const [templateId, setTemplateId] = useState("")
@@ -57,7 +57,7 @@ export default function CreateCampaignPage() {
       // Usually we'd save this to a backend database, but here we just redirect
       // to let the mock dashboard show it (though the dashboard uses static MOCK_CAMPAIGNS currently, 
       // in a real app it would fetch the newly inserted row).
-      router.push("/marketing")
+      navigate("/marketing")
     } catch (error) {
       console.error(error)
       alert("Failed to send campaign")
@@ -68,7 +68,7 @@ export default function CreateCampaignPage() {
   return (
     <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full">
       <div className="flex items-center gap-4">
-        <Link href="/marketing">
+        <Link to="/marketing">
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -163,7 +163,7 @@ export default function CreateCampaignPage() {
           )}
 
           <div className="flex justify-end gap-4">
-            <Link href="/marketing">
+            <Link to="/marketing">
               <Button variant="outline" disabled={isSending}>Cancel</Button>
             </Link>
             <Button 

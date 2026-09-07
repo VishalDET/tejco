@@ -1,4 +1,3 @@
-"use client"
 
 import * as React from "react"
 import { Save, User, Shield, Bell, Globe, Database, Smartphone, Zap } from "lucide-react"

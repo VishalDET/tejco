@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import {
     ColumnDef,
     flexRender,
@@ -155,7 +154,7 @@ export default function BranchesPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Branches</h1>
                     <p className="text-muted-foreground">Manage physical office locations across all companies.</p>
                 </div>
-                <Button render={<Link href="/system/masters/branches/add" />} nativeButton={false}>
+                <Button render={<Link to="/system/masters/branches/add" />} nativeButton={false}>
                     <Plus className="mr-2 h-4 w-4" />
                     New Branch
                 </Button>

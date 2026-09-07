@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Edit, LayoutGrid, User, MapPin, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -27,7 +26,8 @@ type Department = {
 }
 
 export default function DepartmentDetailPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const deptId = params.id as string
 
@@ -41,7 +41,7 @@ export default function DepartmentDetailPage() {
                 setDept(data)
             } catch (err) {
                 toast.error("Failed to load department details")
-                router.push("/system/masters/departments")
+                navigate("/system/masters/departments")
             } finally {
                 setIsLoading(false)
             }
@@ -63,7 +63,7 @@ export default function DepartmentDetailPage() {
         <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -71,7 +71,7 @@ export default function DepartmentDetailPage() {
                         <p className="text-muted-foreground">{dept.code}</p>
                     </div>
                 </div>
-                <Button onClick={() => router.push(`/system/masters/departments/edit/${deptId}`)}>
+                <Button onClick={() => navigate(`/system/masters/departments/edit/${deptId}`)}>
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Department
                 </Button>

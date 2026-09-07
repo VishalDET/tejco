@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import {
     ColumnDef,
     flexRender,
@@ -140,7 +139,7 @@ export default function CountriesPage() {
                     <h1 className="text-3xl font-bold tracking-tight">Countries</h1>
                     <p className="text-muted-foreground">Manage country-specific currency, payment configurations, and profiles.</p>
                 </div>
-                <Button render={<Link href="/system/masters/countries/add" />} nativeButton={false}>
+                <Button render={<Link to="/system/masters/countries/add" />} nativeButton={false}>
                     <Plus className="mr-2 h-4 w-4" />
                     Add Country
                 </Button>

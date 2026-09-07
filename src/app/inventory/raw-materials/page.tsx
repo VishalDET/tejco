@@ -1,4 +1,3 @@
-"use client"
 
 import * as React from "react"
 import {
@@ -138,28 +137,28 @@ export default function RawMaterialsPage() {
 
             <div className="grid gap-4 md:grid-cols-3">
                 <Card className="shadow-sm">
-                    <CardHeader className="pb-2">
+                    <CardHeader className="pt-4 pb-2">
                         <CardTitle className="text-sm font-medium">Critical Items</CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pb-4">
                         <div className="text-2xl font-bold text-destructive">1</div>
                         <p className="text-xs text-muted-foreground">Items below minimum stock</p>
                     </CardContent>
                 </Card>
                 <Card className="shadow-sm">
-                    <CardHeader className="pb-2">
+                    <CardHeader className="pt-4 pb-2">
                         <CardTitle className="text-sm font-medium">Monthly Usage</CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pb-4">
                         <div className="text-2xl font-bold">12,450</div>
                         <p className="text-xs text-muted-foreground">Material cost this month</p>
                     </CardContent>
                 </Card>
                 <Card className="shadow-sm">
-                    <CardHeader className="pb-2">
+                    <CardHeader className="pt-4 pb-2">
                         <CardTitle className="text-sm font-medium">Active Vendors</CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pb-4">
                         <div className="text-2xl font-bold">18</div>
                         <p className="text-xs text-muted-foreground">Supplying raw materials</p>
                     </CardContent>
@@ -167,10 +166,10 @@ export default function RawMaterialsPage() {
             </div>
 
             <Card className="shadow-sm">
-                <CardHeader>
+                <CardHeader className="pt-4">
                     <CardTitle className="text-lg">Material Inventory</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pb-4">
                     <div className="flex items-center justify-between py-4 gap-4">
                         <div className="relative flex-1 max-w-sm">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

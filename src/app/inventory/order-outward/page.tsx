@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import {
   AlertCircle,
   CheckCircle2,
@@ -101,7 +100,8 @@ function DashboardStat({
 }
 
 export default function OrderOutwardPage() {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const [orders, setOrders] = React.useState<OutwardOrder[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [activeTab, setActiveTab] = React.useState<"all" | OutwardStatus>("all")
@@ -267,7 +267,7 @@ export default function OrderOutwardPage() {
           </Button>
           <Button 
             className="gap-2" 
-            onClick={() => router.push(`/inventory/order-outward/${nextReadyOrderId}`)}
+            onClick={() => navigate(`/inventory/order-outward/${nextReadyOrderId}`)}
             disabled={!nextReadyOrderId}
           >
             <Play className="h-4 w-4" />
@@ -314,7 +314,7 @@ export default function OrderOutwardPage() {
 
         <TabsContent value={activeTab} className="mt-6">
           <Card>
-            <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between py-4">
               <div>
                 <CardTitle className="text-lg">Outward Queue</CardTitle>
                 <CardDescription>Orders shown here are ready for warehouse processing.</CardDescription>
@@ -324,7 +324,7 @@ export default function OrderOutwardPage() {
                 Multi-warehouse queue
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-4">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
@@ -395,7 +395,7 @@ export default function OrderOutwardPage() {
                                 className="gap-2"
                                 disabled={isLoading}
                                 onClick={async () => {
-                                  router.push(`/inventory/order-outward/${order.id}`)
+                                  navigate(`/inventory/order-outward/${order.id}`)
                                 }}
                               >
                                 {order.status === "Completed" ? (
@@ -500,7 +500,7 @@ export default function OrderOutwardPage() {
                                     className="gap-2 h-8 text-xs"
                                     disabled={isLoading}
                                     onClick={async () => {
-                                      router.push(`/inventory/order-outward/${order.id}`)
+                                      navigate(`/inventory/order-outward/${order.id}`)
                                     }}
                                   >
                                     {order.status === "Completed" ? (

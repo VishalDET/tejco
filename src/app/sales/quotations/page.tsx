@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit, RefreshCw, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,7 +38,8 @@ const getCurrencySymbol = (currency?: string) => {
 }
 
 export default function QuotationsPage() {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const [quotations, setQuotations] = React.useState<Quotation[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isRefreshing, setIsRefreshing] = React.useState(false)
@@ -122,7 +122,7 @@ export default function QuotationsPage() {
       status: "Draft",
       date: new Date().toISOString().split('T')[0]
     }))
-    router.push("/sales/proforma-invoices?convert=true")
+    navigate("/sales/proforma-invoices?convert=true")
   }
 
   const handleEdit = (q: Quotation) => {
@@ -269,7 +269,7 @@ export default function QuotationsPage() {
                           <DropdownMenuItem onClick={() => handleEdit(q)} className="gap-2 cursor-pointer">
                             <Edit className="h-4 w-4 text-slate-500" /> Edit Quotation
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => router.push(`/sales/quotations/${q.id}`)} className="gap-2 cursor-pointer">
+                          <DropdownMenuItem onClick={() => navigate(`/sales/quotations/${q.id}`)} className="gap-2 cursor-pointer">
                             <Eye className="h-4 w-4 text-slate-500" /> View Detailed View
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />

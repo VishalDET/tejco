@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect } from "react"
 import { SalesDocument, SalesDocumentItem, SalesDocumentStatus } from "../types"
@@ -119,8 +118,8 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     const resolveClientId = async () => {
       if (form.clientName && !form.clientId) {
         try {
-          const list = await clientsApi.getAll()
-          const match = list.find((c: any) => c.name?.toLowerCase().trim() === form.clientName?.toLowerCase().trim())
+          const res = await clientsApi.getAll()
+          const match = res.clients.find((c: any) => c.name?.toLowerCase().trim() === form.clientName?.toLowerCase().trim())
           if (match) {
             setForm(prev => ({
               ...prev,

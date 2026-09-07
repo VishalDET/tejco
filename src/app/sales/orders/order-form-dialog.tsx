@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect } from "react"
 import { Order, OrderItem, OrderStatus, PaymentStatus } from "./types"
@@ -132,8 +131,8 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
 
           // 1. Resolve client by name if ID is missing
           if (order.clientName && !clientId) {
-            const list = await clientsApi.getAll()
-            const match = list.find((c: any) => c.name?.toLowerCase().trim() === order.clientName?.toLowerCase().trim())
+            const res = await clientsApi.getAll()
+            const match = res.clients.find((c: any) => c.name?.toLowerCase().trim() === order.clientName?.toLowerCase().trim())
             if (match) {
               clientId = match.id
               // Always use client master's addresses when resolving client ID during conversion

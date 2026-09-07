@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Save, X, Plus, Trash2, Package, Tag, IndianRupee, Layers, Barcode, RefreshCcw, ImageIcon, UploadCloud } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -55,7 +54,8 @@ interface Category {
 }
 
 export default function AddProductPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const [isLoading, setIsLoading] = React.useState(false)
     const [name, setName] = React.useState("")
     const [baseSKU, setBaseSKU] = React.useState("")
@@ -413,7 +413,7 @@ export default function AddProductPage() {
         try {
             await productsApi.create(payload)
             toast.success("Product created successfully with " + variants.length + " variants")
-            router.push("/inventory/products")
+            navigate("/inventory/products")
         } catch (error) {
             console.error("Error creating product:", error)
             toast.error("Failed to create product. Please try again.")
@@ -426,7 +426,7 @@ export default function AddProductPage() {
         <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -823,7 +823,7 @@ export default function AddProductPage() {
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

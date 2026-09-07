@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Save, X, GitBranch, MapPin, User, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -48,7 +47,8 @@ type Branch = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EditBranchPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const branchIdFromParams = params.id as string
 
@@ -90,7 +90,7 @@ export default function EditBranchPage() {
                 }
             } catch (err: unknown) {
                 toast.error("Failed to load branch details")
-                router.back()
+                navigate(-1)
             } finally {
                 setIsFetchingInitial(false)
             }
@@ -120,7 +120,7 @@ export default function EditBranchPage() {
         try {
             await apiClient.put(`/api/SystemMasters/branches/${branchIdFromParams}`, payload)
             toast.success("Branch updated successfully")
-            router.push("/system/masters/branches")
+            navigate("/system/masters/branches")
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
             toast.error(`Failed to update branch: ${message}`)
@@ -141,7 +141,7 @@ export default function EditBranchPage() {
         <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" type="button" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" type="button" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -276,7 +276,7 @@ export default function EditBranchPage() {
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

@@ -1,4 +1,3 @@
-"use client"
 
 import * as React from "react"
 import { Printer, Download, Copy, Check } from "lucide-react"

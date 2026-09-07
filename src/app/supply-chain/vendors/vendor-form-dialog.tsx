@@ -62,7 +62,7 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
   const handleSave = () => {
     // Basic validation could go here
     const savedVendor: Vendor = {
-      id: vendor?.id || `v-${Math.random().toString(36).substr(2, 9)}`,
+      id: vendor?.id || "0",
       name: formData.name || "",
       contactPerson: formData.contactPerson || "",
       email: formData.email || "",

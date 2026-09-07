@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Save, X, Globe, DollarSign, Wallet, Loader2, AlertCircle } from "lucide-react"
 
 import { countryMasterApi, CountryMaster } from "@/lib/api"
@@ -12,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 
 export default function EditCountryPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const countryId = params.id ? String(params.id) : ""
 
@@ -70,7 +70,7 @@ export default function EditCountryPage() {
         try {
             await countryMasterApi.update(countryId, payload)
             toast.success("Country updated successfully")
-            router.push("/system/masters/countries")
+            navigate("/system/masters/countries")
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
             toast.error(`Failed to update country: ${message}`)
@@ -94,7 +94,7 @@ export default function EditCountryPage() {
                 <AlertCircle className="h-12 w-12 text-destructive" />
                 <h2 className="text-xl font-bold">Failed to Load Country</h2>
                 <p className="text-muted-foreground">{error}</p>
-                <Button variant="outline" onClick={() => router.back()}>
+                <Button variant="outline" onClick={() => navigate(-1)}>
                     Go Back
                 </Button>
             </div>
@@ -105,7 +105,7 @@ export default function EditCountryPage() {
         <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" type="button" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" type="button" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -168,7 +168,7 @@ export default function EditCountryPage() {
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

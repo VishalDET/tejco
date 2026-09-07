@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import {
   ArrowLeft,
   Printer,
@@ -58,7 +58,7 @@ const getCurrencySymbol = (currency?: string) => {
 }
 
 export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetailsViewProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
   const [proforma, setProforma] = React.useState<ProformaInvoice>(initialProforma)
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isConverting, setIsConverting] = React.useState(false)
@@ -208,7 +208,7 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
       paymentStatus: "Unpaid",
       date: new Date().toISOString().split("T")[0],
     }))
-    router.push("/sales/orders?convert=true")
+    navigate("/sales/orders?convert=true")
   }
 
   const handleSave = async () => {
@@ -216,7 +216,7 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
       const updated = await proformaApi.getById(String(initialProforma.proformaId))
       const enriched = await enrichProformaWithGst(updated)
       setProforma(enriched)
-      router.refresh()
+      navigate(0)
     } catch (err) {
       console.error("Failed to refresh proforma after edit:", err)
     }
@@ -266,12 +266,12 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
       {/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
           SCREEN VIEW â€” Normal dashboard card layout
           Hidden during print via CSS: .screen-only { display: none }
-      â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */}
+      â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â• â•  */}
       <div className="screen-only flex flex-col gap-6">
         {/* Header Actions */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => router.back()} className="rounded-full h-10 w-10 border-slate-200">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-2 text-slate-600 hover:text-slate-900">
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -538,7 +538,7 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
                     <div className="flex flex-col">
                       <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Linked Quotation</span>
                       <button
-                        onClick={() => router.push(`/sales/quotations/${proforma.sourceQuotationId}`)}
+                        onClick={() => navigate(`/sales/quotations/${proforma.sourceQuotationId}`)}
                         className="text-sm font-bold text-primary hover:underline mt-1 text-left"
                       >
                         {linkedQuotationNumber}

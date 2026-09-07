@@ -1,8 +1,7 @@
-"use client"
 
 import * as React from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { Link } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import {
     ColumnDef,
     ColumnFiltersState,
@@ -264,7 +263,7 @@ export const columns: ColumnDef<User>[] = [
 ]
 
 export default function UsersPage() {
-    const router = useRouter()
+    const router = useNavigate()
     const [data, setData] = React.useState<User[]>([])
     const [loading, setLoading] = React.useState(true)
     const [error, setError] = React.useState<string | null>(null)
@@ -364,7 +363,7 @@ export default function UsersPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export
                     </Button>
-                    <Button render={<Link href="/system/masters/users/add" />} nativeButton={false}>
+                    <Button render={<Link to="/system/masters/users/add" />} nativeButton={false}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add User / Employee
                     </Button>

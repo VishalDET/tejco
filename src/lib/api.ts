@@ -57,6 +57,27 @@ export interface ApiClient {
 
 /** Maps the backend ApiClient shape to the UI Client type */
 export function mapApiClient(raw: ApiClient): Client {
+  if (!raw) {
+    return {
+      id: "0",
+      name: "Unknown",
+      contactPerson: "",
+      company: "",
+      email: "",
+      phone: "",
+      status: "Active",
+      clientType: "Clinic",
+      hasBranches: false,
+      branches: [],
+      joinedDate: "",
+      address: "",
+      billingAddress: { street1: "", city: "", state: "", pincode: "", country: "" },
+      shippingAddress: { street1: "", city: "", state: "", pincode: "", country: "" },
+      contacts: [],
+      instagramUrl: "",
+    }
+  }
+
   let extra: any = {}
   
   // Handle case where shippingAddress might be a string with JSON or legacy pipe format
@@ -73,30 +94,57 @@ export function mapApiClient(raw: ApiClient): Client {
 
   const parseAddr = (addr: any): Address => {
     if (!addr) return { street1: "", city: "", state: "", pincode: "", country: "" }
-    if (typeof addr === 'object' && addr.street1 !== undefined) return addr as Address
+    if (typeof addr === 'object' && addr.street1 !== undefined) {
+      // Return a new plain object to ensure serializability
+      return {
+        street1: String(addr.street1 || ""),
+        street2: String(addr.street2 || ""),
+        city: String(addr.city || ""),
+        state: String(addr.state || ""),
+        pincode: String(addr.pincode || ""),
+        country: String(addr.country || ""),
+      }
+    }
     return deserializeAddress(addr)
   }
 
+  const r = raw as any
+
   return {
-    id: String(raw.clientId),
-    name: raw.name || "",
-    contactPerson: raw.contactPerson || extra.contactPerson || "",
-    company: raw.company || raw.name || "",
-    email: raw.email || extra.email || "",
-    phone: raw.phone || "",
-    status: (raw as any).status || extra.status || "Active",
-    clientType: (raw as any).clientType || extra.clientType || "Clinic",
-    hasBranches: (raw as any).hasBranches || extra.hasBranches || false,
-    branches: (raw as any).branches || extra.branches || [],
-    joinedDate: (raw as any).joinedDate || extra.joinedDate || new Date().toISOString(),
+    id: String(raw.clientId ?? 0),
+    name: String(raw.name || ""),
+    contactPerson: String(raw.contactPerson || extra.contactPerson || ""),
+    company: String(raw.company || raw.name || ""),
+    email: String(raw.email || extra.email || ""),
+    phone: String(raw.phone || ""),
+    status: (r.status || extra.status || "Active") as Client["status"],
+    clientType: (r.clientType || extra.clientType || "") as Client["clientType"],
+    hasBranches: Boolean(r.hasBranches || extra.hasBranches || false),
+    branches: Array.isArray(r.branches) ? r.branches : Array.isArray(extra.branches) ? extra.branches : [],
+    joinedDate: String(r.joinedDate || extra.joinedDate || ""),
     address: typeof raw.billingAddress === 'string' ? raw.billingAddress : "", // legacy
-    billingAddress: extra.billingAddress || parseAddr(raw.billingAddress),
-    shippingAddress: extra.shippingAddress || parseAddr(mainShippingAddress),
-    gstin: raw.gstin || undefined,
-    contacts: (raw as any).contacts || extra.contacts || [],
-    instagramUrl: (raw as any).instagramUrl || extra.instagramUrl || "",
-    dateOfBirth: (raw as any).dateOfBirth || extra.dateOfBirth || undefined,
+    billingAddress: extra.billingAddress ? parseAddr(extra.billingAddress) : parseAddr(raw.billingAddress),
+    shippingAddress: extra.shippingAddress ? parseAddr(extra.shippingAddress) : parseAddr(mainShippingAddress),
+    gstin: raw.gstin ? String(raw.gstin) : undefined,
+    contacts: Array.isArray(r.contacts) ? r.contacts : Array.isArray(extra.contacts) ? extra.contacts : [],
+    instagramUrl: String(r.instagramUrl || extra.instagramUrl || ""),
+    dateOfBirth: r.dateOfBirth ? String(r.dateOfBirth) : undefined,
   }
+}
+
+
+export interface ClientGetAllParams {
+  pageNumber?: number
+  pageSize?: number
+  sortBy?: string
+  sortDir?: string
+  search?: string
+  searchBy?: string
+}
+
+export interface ClientGetAllResponse {
+  clients: Client[]
+  totalCount: number
 }
 
 // ---------------------------------------------------------------------------
@@ -104,16 +152,35 @@ export function mapApiClient(raw: ApiClient): Client {
 // ---------------------------------------------------------------------------
 
 export const clientsApi = {
-  /** GET /api/Clients — fetch all clients */
-  getAll: async (): Promise<Client[]> => {
+  /** GET /api/Client/GetAll — fetch clients with pagination & filtering */
+  getAll: async (params?: ClientGetAllParams): Promise<ClientGetAllResponse> => {
     try {
-      const raw = await apiClient.get<any>("/api/Client/GetAll")
-      if (Array.isArray(raw)) return raw.map(mapApiClient)
-      if (raw?.data && Array.isArray(raw.data)) return raw.data.map(mapApiClient)
-      return []
+      const query = new URLSearchParams()
+      if (params?.pageNumber) query.append("pageNumber", String(params.pageNumber))
+      if (params?.pageSize) query.append("pageSize", String(params.pageSize))
+      if (params?.sortBy) query.append("sortBy", params.sortBy)
+      if (params?.sortDir) query.append("sortDir", params.sortDir)
+      if (params?.search) query.append("search", params.search)
+      if (params?.searchBy) query.append("searchBy", params.searchBy)
+
+      const queryString = query.toString() ? `?${query.toString()}` : ""
+      const raw = await apiClient.get<any>(`/api/Client/GetAll${queryString}`)
+
+      let clients: Client[] = []
+      let totalCount = 0
+
+      if (Array.isArray(raw)) {
+        clients = raw.map(mapApiClient)
+        totalCount = clients.length
+      } else if (raw?.data && Array.isArray(raw.data)) {
+        clients = raw.data.map(mapApiClient)
+        totalCount = raw.totalCount ?? raw.total ?? clients.length
+      }
+
+      return { clients, totalCount }
     } catch (err) {
       console.error("Failed to fetch clients:", err)
-      return []
+      return { clients: [], totalCount: 0 }
     }
   },
 
@@ -125,8 +192,12 @@ export const clientsApi = {
   },
 
   /** GET /api/Clients/{id}/deliveries — fetch delivery history for a client */
-  getDeliveries: (id: string) =>
-    apiClient.get<ClientDelivery[]>(`/api/Client/${id}/deliveries`),
+  getDeliveries: async (id: string): Promise<ClientDelivery[]> => {
+    const raw = await apiClient.get<any>(`/api/Client/${id}/deliveries`)
+    if (Array.isArray(raw)) return raw
+    if (raw?.data && Array.isArray(raw.data)) return raw.data
+    return []
+  },
 
   /** POST /api/Client/Create — create a new client */
   create: (data: Partial<Client>) => {
@@ -180,27 +251,88 @@ export const clientsApi = {
   remove: (id: string) => apiClient.delete<void>(`/api/Client/${id}`),
 }
 
-// ---------------------------------------------------------------------------
-// Vendors  →  /api/Vendors
-// ---------------------------------------------------------------------------
+export interface ApiVendor {
+  vendorId?: number
+  id?: number
+  vendorName?: string
+  name?: string
+  address?: string
+  gstin?: string
+  email?: string
+  contactPerson?: string
+  phone?: string
+  status?: boolean | string
+}
+
+export function mapApiVendor(raw: ApiVendor): Vendor {
+  const vId = String(raw.vendorId ?? raw.id ?? 0)
+  return {
+    id: vId,
+    name: raw.vendorName || raw.name || `Vendor #${vId}`,
+    contactPerson: raw.contactPerson || raw.vendorName || "",
+    email: raw.email || "",
+    phone: raw.phone || "",
+    address: typeof raw.address === "string" ? raw.address : "",
+    gstin: raw.gstin || "",
+    status: raw.status === false ? "Inactive" : "Active",
+    products: [],
+    purchaseHistory: [],
+    payments: [],
+  }
+}
 
 export const vendorsApi = {
-  /** GET /api/Vendors — fetch all vendors */
-  getAll: () => apiClient.get<Vendor[]>("/api/Vendors"),
+  /** GET /api/Vendor — fetch all vendors */
+  getAll: async (): Promise<Vendor[]> => {
+    try {
+      const raw = await apiClient.get<any>("/api/Vendor")
+      const list = Array.isArray(raw) ? raw : (raw?.data && Array.isArray(raw.data) ? raw.data : [])
+      return list.map(mapApiVendor)
+    } catch (err) {
+      console.error("Failed to fetch vendors:", err)
+      return []
+    }
+  },
 
-  /** GET /api/Vendors/{id} — fetch a single vendor */
-  getById: (id: string) => apiClient.get<Vendor>(`/api/Vendors/${id}`),
+  /** GET /api/Vendor/{id} */
+  getById: async (id: string): Promise<Vendor> => {
+    const raw = await apiClient.get<any>(`/api/Vendor/${id}`)
+    const data = raw?.data || raw
+    return mapApiVendor(data)
+  },
 
-  /** POST /api/Vendors — create a new vendor */
-  create: (data: Omit<Vendor, "id" | "products" | "purchaseHistory" | "payments">) =>
-    apiClient.post<Vendor>("/api/Vendors", data),
+  /** POST /api/Vendor */
+  create: (data: Partial<Vendor>) => {
+    const payload = {
+      vendorId: 0,
+      vendorName: data.name || "",
+      contactPerson: data.contactPerson || "",
+      email: data.email || "",
+      phone: data.phone || "",
+      address: typeof data.address === "string" ? data.address : "",
+      gstin: data.gstin || "",
+      status: data.status === "Inactive" ? false : true,
+    }
+    return apiClient.post<any>("/api/Vendor", payload)
+  },
 
-  /** PUT /api/Vendors/{id} — update an existing vendor */
-  update: (id: string, data: Partial<Omit<Vendor, "id">>) =>
-    apiClient.put<Vendor>(`/api/Vendors/${id}`, data),
+  /** PUT /api/Vendor/{id} */
+  update: (id: string, data: Partial<Vendor>) => {
+    const payload = {
+      vendorId: parseInt(id) || 0,
+      vendorName: data.name || "",
+      contactPerson: data.contactPerson || "",
+      email: data.email || "",
+      phone: data.phone || "",
+      address: typeof data.address === "string" ? data.address : "",
+      gstin: data.gstin || "",
+      status: data.status === "Inactive" ? false : true,
+    }
+    return apiClient.put<any>(`/api/Vendor/${id}`, payload)
+  },
 
-  /** DELETE /api/Vendors/{id} — delete a vendor */
-  remove: (id: string) => apiClient.delete<void>(`/api/Vendors/${id}`),
+  /** DELETE /api/Vendor/{id} */
+  remove: (id: string) => apiClient.delete<void>(`/api/Vendor/${id}`),
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +346,9 @@ export const productsApi = {
 
   /** GET /api/Product/GetById/{id} */
   getById: (id: string | number) => apiClient.get<any>(`/api/Product/GetById/${id}`),
+
+  /** GET /api/Product/SalesDetails/{id} */
+  getSalesDetails: (id: string | number) => apiClient.get<any>(`/api/Product/SalesDetails/${id}`),
 
   /** POST /api/Product/Create */
   create: (data: any) => apiClient.post<any>("/api/Product/Create", data),
@@ -271,14 +406,16 @@ export function mapApiWarehouse(raw: ApiWarehouse): Warehouse {
   }
 
   return {
-    id: String(raw.warehouseId),
-    name: raw.warehouseName,
+    id: String(raw.warehouseId ?? (raw as any).id ?? 0),
+    warehouseId: raw.warehouseId ?? Number((raw as any).id) ?? 0,
+    name: raw.warehouseName || (raw as any).name || "",
+    warehouseName: raw.warehouseName || (raw as any).name || "",
     address: addrObj,
     contactPerson: raw.contactPerson || "",
     contactNumber: raw.contactNumber || "",
     status: raw.status ? "Active" : "Inactive",
     racks: racks,
-  }
+  } as any
 }
 
 export const warehousesApi = {
@@ -286,7 +423,7 @@ export const warehousesApi = {
   getAll: async (): Promise<Warehouse[]> => {
     try {
       const raw = await apiClient.get<any>("/api/Warehouse")
-      // Handle different API response formats
+      // Handle response envelope { statusCode: 200, data: [...] }
       const list = Array.isArray(raw) ? raw : (raw?.data && Array.isArray(raw.data) ? raw.data : [])
       return list.map(mapApiWarehouse)
     } catch (err) {
@@ -674,6 +811,46 @@ export const countryMasterApi = {
   remove: (id: number | string) => apiClient.delete<void>(`/api/CountryMaster/Delete/${id}`),
 }
 
+// ---------------------------------------------------------------------------
+// Stock Inward  →  /api/StockInward
+// ---------------------------------------------------------------------------
 
+import type { InwardOrder, InwardScanEvent, StatusUpdateDto } from "@/app/inventory/stock-inward/types"
+
+export const stockInwardApi = {
+  getAll: () => apiClient.get<InwardOrder[]>("/api/StockInward/GetAll"),
+  getById: (id: number | string) => apiClient.get<InwardOrder>(`/api/StockInward/GetById/${id}`),
+  create: (data: Partial<InwardOrder>) => apiClient.post<InwardOrder>("/api/StockInward/Create", data),
+  update: (id: number | string, data: Partial<InwardOrder>) => apiClient.put<InwardOrder>(`/api/StockInward/Update/${id}`, data),
+  updateStatus: (id: number | string, dto: StatusUpdateDto) => apiClient.put<void>(`/api/StockInward/${id}/Status`, dto),
+  scan: (id: number | string, event: InwardScanEvent) => apiClient.post<void>(`/api/StockInward/${id}/Scan`, event),
+  remove: (id: number | string) => apiClient.delete<void>(`/api/StockInward/Delete/${id}`),
+}
+
+
+
+// ---------------------------------------------------------------------------
+// Reports  →  /api/Report
+// ---------------------------------------------------------------------------
+
+export interface ReportFilterDto {
+  startDate?: string   // ISO date string e.g. "2025-01-01"
+  endDate?: string     // ISO date string e.g. "2025-12-31"
+  [key: string]: unknown  // allow any extra filter fields the backend may accept
+}
+
+export const reportsApi = {
+  /** POST /api/Report/sales */
+  getSales: (filter: ReportFilterDto) =>
+    apiClient.post<any>("/api/Report/sales", filter),
+
+  /** POST /api/Report/orders-outward */
+  getOrdersOutward: (filter: ReportFilterDto) =>
+    apiClient.post<any>("/api/Report/orders-outward", filter),
+
+  /** POST /api/Report/inventory-inward */
+  getInventoryInward: (filter: ReportFilterDto) =>
+    apiClient.post<any>("/api/Report/inventory-inward", filter),
+}
 
 

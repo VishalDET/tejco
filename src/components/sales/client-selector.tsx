@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect } from "react"
 import { Check, ChevronsUpDown, Search, User } from "lucide-react"
@@ -30,7 +29,7 @@ export function ClientSelector({ selectedClientId, selectedClientName, onSelect 
   useEffect(() => {
     setIsLoading(true)
     clientsApi.getAll()
-      .then(setClients)
+      .then((res) => setClients(res.clients))
       .finally(() => setIsLoading(false))
   }, [])
 

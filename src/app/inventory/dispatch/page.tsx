@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import {
   AlertCircle,
   CheckCircle2,
@@ -87,7 +86,8 @@ function DispatchStat({
 }
 
 export default function DispatchPage() {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const [dispatches, setDispatches] = React.useState<OrderDispatch[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [activeTab, setActiveTab] = React.useState<"all" | DispatchStatus>("all")
@@ -161,7 +161,7 @@ export default function DispatchPage() {
         </div>
         <Button 
           className="gap-2" 
-          onClick={() => router.push(`/inventory/dispatch/${nextReadyDispatchId}`)}
+          onClick={() => navigate(`/inventory/dispatch/${nextReadyDispatchId}`)}
           disabled={!nextReadyDispatchId}
         >
           <Truck className="h-4 w-4" />
@@ -207,7 +207,7 @@ export default function DispatchPage() {
 
         <TabsContent value={activeTab} className="mt-6">
           <Card>
-            <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between py-4">
               <div>
                 <CardTitle className="text-lg">Dispatch Register</CardTitle>
                 <CardDescription>Track packed orders through courier handoff and delivery.</CardDescription>
@@ -217,7 +217,7 @@ export default function DispatchPage() {
                 Dispatch-ready orders originate from completed outward scans
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-4">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
@@ -297,7 +297,7 @@ export default function DispatchPage() {
                                 size="sm"
                                 variant={dispatch.status === "Ready" ? "default" : "outline"}
                                 className="gap-2"
-                                onClick={() => router.push(`/inventory/dispatch/${dispatch.id}`)}
+                                onClick={() => navigate(`/inventory/dispatch/${dispatch.id}`)}
                               >
                                 <Truck className="h-4 w-4" />
                                 {dispatch.status === "Ready" ? "Create Dispatch" : "View Dispatch"}
@@ -406,7 +406,7 @@ export default function DispatchPage() {
                                     size="sm"
                                     variant={dispatch.status === "Ready" ? "default" : "outline"}
                                     className="gap-2 h-8 text-xs"
-                                    onClick={() => router.push(`/inventory/dispatch/${dispatch.id}`)}
+                                    onClick={() => navigate(`/inventory/dispatch/${dispatch.id}`)}
                                   >
                                     <Truck className="h-3.5 w-3.5" />
                                     {dispatch.status === "Ready" ? "Create" : "View"}

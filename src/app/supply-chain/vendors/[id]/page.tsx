@@ -1,26 +1,57 @@
-import { notFound } from "next/navigation"
-import { MOCK_VENDORS } from "../data"
+import { useState, useEffect } from "react"
+import { useParams, Link } from "react-router-dom"
+import { vendorsApi } from "@/lib/api"
+import { Vendor } from "../types"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
 import { Building2, Mail, MapPin, Phone, ReceiptText, ArrowLeft } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent } from "@/components/ui/card"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 
-export default async function VendorDetailsPage(props: { params: Promise<{ id: string }> }) {
-  const params = await props.params
-  const vendor = MOCK_VENDORS.find((v) => v.id === params.id)
+export default function VendorDetailsPage() {
+  const params = useParams()
+  const [vendor, setVendor] = useState<Vendor | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    if (params.id) {
+      setIsLoading(true)
+      vendorsApi
+        .getById(params.id)
+        .then((data) => setVendor(data))
+        .catch((err) => {
+          console.error("Failed to fetch vendor details:", err)
+          setVendor(null)
+        })
+        .finally(() => setIsLoading(false))
+    }
+  }, [params.id])
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    )
+  }
 
   if (!vendor) {
-    notFound()
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center space-y-2">
+        <h2 className="text-xl font-bold">Vendor Not Found</h2>
+        <p className="text-muted-foreground">The vendor you are looking for does not exist.</p>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-4">
-        <Link href="/supply-chain/vendors">
+        <Link to="/supply-chain/vendors">
           <Button variant="outline" size="icon">
             <ArrowLeft className="h-4 w-4" />
           </Button>
@@ -37,7 +68,7 @@ export default async function VendorDetailsPage(props: { params: Promise<{ id: s
       </div>
 
       <Card className="flex flex-col h-full shadow-sm">
-        <Tabs defaultValue="overview" className="flex-1 flex flex-col pt-2">
+        <Tabs defaultValue="overview" className="flex-1 flex flex-col">
           <div className="px-6 border-b">
             <TabsList className="w-full justify-start rounded-none bg-transparent p-0">
               <TabsTrigger

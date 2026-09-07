@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Save, X, Plus, Trash2, Layers, Tags } from "lucide-react"
 
 import { categoriesApi } from "@/lib/api"
@@ -128,7 +127,8 @@ function SubcategoryItem({ sub, level, index, onAdd, onRemove, onUpdate }: Subca
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AddCategoryPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const [isLoading, setIsLoading] = React.useState(false)
 
     // Category fields
@@ -209,7 +209,7 @@ export default function AddCategoryPage() {
         try {
             await categoriesApi.create(payload)
             toast.success("Category created successfully!")
-            router.push("/system/masters/categories")
+            navigate("/system/masters/categories")
         } catch (err: any) {
             toast.error(`Failed to create category: ${err.message || "Something went wrong"}`)
         } finally {
@@ -223,7 +223,7 @@ export default function AddCategoryPage() {
         <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-10">
             {/* Header */}
             <div className="flex items-center gap-4">
-                <Button variant="outline" size="icon" type="button" onClick={() => router.back()}>
+                <Button variant="outline" size="icon" type="button" onClick={() => navigate(-1)}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
@@ -326,7 +326,7 @@ export default function AddCategoryPage() {
 
                     {/* Action buttons */}
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

@@ -1,9 +1,9 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate, useLocation } from "react-router-dom"
 import { Loader2, Lock, Mail, Eye, EyeOff, ShieldCheck } from "lucide-react"
 import { authApi, usersApi } from "@/lib/api"
+import { stampActivity } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import {
     Card,
@@ -18,7 +18,8 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 
 export default function LoginPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const location = useLocation()
     const [isLoading, setIsLoading] = React.useState(false)
     const [showPassword, setShowPassword] = React.useState(false)
     const [formData, setFormData] = React.useState({
@@ -44,6 +45,9 @@ export default function LoginPage() {
             localStorage.setItem("tejco_auth_token", token)
             document.cookie = `tejco_auth_token=${token}; path=/; max-age=86400; SameSite=Lax`
 
+            // Stamp initial activity so the inactivity timer starts clean
+            stampActivity()
+
             // Fetch full user details by email
             try {
                 const userRes = await usersApi.getByEmail(formData.username)
@@ -54,7 +58,9 @@ export default function LoginPage() {
             }
 
             toast.success("Login successful! Welcome back.")
-            router.push("/")
+            // Redirect to the page the user originally tried to visit
+            const from = (location.state as any)?.from?.pathname ?? "/"
+            navigate(from, { replace: true })
         } catch (err: any) {
             const message = err.message || "Invalid username or password"
             toast.error(message)
@@ -68,6 +74,7 @@ export default function LoginPage() {
         const mockToken = "dev-bypass-token"
         localStorage.setItem("tejco_auth_token", mockToken)
         document.cookie = `tejco_auth_token=${mockToken}; path=/; max-age=86400; SameSite=Lax`
+        stampActivity()
 
         const mockUser = {
             userId: "0001",
@@ -84,7 +91,8 @@ export default function LoginPage() {
         }
         localStorage.setItem("tejco_user", JSON.stringify(mockUser))
         toast.success("Bypassed login (Dev Mode)")
-        router.push("/")
+        const from = (location.state as any)?.from?.pathname ?? "/"
+        navigate(from, { replace: true })
         setIsLoading(false)
     }
 
@@ -159,7 +167,7 @@ export default function LoginPage() {
                             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             Sign In
                         </Button>
-                        {process.env.NODE_ENV === "development" && (
+                        {import.meta.env.DEV && (
                             <Button 
                                 type="button"
                                 variant="outline" 

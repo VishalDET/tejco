@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import {
   AlertTriangle,
   ArrowLeft,
@@ -127,7 +126,8 @@ function getItemBadge(status: ReturnType<typeof getItemScanStatus>) {
 }
 
 export function OutwardScanView({ order }: OutwardScanViewProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const inputRef = React.useRef<HTMLInputElement>(null)
   const [outwardOrder, setOutwardOrder] = React.useState<OutwardOrder>(() => cloneOrder(order))
   const [barcodeValue, setBarcodeValue] = React.useState("")
@@ -216,7 +216,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
       await dispatchApi.create(payload)
       toast.success("Dispatch created successfully!")
       setIsDispatchDialogOpen(false)
-      router.push("/inventory/order-outward")
+      navigate("/inventory/order-outward")
     } catch (err: any) {
       console.error(err)
       toast.error(err.message || "Failed to create dispatch")
@@ -424,7 +424,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-start gap-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -710,7 +710,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
       <div className="grid gap-6 xl:grid-cols-12">
         <div className="space-y-6 xl:col-span-8">
           <Card>
-            <CardHeader>
+            <CardHeader className="py-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <CardTitle>Scan Console</CardTitle>
@@ -722,7 +722,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                 </Progress>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-5 py-4">
               <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_auto]">
                 <div className="space-y-2">
                   <Label htmlFor="barcode-scan">Barcode scanner input</Label>
@@ -774,11 +774,11 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="py-4">
               <CardTitle>Pick List</CardTitle>
               <CardDescription>Locations and quantities required for this outward order.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-4">
               <Table>
                 <TableHeader className="bg-muted/50">
                   <TableRow>
@@ -837,10 +837,10 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
 
         <div className="space-y-6 xl:col-span-4">
           <Card>
-            <CardHeader>
+            <CardHeader className="py-4">
               <CardTitle className="text-lg">Order Context</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 py-4">
               <div>
                 <Label className="text-[10px] uppercase text-muted-foreground">Client</Label>
                 <div className="font-medium">{outwardOrder.clientName}</div>
@@ -865,14 +865,14 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-row items-center justify-between py-4">
               <div>
                 <CardTitle className="text-lg">Scan History</CardTitle>
                 <CardDescription>Most recent events first.</CardDescription>
               </div>
               <PackageCheck className="h-5 w-5 text-primary" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="py-4">
               {outwardOrder.scanHistory.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
                   No scans yet.

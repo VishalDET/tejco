@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import {
     ArrowLeft,
     Edit,
@@ -29,7 +28,7 @@ import {
     CardTitle,
 } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -83,7 +82,8 @@ type CompanyDetail = {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function CompanyDetailPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const id = params.id as string
 
@@ -133,7 +133,7 @@ export default function CompanyDetailPage() {
                     <h2 className="text-xl font-bold">Error</h2>
                 </div>
                 <p className="text-muted-foreground max-w-md">{error || "Company not found"}</p>
-                <Button onClick={() => router.back()}>
+                <Button onClick={() => navigate(-1)}>
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Go Back
                 </Button>
@@ -145,7 +145,7 @@ export default function CompanyDetailPage() {
         <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -158,7 +158,7 @@ export default function CompanyDetailPage() {
                         </div>
                     </div>
                 </div>
-                <Button render={<Link href={`/system/masters/companies/edit/${id}`} />} nativeButton={false}>
+                <Button render={<Link to={`/system/masters/companies/edit/${id}`} />} nativeButton={false}>
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Profile
                 </Button>

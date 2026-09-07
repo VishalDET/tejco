@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Save, X, Loader2, AlertCircle } from "lucide-react"
 
 import { apiClient, usersApi } from "@/lib/api"
@@ -60,7 +59,8 @@ type ApiResponse<T> = {
 }
 
 export default function EditUserPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const userId = params.id as string
 
@@ -166,7 +166,7 @@ export default function EditUserPage() {
         try {
             await usersApi.update(userId, payload)
             toast.success("User updated successfully")
-            router.push("/system/masters/users")
+            navigate("/system/masters/users")
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
             toast.error(`Failed to update user: ${message}`)
@@ -191,7 +191,7 @@ export default function EditUserPage() {
                     <AlertTitle>Error</AlertTitle>
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
-                <Button variant="outline" className="mt-4" onClick={() => router.back()}>
+                <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>
                     <ArrowLeft className="mr-2 h-4 w-4" /> Go Back
                 </Button>
             </div>
@@ -202,7 +202,7 @@ export default function EditUserPage() {
         <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -465,7 +465,7 @@ export default function EditUserPage() {
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

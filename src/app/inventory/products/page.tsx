@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import {
     ColumnDef,
     ColumnFiltersState,
@@ -367,7 +366,7 @@ export default function ProductListPage() {
                         <Download className="mr-2 h-4 w-4" />
                         Export
                     </Button>
-                    <Button render={<Link href="/inventory/products/add" />} nativeButton={false}>
+                    <Button render={<Link to="/inventory/products/add" />} nativeButton={false}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Product
                     </Button>
@@ -375,11 +374,11 @@ export default function ProductListPage() {
             </div>
 
             <Card className="shadow-sm">
-                <CardHeader>
+                <CardHeader className="pt-4">
                     <CardTitle className="text-lg">Product Catalog</CardTitle>
                     <CardDescription>View and manage all your products across all warehouses.</CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="pb-4">
                     <div className="flex items-center justify-between py-4 gap-4">
                         <div className="relative flex-1 max-w-sm">
                             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

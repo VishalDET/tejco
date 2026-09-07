@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { 
   ArrowLeft, 
   Printer, 
@@ -49,7 +48,8 @@ const getCurrencySymbol = (currency?: string) => {
 }
 
 export function OrderDetailsView({ order }: OrderDetailsViewProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const originalSubtotal = (order.items || []).reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
   const totalDiscount = (order.items || []).reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)
   const hasDiscounts = totalDiscount > 0
@@ -83,7 +83,7 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
       {/* Header Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

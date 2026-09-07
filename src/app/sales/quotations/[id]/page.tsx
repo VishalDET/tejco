@@ -1,7 +1,5 @@
-"use client"
-
 import * as React from "react"
-import { useParams, notFound } from "next/navigation"
+import { useParams } from "react-router-dom"
 import { QuotationDetailsView } from "./quotation-details-view"
 import { Quotation } from "@/app/sales/quotations/types"
 import { quotationsApi } from "@/lib/api"
@@ -49,7 +47,12 @@ export default function QuotationDetailsPage() {
   }
 
   if (error || !quotation) {
-    notFound()
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center space-y-2">
+        <h2 className="text-xl font-bold">Quotation Not Found</h2>
+        <p className="text-muted-foreground">The quotation you are looking for does not exist or failed to load.</p>
+      </div>
+    )
   }
 
   return <QuotationDetailsView quotation={quotation} />

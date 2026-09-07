@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import {
     User,
     Mail,
@@ -29,7 +28,8 @@ import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 
 export default function ProfilePage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const [user, setUser] = React.useState<any>(null)
 
     React.useEffect(() => {
@@ -57,7 +57,7 @@ export default function ProfilePage() {
         localStorage.removeItem("tejco_auth_token")
         localStorage.removeItem("tejco_user")
         toast.success("Logged out successfully")
-        router.push("/login")
+        navigate("/login")
     }
 
     if (!user) return null

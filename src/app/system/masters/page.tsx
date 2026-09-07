@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 import { Building2, GitBranch, LayoutGrid, ArrowRight, Layers, Globe } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -70,7 +69,7 @@ export default function MastersPage() {
                         </CardHeader>
                         <CardContent className="flex items-center justify-between">
                             <span className="text-sm font-medium">{master.count}</span>
-                            <Button variant="ghost" size="sm" render={<Link href={master.href} />} nativeButton={false} className="group-hover:translate-x-1 transition-transform">
+                            <Button variant="ghost" size="sm" render={<Link to={master.href} />} nativeButton={false} className="group-hover:translate-x-1 transition-transform">
                                 Manage <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                         </CardContent>

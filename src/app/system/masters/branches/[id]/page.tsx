@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Edit, GitBranch, MapPin, User, Loader2, Phone, Mail } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -29,7 +28,8 @@ type Branch = {
 }
 
 export default function BranchDetailPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const branchId = params.id as string
 
@@ -43,7 +43,7 @@ export default function BranchDetailPage() {
                 setBranch(data)
             } catch (err) {
                 toast.error("Failed to load branch details")
-                router.push("/system/masters/branches")
+                navigate("/system/masters/branches")
             } finally {
                 setIsLoading(false)
             }
@@ -65,7 +65,7 @@ export default function BranchDetailPage() {
         <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -73,7 +73,7 @@ export default function BranchDetailPage() {
                         <p className="text-muted-foreground">{branch.company}</p>
                     </div>
                 </div>
-                <Button onClick={() => router.push(`/system/masters/branches/edit/${branchId}`)}>
+                <Button onClick={() => navigate(`/system/masters/branches/edit/${branchId}`)}>
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Branch
                 </Button>

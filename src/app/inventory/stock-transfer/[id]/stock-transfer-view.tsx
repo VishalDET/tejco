@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { 
   ArrowLeft, 
   Printer, 
@@ -32,7 +31,8 @@ interface StockTransferViewProps {
 }
 
 export function StockTransferView({ transfer }: StockTransferViewProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const [isMounted, setIsMounted] = React.useState(false)
   const [activePrint, setActivePrint] = React.useState<"challan" | "gatepass" | null>(null)
 
@@ -76,7 +76,7 @@ export function StockTransferView({ transfer }: StockTransferViewProps) {
       {/* Header Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

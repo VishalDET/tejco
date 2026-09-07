@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Edit, Globe, DollarSign, Wallet, Calendar, Loader2, AlertCircle } from "lucide-react"
 
 import { countryMasterApi, CountryMaster } from "@/lib/api"
@@ -10,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 
 export default function CountryDetailsPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const countryId = params.id ? String(params.id) : ""
 
@@ -51,7 +51,7 @@ export default function CountryDetailsPage() {
                 <AlertCircle className="h-12 w-12 text-destructive" />
                 <h2 className="text-xl font-bold">Failed to Load Country</h2>
                 <p className="text-muted-foreground">{error || "Country details not found"}</p>
-                <Button variant="outline" onClick={() => router.back()}>
+                <Button variant="outline" onClick={() => navigate(-1)}>
                     Go Back
                 </Button>
             </div>
@@ -62,7 +62,7 @@ export default function CountryDetailsPage() {
         <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" type="button" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" type="button" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -70,7 +70,7 @@ export default function CountryDetailsPage() {
                         <p className="text-muted-foreground">Country master configuration details.</p>
                     </div>
                 </div>
-                <Button onClick={() => router.push(`/system/masters/countries/edit/${country.countryId}`)}>
+                <Button onClick={() => navigate(`/system/masters/countries/edit/${country.countryId}`)}>
                     <Edit className="mr-2 h-4 w-4" />
                     Edit Country
                 </Button>

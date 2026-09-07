@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Save, X, LayoutGrid, User, Building2, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -27,7 +26,8 @@ import {
 import { toast } from "sonner"
 
 export default function AddDepartmentPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const [isLoading, setIsLoading] = React.useState(false)
     const [isFetchingData, setIsFetchingData] = React.useState(true)
     
@@ -81,7 +81,7 @@ export default function AddDepartmentPage() {
         try {
             await apiClient.post("/api/SystemMasters/departments", payload)
             toast.success("Department created successfully")
-            router.push("/system/masters/departments")
+            navigate("/system/masters/departments")
         } catch (err: any) {
             toast.error(err.message || "Failed to create department")
         } finally {
@@ -93,7 +93,7 @@ export default function AddDepartmentPage() {
         <div className="flex flex-col gap-6 max-w-2xl mx-auto pb-10">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                    <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <div>
@@ -216,7 +216,7 @@ export default function AddDepartmentPage() {
                     </Card>
 
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

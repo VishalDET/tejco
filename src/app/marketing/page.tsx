@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -16,7 +15,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { MarketingCampaign } from "./types"
 import { MOCK_CAMPAIGNS } from "./data"
-import Link from "next/link"
+import { Link } from "react-router-dom"
 
 export default function MarketingDashboardPage() {
   const [campaigns, setCampaigns] = useState<MarketingCampaign[]>([])
@@ -54,7 +53,7 @@ export default function MarketingDashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight">Marketing Campaigns</h1>
           <p className="text-muted-foreground">Manage and track your WhatsApp broadcasts via Route Mobile.</p>
         </div>
-        <Link href="/marketing/campaigns/create">
+        <Link to="/marketing/campaigns/create">
           <Button disabled={isLoading}>
             <Plus className="mr-2 h-4 w-4" />
             Create Campaign
@@ -64,33 +63,33 @@ export default function MarketingDashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pt-4 pb-2">
             <CardTitle className="text-sm font-medium">Total Messages Sent</CardTitle>
             <Send className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-4">
             <div className="text-2xl font-bold">
               {isLoading ? <Skeleton className="h-8 w-24" /> : totalSent.toLocaleString()}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pt-4 pb-2">
             <CardTitle className="text-sm font-medium">Total Messages Read</CardTitle>
             <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-4">
             <div className="text-2xl font-bold">
               {isLoading ? <Skeleton className="h-8 w-24" /> : totalRead.toLocaleString()}
             </div>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pt-4 pb-2">
             <CardTitle className="text-sm font-medium">Active/Scheduled</CardTitle>
             <RefreshCw className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-4">
             <div className="text-2xl font-bold">
               {isLoading ? <Skeleton className="h-8 w-12" /> : activeCampaigns}
             </div>
@@ -135,7 +134,7 @@ export default function MarketingDashboardPage() {
               <p className="mb-4 text-sm text-muted-foreground text-balance">
                 You haven't run any WhatsApp marketing campaigns yet. Broadcast to your customer base easily!
               </p>
-              <Link href="/marketing/campaigns/create">
+              <Link to="/marketing/campaigns/create">
                 <Button>Create Campaign</Button>
               </Link>
             </div>
@@ -159,7 +158,7 @@ export default function MarketingDashboardPage() {
                   return (
                     <TableRow key={campaign.id} className="hover:bg-muted/50">
                       <TableCell className="font-medium">
-                        <Link href={`/marketing/campaigns/${campaign.id}`} className="hover:underline hover:text-primary transition-colors">
+                        <Link to={`/marketing/campaigns/${campaign.id}`} className="hover:underline hover:text-primary transition-colors">
                           <div className="text-base">{campaign.name}</div>
                         </Link>
                         <div className="text-xs text-muted-foreground font-normal mt-1">

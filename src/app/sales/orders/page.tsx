@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import { Search, Plus, Filter, MoreVertical, Eye, FileDown, Printer, Edit, Loader2, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -87,7 +86,8 @@ const getCurrencySymbol = (currency?: string) => {
 }
 
 export default function OrdersPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const [orders, setOrders] = React.useState<Order[]>([])
     const [isLoading, setIsLoading] = React.useState(true)
     const [isRefreshing, setIsRefreshing] = React.useState(false)
@@ -259,7 +259,7 @@ export default function OrdersPage() {
                                                             <DropdownMenuItem className="gap-2" onClick={() => handleEditOrder(order)}>
                                                                 <Edit className="h-4 w-4" /> Edit Order
                                                             </DropdownMenuItem>
-                                                            <DropdownMenuItem className="gap-2" onClick={() => router.push(`/sales/orders/${order.id}`)}>
+                                                            <DropdownMenuItem className="gap-2" onClick={() => navigate(`/sales/orders/${order.id}`)}>
                                                                 <Eye className="h-4 w-4" /> View Details
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem className="gap-2"><FileDown className="h-4 w-4" /> Download PDF</DropdownMenuItem>

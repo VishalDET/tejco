@@ -1,4 +1,3 @@
-"use client"
 
 import { useState } from "react"
 import { Client, ClientDelivery } from "../types"
@@ -12,8 +11,8 @@ import { ArrowLeft, Mail, Phone, MapPin, ReceiptText, Hash, Building, ExternalLi
 import type { Address } from "../types"
 import { ClientFormDialog } from "../client-form-dialog"
 import { clientsApi } from "@/lib/api"
-import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 
 const MONTHS = [
   { value: "all", label: "All Months" },
@@ -39,21 +38,24 @@ interface Props {
   allDeliveries: ClientDelivery[]
 }
 
-export function ClientDetailsView({ client, allDeliveries }: Props) {
-  const router = useRouter()
+export function ClientDetailsView({ client, allDeliveries = [] }: Props) {
+  const navigate = useNavigate()
   const [localClient, setLocalClient] = useState<Client>(client)
   const [month, setMonth] = useState("all")
   const [year, setYear] = useState("all")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
-  const filteredDeliveries = allDeliveries.filter((d) => {
+  const safeDeliveries = Array.isArray(allDeliveries) ? allDeliveries : []
+
+  const filteredDeliveries = safeDeliveries.filter((d) => {
+    if (!d || !d.date) return false
     const date = new Date(d.date)
     const matchMonth = month === "all" || date.getMonth() + 1 === parseInt(month)
     const matchYear = year === "all" || date.getFullYear() === parseInt(year)
     return matchMonth && matchYear
   })
 
-  const totalSpend = filteredDeliveries.reduce((sum, d) => sum + d.amount, 0)
+  const totalSpend = filteredDeliveries.reduce((sum, d) => sum + (d?.amount || 0), 0)
 
   const handleSave = async (updatedData: Partial<Client>) => {
     // The dialog handles the actual API call, but we should refresh the local state
@@ -61,7 +63,7 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
       const refreshed = await clientsApi.getById(localClient.id)
       setLocalClient(refreshed)
       setIsEditDialogOpen(false)
-      router.refresh()
+      navigate(0)
     } catch (e) {
       console.error("Refetch failed:", e)
       // Fallback
@@ -76,6 +78,7 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
       case "In Transit": return "secondary"
       case "Processing": return "outline"
       case "Returned": return "destructive"
+      default: return "outline"
     }
   }
 
@@ -93,27 +96,36 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
     return parts.length > 0 ? parts.join(", ") : "Empty address"
   }
 
+  const safeContacts = Array.isArray(localClient?.contacts) ? localClient.contacts : []
+  const safeBranches = Array.isArray(localClient?.branches) ? localClient.branches : []
+
+  const formatDateSafely = (dateStr: any) => {
+    if (!dateStr) return "N/A"
+    const d = new Date(dateStr)
+    return isNaN(d.getTime()) ? "N/A" : d.toLocaleDateString("en-GB")
+  }
+
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full pb-20">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/stakeholders/clients">
+          <Link to="/stakeholders/clients">
             <Button variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold tracking-tight">{localClient.name}</h1>
-              <Badge variant={localClient.status === "Active" ? "default" : localClient.status === "Lead" ? "secondary" : "outline"} className="rounded-full">
-                {localClient.status}
+              <h1 className="text-3xl font-bold tracking-tight">{localClient?.name || "Client Details"}</h1>
+              <Badge variant={localClient?.status === "Active" ? "default" : localClient?.status === "Lead" ? "secondary" : "outline"} className="rounded-full">
+                {localClient?.status || "N/A"}
               </Badge>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider h-5 px-2 bg-primary/5 border-primary/20">
-                {localClient.clientType || "Retail"}
+                {localClient?.clientType ? localClient.clientType : "N/A"}
               </Badge>
-              {localClient.company && localClient.company !== localClient.name && (
+              {localClient?.company && localClient.company !== localClient.name && (
                 <span className="text-sm text-muted-foreground font-medium">({localClient.company})</span>
               )}
             </div>
@@ -130,10 +142,10 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
           <Card className="h-fit">
             <CardHeader>
               <CardTitle className="text-base">Contact Information</CardTitle>
-              <CardDescription>Primary contact: {localClient.contactPerson || localClient.name}</CardDescription>
+              <CardDescription>Primary contact: {localClient?.contactPerson || localClient?.name || "N/A"}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {localClient.email && (
+              {localClient?.email && (
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted/50 shrink-0">
                     <Mail className="h-4 w-4 text-muted-foreground" />
@@ -144,15 +156,17 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
                   </div>
                 </div>
               )}
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted/50 shrink-0">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
+              {localClient?.phone && (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted/50 shrink-0">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <a href={`tel:${localClient.phone}`} className="text-sm text-blue-600 hover:underline">{localClient.phone}</a>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Phone</p>
-                  <a href={`tel:${localClient.phone}`} className="text-sm text-blue-600 hover:underline">{localClient.phone}</a>
-                </div>
-              </div>
+              )}
               
               <Separator />
               
@@ -163,7 +177,7 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Billing Address</p>
-                      <p className="text-sm leading-relaxed text-slate-700">{formatAddress(localClient.billingAddress)}</p>
+                      <p className="text-sm leading-relaxed text-slate-700">{formatAddress(localClient?.billingAddress)}</p>
                     </div>
                   </div>
                   
@@ -173,12 +187,12 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400">Shipping Address</p>
-                      <p className="text-sm leading-relaxed text-slate-700">{formatAddress(localClient.shippingAddress)}</p>
+                      <p className="text-sm leading-relaxed text-slate-700">{formatAddress(localClient?.shippingAddress)}</p>
                     </div>
                   </div>
                 </div>
 
-                {localClient.gstin && (
+                {localClient?.gstin && (
                   <>
                     <Separator className="bg-slate-100" />
                     <div className="flex items-center gap-3">
@@ -204,44 +218,44 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
                    </div>
                    <div>
                      <p className="text-[9px] uppercase font-black text-slate-400">System UID</p>
-                     <p className="text-[11px] font-mono text-slate-600 tracking-tight">{localClient.id}</p>
+                     <p className="text-[11px] font-mono text-slate-600 tracking-tight">{localClient?.id || "N/A"}</p>
                    </div>
                  </div>
                  <div className="text-right">
                    <p className="text-[9px] uppercase font-black text-slate-400">Status Since</p>
-                   <p className="text-[11px] font-medium text-slate-600">{new Date(localClient.joinedDate).toLocaleDateString("en-GB")}</p>
+                   <p className="text-[11px] font-medium text-slate-600">{formatDateSafely(localClient?.joinedDate)}</p>
                  </div>
               </CardContent>
             </Card>
 
 
           {/* Additional Contact Persons */}
-          {localClient.contacts && localClient.contacts.length > 0 && (
+          {safeContacts.length > 0 && (
             <Card className="h-fit">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   Associated Contact Persons
                 </CardTitle>
-                <CardDescription>{localClient.contacts.length} people linked to this account</CardDescription>
+                <CardDescription>{safeContacts.length} people linked to this account</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="divide-y">
-                  {localClient.contacts.map((c) => (
-                    <div key={c.id} className="p-4 space-y-2 hover:bg-muted/30 transition-colors">
+                  {safeContacts.map((c, index) => (
+                    <div key={c?.id || index} className="p-4 space-y-2 hover:bg-muted/30 transition-colors">
                       <div className="flex justify-between items-start">
                         <div>
-                          <p className="font-semibold text-sm">{c.name}</p>
-                          <p className="text-xs text-muted-foreground">{c.designation}</p>
+                          <p className="font-semibold text-sm">{c?.name || "N/A"}</p>
+                          <p className="text-xs text-muted-foreground">{c?.designation || ""}</p>
                         </div>
                       </div>
                       <div className="flex flex-col gap-1 pt-1">
-                        {c.email && (
+                        {c?.email && (
                           <div className="flex items-center gap-2 text-xs text-blue-600 hover:underline">
                             <Mail className="h-3 w-3" />
                             <a href={`mailto:${c.email}`}>{c.email}</a>
                           </div>
                         )}
-                        {c.phone && (
+                        {c?.phone && (
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <Phone className="h-3 w-3" />
                             <a href={`tel:${c.phone}`} className="hover:text-blue-600 hover:underline">{c.phone}</a>
@@ -259,7 +273,7 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
         {/* Right Column: Delivery History AND Branches */}
         <div className="md:col-span-2 space-y-6">
           {/* Branch Information */}
-          {localClient.hasBranches && localClient.branches && localClient.branches.length > 0 && (
+          {localClient?.hasBranches && safeBranches.length > 0 && (
             <Card className="border-primary/20 bg-primary/[0.02]">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -270,38 +284,41 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
                     <CardDescription>Registered branches for this healthcare provider.</CardDescription>
                   </div>
                   <Badge variant="default" className="rounded-full px-4 h-6 text-[10px] font-bold">
-                    {localClient.branches.length} Locations
+                    {safeBranches.length} Locations
                   </Badge>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 divide-x divide-y border-t bg-white">
-                  {localClient.branches.map((branch) => (
-                    <div key={branch.id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-primary/10 rounded-md">
-                          <MapPin className="h-3.5 w-3.5 text-primary" />
-                        </div>
-                        <h4 className="font-bold text-sm text-slate-800">{branch.name}</h4>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <p className="text-xs text-slate-500 leading-relaxed px-1">
-                          {formatAddress(branch.address)}
-                        </p>
-                        
-                        {branch.contacts && branch.contacts.length > 0 && (
-                          <div className="flex flex-wrap gap-1.5 pt-1">
-                            {branch.contacts.map(bc => (
-                              <Badge key={bc.id} variant="outline" className="text-[9px] py-0 px-2 h-5 bg-white font-medium border-slate-200">
-                                {bc.name} ({bc.phone || bc.email || "N/A"})
-                              </Badge>
-                            ))}
+                  {safeBranches.map((branch, bIdx) => {
+                    const branchContacts = Array.isArray(branch?.contacts) ? branch.contacts : []
+                    return (
+                      <div key={branch?.id || bIdx} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 bg-primary/10 rounded-md">
+                            <MapPin className="h-3.5 w-3.5 text-primary" />
                           </div>
-                        )}
+                          <h4 className="font-bold text-sm text-slate-800">{branch?.name || "Branch"}</h4>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <p className="text-xs text-slate-500 leading-relaxed px-1">
+                            {formatAddress(branch?.address)}
+                          </p>
+                          
+                          {branchContacts.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {branchContacts.map((bc, cIdx) => (
+                                <Badge key={bc?.id || cIdx} variant="outline" className="text-[9px] py-0 px-2 h-5 bg-white font-medium border-slate-200">
+                                  {bc?.name || "Contact"} ({bc?.phone || bc?.email || "N/A"})
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -387,15 +404,15 @@ export function ClientDetailsView({ client, allDeliveries }: Props) {
                         </TableCell>
                         <TableCell>
                           <p className="text-[11px] font-bold text-slate-600 uppercase">
-                            {new Date(delivery.date).toLocaleDateString("en-GB")}
+                            {formatDateSafely(delivery?.date)}
                           </p>
                           <p className="text-[10px] text-slate-400">Recorded Entry</p>
                         </TableCell>
                         <TableCell className="text-right">
-                          <span className="font-black text-sm">{delivery.quantity}</span>
-                          <span className="text-[10px] font-bold text-slate-400 ml-1 uppercase">{delivery.unit}</span>
+                          <span className="font-black text-sm">{delivery.quantity ?? 0}</span>
+                          <span className="text-[10px] font-bold text-slate-400 ml-1 uppercase">{delivery.unit ?? ""}</span>
                         </TableCell>
-                        <TableCell className="text-right font-black text-sm text-slate-700">₹{delivery.amount.toLocaleString()}</TableCell>
+                        <TableCell className="text-right font-black text-sm text-slate-700">₹{(delivery.amount ?? 0).toLocaleString()}</TableCell>
                         <TableCell className="text-right pr-6">
                            <Badge 
                             variant={deliveryStatusVariant(delivery.status)}

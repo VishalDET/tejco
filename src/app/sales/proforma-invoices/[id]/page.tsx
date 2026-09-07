@@ -1,7 +1,5 @@
-"use client"
-
 import * as React from "react"
-import { useParams, notFound } from "next/navigation"
+import { useParams } from "react-router-dom"
 import { ProformaDetailsView } from "./proforma-details-view"
 import { ProformaInvoice } from "@/app/sales/proforma-invoices/types"
 import { proformaApi } from "@/lib/api"
@@ -49,7 +47,12 @@ export default function ProformaDetailsPage() {
   }
 
   if (error || !proforma) {
-    notFound()
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center space-y-2">
+        <h2 className="text-xl font-bold">Proforma Invoice Not Found</h2>
+        <p className="text-muted-foreground">The requested proforma invoice could not be loaded.</p>
+      </div>
+    )
   }
 
   return <ProformaDetailsView proforma={proforma} />

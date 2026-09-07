@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useNavigate } from "react-router-dom"
 import {
   ArrowLeft,
   Printer,
@@ -70,7 +69,8 @@ const formatDateWithDots = (dateStr: string) => {
 }
 
 export function QuotationDetailsView({ quotation: initialQuotation }: QuotationDetailsViewProps) {
-  const router = useRouter()
+  const navigate = useNavigate()
+  const router = useNavigate()
   const [quotation, setQuotation] = React.useState<Quotation>(initialQuotation)
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
 
@@ -78,7 +78,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
     try {
       const updated = await quotationsApi.getById(String(initialQuotation.quotationId))
       setQuotation(updated)
-      router.refresh()
+      navigate(0)
     } catch (err) {
       console.error("Failed to refresh quotation after edit:", err)
     }
@@ -144,7 +144,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
       status: "Draft",
       date: new Date().toISOString().split("T")[0],
     }))
-    router.push("/sales/proforma-invoices?convert=true")
+    navigate("/sales/proforma-invoices?convert=true")
   }
 
   const getStatusIcon = (status: SalesDocumentStatus) => {
@@ -178,7 +178,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
       {/* Header Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
+          <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

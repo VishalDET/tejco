@@ -1,7 +1,6 @@
-"use client"
 
 import * as React from "react"
-import { useRouter, useParams } from "next/navigation"
+import { useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Save, X, Plus, Trash2, Building2, MapPin, Users, ShieldCheck, Loader2 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -50,7 +49,8 @@ interface CompanyDetail {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function EditCompanyPage() {
-    const router = useRouter()
+  const navigate = useNavigate()
+    const router = useNavigate()
     const params = useParams()
     const id = params.id as string
 
@@ -94,7 +94,7 @@ export default function EditCompanyPage() {
                 )
             } catch (err: unknown) {
                 toast.error("Failed to load company data")
-                router.back()
+                navigate(-1)
             } finally {
                 setIsLoading(false)
             }
@@ -172,7 +172,7 @@ export default function EditCompanyPage() {
         try {
             await apiClient.put(`/api/SystemMasters/companies/${id}`, payload)
             toast.success("Company updated successfully!")
-            router.push(`/system/masters/companies/${id}`)
+            navigate(`/system/masters/companies/${id}`)
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Something went wrong"
             toast.error(`Failed to update company: ${message}`)
@@ -193,7 +193,7 @@ export default function EditCompanyPage() {
     return (
         <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-10">
             <div className="flex items-center gap-4">
-                <Button variant="outline" size="icon" type="button" onClick={() => router.back()}>
+                <Button variant="outline" size="icon" type="button" onClick={() => navigate(-1)}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
@@ -444,7 +444,7 @@ export default function EditCompanyPage() {
 
                     {/* Actions */}
                     <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => router.back()}>
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>

@@ -1,4 +1,3 @@
-"use client"
 
 import * as React from "react"
 import { StockTransfer, TransferItem, TransferStatus, Warehouse, StorageLocation } from "./types"
