@@ -26,10 +26,11 @@ import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
 
 export default function ProfilePage() {
-  const navigate = useNavigate()
-    const router = useNavigate()
+    const navigate = useNavigate()
+    const { logout } = useAuth()
     const [user, setUser] = React.useState<any>(null)
 
     React.useEffect(() => {
@@ -54,10 +55,8 @@ export default function ProfilePage() {
     }, [])
 
     const handleLogout = () => {
-        localStorage.removeItem("tejco_auth_token")
-        localStorage.removeItem("tejco_user")
         toast.success("Logged out successfully")
-        navigate("/login")
+        logout("manual")
     }
 
     if (!user) return null

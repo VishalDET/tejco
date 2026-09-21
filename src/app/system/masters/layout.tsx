@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useLocation, Outlet } from "react-router-dom"
-import { Building2, GitBranch, LayoutGrid, Layers, ChevronRight, Users } from "lucide-react"
+import { Building2, GitBranch, LayoutGrid, Layers, ChevronRight, Users, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const navigation = [
@@ -28,6 +28,11 @@ const navigation = [
         name: "Users & Employees",
         href: "/system/masters/users",
         icon: Users,
+    },
+    {
+        name: "Roles & Permissions",
+        href: "/system/roles",
+        icon: Shield,
     },
 ]
 

@@ -10,7 +10,7 @@
 
 import { apiClient } from "./api-client"
 export { apiClient }
-import type { Client, ClientDelivery, Address, ClientContact } from "@/app/stakeholders/clients/types"
+import type { Client, ClientDelivery, Address, ClientContact, CreateClientPayload } from "@/app/stakeholders/clients/types"
 import type { Vendor } from "@/app/supply-chain/vendors/types"
 import type { Warehouse, ApiWarehouse, Rack } from "@/app/supply-chain/warehouse/types"
 
@@ -31,16 +31,7 @@ const deserializeAddress = (s: any): Address => {
 // ---------------------------------------------------------------------------
 // Payload types — shapes expected by the backend
 // ---------------------------------------------------------------------------
-
-export interface CreateClientPayload {
-  clientId: number       // 0 for new records
-  clientName: string
-  billingAddress: string
-  shippingAddress: string
-  gstin: string
-  contactPerson: string
-  contactNumber: string
-}
+export type { CreateClientPayload }
 
 /** Raw shape returned by the backend for GET /api/Clients and GET /api/Clients/{id} */
 export interface ApiClient {
@@ -200,49 +191,133 @@ export const clientsApi = {
   },
 
   /** POST /api/Client/Create — create a new client */
-  create: (data: Partial<Client>) => {
-    const payload = {
+  create: (data: Partial<CreateClientPayload> | Partial<Client>) => {
+    const payload: CreateClientPayload = {
       clientId: 0,
-      name: data.name ?? "",
-      company: data.company ?? data.name ?? "",
-      contactPerson: data.contactPerson ?? data.name ?? "",
-      email: data.email ?? "",
-      phone: data.phone ?? "",
-      status: data.status ?? "Active",
-      clientType: data.clientType ?? "Clinic",
-      hasBranches: data.hasBranches ?? false,
-      gstin: data.gstin ?? "",
-      joinedDate: data.joinedDate || new Date().toISOString(),
-      billingAddress: data.billingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
-      shippingAddress: data.shippingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
-      contacts: data.contacts ?? [],
-      branches: data.branches ?? [],
-      instagramUrl: data.instagramUrl ?? "",
-      dateOfBirth: data.dateOfBirth || null,
+      name: (data.name || "").trim(),
+      company: (data.company || data.name || "").trim(),
+      contactPerson: (data.contactPerson || data.name || "").trim(),
+      email: (data.email || "").trim(),
+      phone: (data.phone || "").trim(),
+      status: data.status || "Active",
+      clientType: data.clientType || "Clinic",
+      hasBranches: Boolean(data.hasBranches),
+      gstin: (data.gstin || "").trim(),
+      joinedDate: data.joinedDate
+        ? (data.joinedDate.includes("T") ? data.joinedDate : new Date(data.joinedDate).toISOString())
+        : new Date().toISOString(),
+      instagramUrl: (data.instagramUrl || "").trim(),
+      dateOfBirth: data.dateOfBirth
+        ? (data.dateOfBirth.includes("T") ? data.dateOfBirth : new Date(data.dateOfBirth).toISOString())
+        : null,
+      billingAddress: {
+        street1: (data.billingAddress?.street1 || "").trim(),
+        street2: (data.billingAddress?.street2 || "").trim(),
+        city: (data.billingAddress?.city || "").trim(),
+        state: (data.billingAddress?.state || "").trim(),
+        pincode: String(data.billingAddress?.pincode || "").trim(),
+        country: (data.billingAddress?.country || "India").trim(),
+      },
+      shippingAddress: {
+        street1: (data.shippingAddress?.street1 || "").trim(),
+        street2: (data.shippingAddress?.street2 || "").trim(),
+        city: (data.shippingAddress?.city || "").trim(),
+        state: (data.shippingAddress?.state || "").trim(),
+        pincode: String(data.shippingAddress?.pincode || "").trim(),
+        country: (data.shippingAddress?.country || "India").trim(),
+      },
+      contacts: (data.contacts || []).map((c) => ({
+        id: String(c.id || ""),
+        name: (c.name || "").trim(),
+        designation: (c.designation || "").trim(),
+        email: (c.email || "").trim(),
+        phone: String(c.phone || "").trim(),
+      })),
+      branches: (data.branches || []).map((b) => ({
+        id: String(b.id || ""),
+        name: (b.name || "").trim(),
+        address: {
+          street1: (b.address?.street1 || "").trim(),
+          street2: (b.address?.street2 || "").trim(),
+          city: (b.address?.city || "").trim(),
+          state: (b.address?.state || "").trim(),
+          pincode: String(b.address?.pincode || "").trim(),
+          country: (b.address?.country || "India").trim(),
+        },
+        contacts: (b.contacts || []).map((bc) => ({
+          id: String(bc.id || ""),
+          name: (bc.name || "").trim(),
+          designation: (bc.designation || "").trim(),
+          email: (bc.email || "").trim(),
+          phone: String(bc.phone || "").trim(),
+        })),
+      })),
     }
     return apiClient.post<any>("/api/Client/Create", payload)
   },
 
   /** PUT /api/Client/Update/{id} — update an existing client */
-  update: (id: string, data: Partial<Client>) => {
-    const payload = {
-      clientId: parseInt(id),
-      name: data.name ?? "",
-      company: data.company ?? data.name ?? "",
-      contactPerson: data.contactPerson ?? data.name ?? "",
-      email: data.email ?? "",
-      phone: data.phone ?? "",
-      status: data.status ?? "Active",
-      clientType: data.clientType ?? "Clinic",
-      hasBranches: data.hasBranches ?? false,
-      gstin: data.gstin ?? "",
-      joinedDate: data.joinedDate || new Date().toISOString(),
-      billingAddress: data.billingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
-      shippingAddress: data.shippingAddress ?? { street1: "", street2: "", city: "", state: "", pincode: "", country: "India" },
-      contacts: data.contacts ?? [],
-      branches: data.branches ?? [],
-      instagramUrl: data.instagramUrl ?? "",
-      dateOfBirth: data.dateOfBirth || null,
+  update: (id: string | number, data: Partial<CreateClientPayload> | Partial<Client>) => {
+    const payload: CreateClientPayload = {
+      clientId: Number(id) || 0,
+      name: (data.name || "").trim(),
+      company: (data.company || data.name || "").trim(),
+      contactPerson: (data.contactPerson || data.name || "").trim(),
+      email: (data.email || "").trim(),
+      phone: (data.phone || "").trim(),
+      status: data.status || "Active",
+      clientType: data.clientType || "Clinic",
+      hasBranches: Boolean(data.hasBranches),
+      gstin: (data.gstin || "").trim(),
+      joinedDate: data.joinedDate
+        ? (data.joinedDate.includes("T") ? data.joinedDate : new Date(data.joinedDate).toISOString())
+        : new Date().toISOString(),
+      instagramUrl: (data.instagramUrl || "").trim(),
+      dateOfBirth: data.dateOfBirth
+        ? (data.dateOfBirth.includes("T") ? data.dateOfBirth : new Date(data.dateOfBirth).toISOString())
+        : null,
+      billingAddress: {
+        street1: (data.billingAddress?.street1 || "").trim(),
+        street2: (data.billingAddress?.street2 || "").trim(),
+        city: (data.billingAddress?.city || "").trim(),
+        state: (data.billingAddress?.state || "").trim(),
+        pincode: String(data.billingAddress?.pincode || "").trim(),
+        country: (data.billingAddress?.country || "India").trim(),
+      },
+      shippingAddress: {
+        street1: (data.shippingAddress?.street1 || "").trim(),
+        street2: (data.shippingAddress?.street2 || "").trim(),
+        city: (data.shippingAddress?.city || "").trim(),
+        state: (data.shippingAddress?.state || "").trim(),
+        pincode: String(data.shippingAddress?.pincode || "").trim(),
+        country: (data.shippingAddress?.country || "India").trim(),
+      },
+      contacts: (data.contacts || []).map((c) => ({
+        id: String(c.id || ""),
+        name: (c.name || "").trim(),
+        designation: (c.designation || "").trim(),
+        email: (c.email || "").trim(),
+        phone: String(c.phone || "").trim(),
+      })),
+      branches: (data.branches || []).map((b) => ({
+        id: String(b.id || ""),
+        name: (b.name || "").trim(),
+        address: {
+          street1: (b.address?.street1 || "").trim(),
+          street2: (b.address?.street2 || "").trim(),
+          city: (b.address?.city || "").trim(),
+          state: (b.address?.state || "").trim(),
+          pincode: String(b.address?.pincode || "").trim(),
+          country: (b.address?.country || "India").trim(),
+        },
+        contacts: (b.contacts || []).map((bc) => ({
+          id: String(bc.id || ""),
+          name: (bc.name || "").trim(),
+          designation: (bc.designation || "").trim(),
+          email: (bc.email || "").trim(),
+          phone: String(bc.phone || "").trim(),
+        })),
+      })),
     }
     return apiClient.put<any>(`/api/Client/Update/${id}`, payload)
   },
@@ -267,9 +342,12 @@ export interface ApiVendor {
 export function mapApiVendor(raw: ApiVendor): Vendor {
   const vId = String(raw.vendorId ?? raw.id ?? 0)
   return {
+    ...(raw as any),
     id: vId,
+    vendorId: Number(vId) || undefined,
     name: raw.vendorName || raw.name || `Vendor #${vId}`,
-    contactPerson: raw.contactPerson || raw.vendorName || "",
+    vendorName: raw.vendorName || raw.name || `Vendor #${vId}`,
+    contactPerson: raw.contactPerson || "",
     email: raw.email || "",
     phone: raw.phone || "",
     address: typeof raw.address === "string" ? raw.address : "",
@@ -296,9 +374,19 @@ export const vendorsApi = {
 
   /** GET /api/Vendor/{id} */
   getById: async (id: string): Promise<Vendor> => {
-    const raw = await apiClient.get<any>(`/api/Vendor/${id}`)
-    const data = raw?.data || raw
-    return mapApiVendor(data)
+    try {
+      const raw = await apiClient.get<any>(`/api/Vendor/${id}`)
+      const data = raw?.data || raw
+      return mapApiVendor(data)
+    } catch {
+      // Fallback: backend IIS returns 404 for /api/Vendor/{id}, so fallback to finding in getAll()
+      const all = await vendorsApi.getAll()
+      const found = all.find(
+        (v: any) => String(v.id) === String(id) || String(v.vendorId) === String(id)
+      )
+      if (found) return found
+      throw new Error(`Vendor with id ${id} not found`)
+    }
   },
 
   /** POST /api/Vendor */
@@ -852,5 +940,200 @@ export const reportsApi = {
   getInventoryInward: (filter: ReportFilterDto) =>
     apiClient.post<any>("/api/Report/inventory-inward", filter),
 }
+
+// ---------------------------------------------------------------------------
+// Purchase Orders  →  /api/PurchaseOrder
+// ---------------------------------------------------------------------------
+
+import type {
+  PurchaseOrder,
+  PurchaseOrderItem,
+  CreatePurchaseOrderPayload,
+  PurchaseOrderApiResponse,
+  PurchaseOrderGetAllParams,
+} from "@/app/purchase/types"
+
+export const purchaseOrderApi = {
+  /** GET /api/PurchaseOrder/GetAll — Retrieve list of all purchase orders with optional filtering & pagination */
+  getAll: (params?: PurchaseOrderGetAllParams) => {
+    const query = new URLSearchParams()
+    if (params?.pageNumber) query.append("PageNumber", String(params.pageNumber))
+    if (params?.pageSize) query.append("PageSize", String(params.pageSize))
+    if (params?.searchTerm?.trim()) query.append("SearchTerm", params.searchTerm.trim())
+    if (params?.vendorId && String(params.vendorId) !== "all") query.append("VendorId", String(params.vendorId))
+    if (params?.orderStatus && params.orderStatus !== "all") query.append("OrderStatus", params.orderStatus)
+    if (params?.paymentStatus && params.paymentStatus !== "all") query.append("PaymentStatus", params.paymentStatus)
+    const queryString = query.toString() ? `?${query.toString()}` : ""
+    return apiClient.get<PurchaseOrderApiResponse<PurchaseOrder[]>>(`/api/PurchaseOrder/GetAll${queryString}`)
+  },
+
+  /** GET /api/PurchaseOrder/{id} — Retrieve purchase order by ID */
+  getById: (id: number | string) =>
+    apiClient.get<PurchaseOrderApiResponse<PurchaseOrder>>(`/api/PurchaseOrder/${id}`),
+
+  /** POST /api/PurchaseOrder — Create a new purchase order */
+  create: (data: CreatePurchaseOrderPayload) =>
+    apiClient.post<PurchaseOrderApiResponse<PurchaseOrder>>("/api/PurchaseOrder", data),
+
+  /** PUT /api/PurchaseOrder/{id} — Update an existing purchase order */
+  update: (id: number | string, data: Partial<CreatePurchaseOrderPayload>) =>
+    apiClient.put<PurchaseOrderApiResponse<PurchaseOrder>>(`/api/PurchaseOrder/${id}`, data),
+
+  /** PUT /api/PurchaseOrder/{id}/Status — Update status of a purchase order */
+  updateStatus: (id: number | string, newStatus: string, remarks: string = "") =>
+    apiClient.put<any>(`/api/PurchaseOrder/${id}/Status`, {
+      newStatus,
+      remarks,
+      status: newStatus,
+      orderStatus: newStatus,
+    }),
+
+  /** DELETE /api/PurchaseOrder/{id} */
+  remove: (id: number | string) =>
+    apiClient.delete<void>(`/api/PurchaseOrder/${id}`),
+}
+
+// ---------------------------------------------------------------------------
+// Roles & Permissions  →  /api/Roles
+// ---------------------------------------------------------------------------
+
+export interface Role {
+  roleId: number
+  roleName: string
+  description?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export interface CreateRolePayload {
+  roleName: string
+  description?: string
+}
+
+export interface UpdateRolePayload {
+  roleId: number
+  roleName: string
+  description?: string
+}
+
+export interface RolePermission {
+  permissionId: number
+  permissionName?: string
+  name?: string
+  module?: string
+  category?: string
+  description?: string
+  [key: string]: any
+}
+
+export interface RoleAuditLog {
+  logId?: number
+  id?: number
+  roleId?: number
+  roleName?: string
+  action?: string
+  performedBy?: string
+  user?: string
+  timestamp?: string
+  createdAt?: string
+  details?: string
+  [key: string]: any
+}
+
+export const rolesApi = {
+  /** GET /api/Roles/GetAll */
+  getAll: async (): Promise<Role[]> => {
+    try {
+      const res = await apiClient.get<any>("/api/Roles/GetAll")
+      if (Array.isArray(res)) return res
+      if (res?.data && Array.isArray(res.data)) return res.data
+      return []
+    } catch (err) {
+      console.error("Failed to fetch roles:", err)
+      throw err
+    }
+  },
+
+  /** GET /api/Roles/GetById/{id} */
+  getById: async (id: number | string): Promise<Role> => {
+    const res = await apiClient.get<any>(`/api/Roles/GetById/${id}`)
+    return res?.data ?? res
+  },
+
+  /** POST /api/Roles/Create */
+  create: async (data: CreateRolePayload): Promise<Role> => {
+    const payload = {
+      roleId: 0,
+      roleName: data.roleName.trim(),
+      description: data.description?.trim() || "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    const res = await apiClient.post<any>("/api/Roles/Create", payload)
+    return res?.data ?? res
+  },
+
+  /** PUT /api/Roles/Update/{id} */
+  update: async (id: number | string, data: UpdateRolePayload): Promise<Role> => {
+    const payload = {
+      roleId: Number(id),
+      roleName: data.roleName.trim(),
+      description: data.description?.trim() || "",
+      updatedAt: new Date().toISOString(),
+    }
+    const res = await apiClient.put<any>(`/api/Roles/Update/${id}`, payload)
+    return res?.data ?? res
+  },
+
+  /** DELETE /api/Roles/Delete/{id} */
+  delete: async (id: number | string): Promise<void> => {
+    return apiClient.delete<void>(`/api/Roles/Delete/${id}`)
+  },
+
+  /** GET /api/Roles/Permissions */
+  getPermissions: async (): Promise<RolePermission[]> => {
+    try {
+      const res = await apiClient.get<any>("/api/Roles/Permissions")
+      if (Array.isArray(res)) return res
+      if (res?.data && Array.isArray(res.data)) return res.data
+      return []
+    } catch (err) {
+      console.error("Failed to fetch permissions:", err)
+      throw err
+    }
+  },
+
+  /** GET /api/Roles/{roleId}/Permissions */
+  getRolePermissions: async (roleId: number | string): Promise<any[]> => {
+    try {
+      const res = await apiClient.get<any>(`/api/Roles/${roleId}/Permissions`)
+      if (Array.isArray(res)) return res
+      if (res?.data && Array.isArray(res.data)) return res.data
+      return []
+    } catch (err) {
+      console.error(`Failed to fetch permissions for role ${roleId}:`, err)
+      throw err
+    }
+  },
+
+  /** POST /api/Roles/{roleId}/AssignPermissions */
+  assignPermissions: async (roleId: number | string, permissionIds: number[]): Promise<any> => {
+    return apiClient.post<any>(`/api/Roles/${roleId}/AssignPermissions`, permissionIds)
+  },
+
+  /** GET /api/Roles/AuditLogs */
+  getAuditLogs: async (): Promise<RoleAuditLog[]> => {
+    try {
+      const res = await apiClient.get<any>("/api/Roles/AuditLogs")
+      if (Array.isArray(res)) return res
+      if (res?.data && Array.isArray(res.data)) return res.data
+      return []
+    } catch (err) {
+      console.error("Failed to fetch role audit logs:", err)
+      throw err
+    }
+  },
+}
+
 
 

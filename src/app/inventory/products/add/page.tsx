@@ -13,13 +13,7 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
+import { SearchableDropdown, SearchableOption } from "@/components/common/searchable-dropdown"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import * as XLSX from "xlsx"
@@ -64,8 +58,32 @@ export default function AddProductPage() {
     const [unit, setUnit] = React.useState("PCS")
     const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<number[]>([])
     const [categories, setCategories] = React.useState<Category[]>([])
-    const [taggingNo, setTaggingNo] = React.useState("")
+
+    const unitOptions: SearchableOption[] = [
+        { value: "PCS", label: "Pieces (PCS)" },
+        { value: "BOX", label: "Box" },
+        { value: "PKT", label: "Packet" },
+        { value: "SET", label: "Set" },
+    ]
+
     const [warehouses, setWarehouses] = React.useState<Warehouse[]>([])
+
+    const warehouseOptions: SearchableOption[] = React.useMemo(() => {
+        return warehouses.map((w) => {
+            const wId = String(w.id || (w as any).warehouseId)
+            const wName = w.name || (w as any).warehouseName || `Warehouse #${wId}`
+            const addr = w.address
+            const city = typeof addr === "object" && addr ? addr.city : undefined
+            return {
+                value: wId,
+                label: wName,
+                badge: city,
+                keywords: [wName, city || ""],
+            }
+        })
+    }, [warehouses])
+
+    const [taggingNo, setTaggingNo] = React.useState("")
     // Placeholder for product ID used in barcode generation
     const [tempProdId, setTempProdId] = React.useState("0000")
 
@@ -89,6 +107,7 @@ export default function AddProductPage() {
             "Sale Price INTL (USD)",
             "GST %",
             "Initial Stock",
+            "Reorder Level",
             "Warehouse Name/ID",
             "Rack Location",
             "Image URL"
@@ -108,6 +127,8 @@ export default function AddProductPage() {
             "147500",
             "0",
             "18",
+            "10",
+            "5",
             "Main Hub Mumbai",
             "Aisle 1, Rack B",
             "https://example.com/image.jpg"
@@ -188,11 +209,14 @@ export default function AddProductPage() {
                         id: index + 1,
                         name: row["Variant Name"] || row["Variant"] || `Variant ${index + 1}`,
                         sku_suffix: row["SKU Suffix"] || row["Suffix"] || "",
+                        hsnCode: row["HSN Code"] || row["HSN"] || "",
                         salesPrice: String(row["Sale Price IND (INR)"] || row["Sale Price IND"] || row["Sale Price"] || row["Selling Price"] || ""),
                         exportSalesPrice: String(row["Sale Price INTL (USD)"] || row["Sale Price INTL"] || row["Export Price"] || row["USD Amount"] || ""),
                         gstPercentage: String(row["GST %"] || row["GST Percentage"] || row["GST"] || "18"),
                         costPrice: String(row["Cost Price (INR)"] || row["Cost Price"] || ""),
                         stock: String(row["Initial Stock"] || row["Stock Quantity"] || row["Stock"] || row["Quantity"] || row["Qty"] || ""),
+                        reservedQuantity: String(row["Reserved Quantity"] || row["Reserved Stock"] || "0"),
+                        reorderLevel: String(row["Reorder Level"] || row["Reorder"] || "5"),
                         warehouseId: String(row["Warehouse Name/ID"] || row["Warehouse"] || row["Warehouse ID"] || ""),
                         rackLocation: row["Rack Location"] || row["Rack"] || row["Location"] || "",
                         image: row["Image URL"] || row["Image"] || null
@@ -236,11 +260,15 @@ export default function AddProductPage() {
                 id: v.id,
                 name: v.name,
                 sku_suffix: v.sku_suffix,
+                hsnCode: v.hsnCode || previewData.product.baseSKU || "",
                 salesPrice: v.salesPrice,
                 exportSalesPrice: v.exportSalesPrice,
                 gstPercentage: v.gstPercentage,
                 costPrice: v.costPrice,
                 stock: v.stock,
+                reservedQuantity: v.reservedQuantity || "0",
+                reorderLevel: v.reorderLevel || "5",
+                status: true,
                 barcode: generateVariantBarcode(index, activePath),
                 warehouseId: wId,
                 rackLocation: v.rackLocation,
@@ -284,11 +312,15 @@ export default function AddProductPage() {
             id: 1,
             name: "Default",
             sku_suffix: "-DEF",
+            hsnCode: "",
             salesPrice: "",
             exportSalesPrice: "",
             gstPercentage: "18",
             costPrice: "",
             stock: "",
+            reservedQuantity: "0",
+            reorderLevel: "5",
+            status: true,
             barcode: "",
             warehouseId: "",
             rackLocation: "",
@@ -325,11 +357,15 @@ export default function AddProductPage() {
             id: Date.now(),
             name: "",
             sku_suffix: "",
+            hsnCode: "",
             salesPrice: "",
             exportSalesPrice: "",
             gstPercentage: "18",
             costPrice: "",
             stock: "",
+            reservedQuantity: "0",
+            reorderLevel: "5",
+            status: true,
             barcode: generateVariantBarcode(newIndex, selectedCategoryIds),
             warehouseId: "",
             rackLocation: "",
@@ -377,7 +413,7 @@ export default function AddProductPage() {
             productName: name,
             baseSKU: baseSKU,
             productTaggingNo: taggingNo,
-            barcodeNumber: tempProdId, // Using the generated base ID
+            barcodeNumber: tempProdId,
             categoryId: selectedCategoryIds[0] || 0,
             subcategoryId: selectedCategoryIds[1] || 0,
             subcategoryL2Id: selectedCategoryIds[2] || 0,
@@ -393,18 +429,18 @@ export default function AddProductPage() {
                 productId: 0,
                 variantName: v.name,
                 skuSuffix: v.sku_suffix,
+                hsnCode: v.hsnCode || baseSKU || "",
                 purchasePrice: parseFloat(v.costPrice) || 0,
                 sellingPrice: parseFloat(v.salesPrice) || 0,
-                sellingPriceOutsideIndia: parseFloat(v.exportSalesPrice) || 0,
-                exportSellingPrice: parseFloat(v.exportSalesPrice) || 0,
                 initialQuantity: parseInt(v.stock) || 0,
                 currentQuantity: parseInt(v.stock) || 0,
-                reorderLevel: 5, // Default
+                reservedQuantity: parseInt(v.reservedQuantity as string) || 0,
+                reorderLevel: parseInt(v.reorderLevel as string) || 0,
                 status: true,
                 gstPercentage: parseInt(v.gstPercentage) || 0,
                 warehouseId: parseInt(v.warehouseId) || 0,
-                rackLocation: v.rackLocation,
-                barcodeNumber: v.barcode,
+                rackLocation: v.rackLocation || "",
+                barcodeNumber: v.barcode || "",
                 variantImage: v.image || "",
                 usdAmount: parseFloat(v.exportSalesPrice) || 0
             }))
@@ -516,35 +552,30 @@ export default function AddProductPage() {
                                             const selectedItem = selectedId ? currentOptions.find(o => ((o as any).subcategoryId || (o as any).categoryId) === selectedId) : null
                                             const selectedName = selectedItem ? ((selectedItem as any).subcategoryName || (selectedItem as any).categoryName) : ""
 
+                                            const optItems: SearchableOption[] = currentOptions.map((opt) => {
+                                                const id = (opt as any).subcategoryId || (opt as any).categoryId
+                                                const name = (opt as any).subcategoryName || (opt as any).categoryName
+                                                return {
+                                                    value: String(id),
+                                                    label: name,
+                                                }
+                                            })
+
                                             renderedSelects.push(
                                                 <div key={levelIndex} className="grid gap-2">
                                                     <Label>{label}</Label>
-                                                    <Select
-                                                        required={levelIndex === 0}
+                                                    <SearchableDropdown
                                                         value={currentVal}
-                                                        onValueChange={(val) => {
+                                                        onChange={(val) => {
                                                             const newPath = selectedCategoryIds.slice(0, levelIndex)
                                                             if (val) newPath.push(parseInt(val))
                                                             setSelectedCategoryIds(newPath)
                                                         }}
-                                                    >
-                                                        <SelectTrigger className="w-full">
-                                                            <SelectValue placeholder={`Select ${label.toLowerCase()}`}>
-                                                                {selectedName}
-                                                            </SelectValue>
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {currentOptions.map((opt) => {
-                                                                const id = (opt as any).subcategoryId || (opt as any).categoryId
-                                                                const name = (opt as any).subcategoryName || (opt as any).categoryName
-                                                                return (
-                                                                    <SelectItem key={id} value={String(id)}>
-                                                                        {name}
-                                                                    </SelectItem>
-                                                                )
-                                                            })}
-                                                        </SelectContent>
-                                                    </Select>
+                                                        options={optItems}
+                                                        placeholder={`Select ${label.toLowerCase()}`}
+                                                        searchPlaceholder={`Search ${label.toLowerCase()}...`}
+                                                        allowClear={levelIndex > 0}
+                                                    />
                                                 </div>
                                             )
 
@@ -570,17 +601,13 @@ export default function AddProductPage() {
                                     </div>
                                     <div className="grid gap-2">
                                         <Label htmlFor="unit">Unit</Label>
-                                        <Select value={unit} onValueChange={(val) => setUnit(val || "PCS")}>
-                                            <SelectTrigger id="unit">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="PCS">Pieces (PCS)</SelectItem>
-                                                <SelectItem value="BOX">Box</SelectItem>
-                                                <SelectItem value="PKT">Packet</SelectItem>
-                                                <SelectItem value="SET">Set</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                        <SearchableDropdown
+                                            value={unit}
+                                            onChange={(val) => setUnit(val || "PCS")}
+                                            options={unitOptions}
+                                            placeholder="Select unit"
+                                            popoverWidth={200}
+                                        />
                                     </div>
                                 </div>
                                 <div className="grid gap-2 pt-2 border-t">
@@ -644,6 +671,14 @@ export default function AddProductPage() {
                                                     placeholder="-LG"
                                                     value={v.sku_suffix}
                                                     onChange={(e) => handleVariantChange(v.id, "sku_suffix", e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">HSN Code</Label>
+                                                <Input
+                                                    placeholder={baseSKU || "HSN Code"}
+                                                    value={v.hsnCode}
+                                                    onChange={(e) => handleVariantChange(v.id, "hsnCode", e.target.value)}
                                                 />
                                             </div>
                                         </div>
@@ -719,37 +754,47 @@ export default function AddProductPage() {
 
                                         {/* Column 3: Inventory & Warehouse */}
                                         <div className="md:col-span-3 grid gap-4 border-l pl-6">
-                                            <div className="grid gap-2">
-                                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Stock</Label>
-                                                <Input
-                                                    type="number"
-                                                    placeholder="0"
-                                                    value={v.stock}
-                                                    onChange={(e) => handleVariantChange(v.id, "stock", e.target.value)}
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Warehouse</Label>
-                                                    <Select
-                                                        value={v.warehouseId}
-                                                        onValueChange={(val) => handleVariantChange(v.id, "warehouseId", val || "")}
-                                                    >
-                                                        <SelectTrigger className="h-9">
-                                                            <SelectValue placeholder="Select" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {warehouses.map(w => (
-                                                                <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rack/Place</Label>
+                                            <div className="grid grid-cols-2 gap-3 min-w-0">
+                                                <div className="grid gap-2 min-w-0">
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground truncate" title="Initial Stock">Initial Stock</Label>
                                                     <Input
-                                                        className="h-9"
+                                                        type="number"
+                                                        placeholder="0"
+                                                        value={v.stock}
+                                                        className="h-9 w-full min-w-0"
+                                                        onChange={(e) => handleVariantChange(v.id, "stock", e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2 min-w-0">
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground truncate" title="Reorder Level">Reorder Level</Label>
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="5"
+                                                        value={v.reorderLevel}
+                                                        className="h-9 w-full min-w-0"
+                                                        onChange={(e) => handleVariantChange(v.id, "reorderLevel", e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 min-w-0">
+                                                <div className="grid gap-2 min-w-0">
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground truncate" title="Warehouse">Warehouse</Label>
+                                                    <SearchableDropdown
+                                                        value={v.warehouseId ? String(v.warehouseId) : ""}
+                                                        onChange={(val) => handleVariantChange(v.id, "warehouseId", val || "")}
+                                                        options={warehouseOptions}
+                                                        placeholder="Select warehouse..."
+                                                        searchPlaceholder="Search warehouse..."
+                                                        size="sm"
+                                                        allowClear
+                                                        popoverWidth={280}
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2 min-w-0">
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground truncate" title="Rack/Place">Rack/Place</Label>
+                                                    <Input
+                                                        className="h-9 w-full min-w-0"
                                                         placeholder="A-1"
                                                         value={v.rackLocation}
                                                         onChange={(e) => handleVariantChange(v.id, "rackLocation", e.target.value)}

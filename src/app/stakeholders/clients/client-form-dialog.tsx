@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { clientsApi } from "@/lib/api"
 import { apiClient } from "@/lib/api-client"
 import { Loader2, Plus, Trash2, UserPlus, Users, Mail, Phone, Building2, Hospital, Stethoscope, Building, MapPin, Globe, Map, UploadCloud } from "lucide-react"
-import { Client, ClientContact, ClientBranch, ClientType, Address } from "./types"
+import { Client, ClientContact, ClientBranch, ClientType, Address, CreateClientPayload } from "./types"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 
@@ -372,16 +372,80 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
     setIsSaving(true)
     setError(null)
 
+    const payload: CreateClientPayload = {
+      clientId: client?.id ? (Number(client.id) || 0) : 0,
+      name: (form.name || "").trim(),
+      company: (form.company || form.name || "").trim(),
+      contactPerson: (form.contactPerson || form.name || "").trim(),
+      email: (form.email || "").trim(),
+      phone: (form.phone || "").trim(),
+      status: form.status || "Active",
+      clientType: form.clientType || "Clinic",
+      hasBranches: Boolean(form.hasBranches),
+      gstin: (form.gstin || "").trim(),
+      joinedDate: form.joinedDate
+        ? (form.joinedDate.includes("T") ? form.joinedDate : new Date(form.joinedDate).toISOString())
+        : new Date().toISOString(),
+      instagramUrl: (form.instagramUrl || "").trim(),
+      dateOfBirth: form.dateOfBirth
+        ? (form.dateOfBirth.includes("T") ? form.dateOfBirth : new Date(form.dateOfBirth).toISOString())
+        : null,
+      billingAddress: {
+        street1: (form.billingAddress?.street1 || "").trim(),
+        street2: (form.billingAddress?.street2 || "").trim(),
+        city: (form.billingAddress?.city || "").trim(),
+        state: (form.billingAddress?.state || "").trim(),
+        pincode: String(form.billingAddress?.pincode || "").trim(),
+        country: (form.billingAddress?.country || "India").trim(),
+      },
+      shippingAddress: {
+        street1: (form.shippingAddress?.street1 || "").trim(),
+        street2: (form.shippingAddress?.street2 || "").trim(),
+        city: (form.shippingAddress?.city || "").trim(),
+        state: (form.shippingAddress?.state || "").trim(),
+        pincode: String(form.shippingAddress?.pincode || "").trim(),
+        country: (form.shippingAddress?.country || "India").trim(),
+      },
+      contacts: (form.contacts || []).map((c) => ({
+        id: String(c.id || ""),
+        name: (c.name || "").trim(),
+        designation: (c.designation || "").trim(),
+        email: (c.email || "").trim(),
+        phone: String(c.phone || "").trim(),
+      })),
+      branches: (form.branches || []).map((b) => ({
+        id: String(b.id || ""),
+        name: (b.name || "").trim(),
+        address: {
+          street1: (b.address?.street1 || "").trim(),
+          street2: (b.address?.street2 || "").trim(),
+          city: (b.address?.city || "").trim(),
+          state: (b.address?.state || "").trim(),
+          pincode: String(b.address?.pincode || "").trim(),
+          country: (b.address?.country || "India").trim(),
+        },
+        contacts: (b.contacts || []).map((bc) => ({
+          id: String(bc.id || ""),
+          name: (bc.name || "").trim(),
+          designation: (bc.designation || "").trim(),
+          email: (bc.email || "").trim(),
+          phone: String(bc.phone || "").trim(),
+        })),
+      })),
+    }
+
     try {
       if (!client) {
         // ── CREATE ──
-        await clientsApi.create(form)
+        await clientsApi.create(payload)
+        toast.success("Client created successfully")
       } else {
         // ── UPDATE ──
-        await clientsApi.update(client.id, form)
+        await clientsApi.update(client.id, payload)
+        toast.success("Client profile updated successfully")
       }
 
-      onSave(form)
+      onSave({ ...form, ...payload } as Partial<Client>)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save client. Please try again.")
     } finally {

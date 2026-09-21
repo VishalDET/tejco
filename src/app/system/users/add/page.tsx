@@ -1,14 +1,12 @@
-
 import * as React from "react"
 import { useNavigate } from "react-router-dom"
-import { ArrowLeft, Lock, Save, X } from "lucide-react"
+import { ArrowLeft, Lock, Save, X, Building2, User, Mail, Shield, Loader2, Image as ImageIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
     Card,
     CardContent,
     CardDescription,
-    CardFooter,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
@@ -21,28 +19,226 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
+import { usersApi, rolesApi, systemMastersApi } from "@/lib/api"
+
+interface CompanyOption {
+    id: number
+    name: string
+}
+
+interface BranchOption {
+    id: number
+    companyId?: number
+    name: string
+}
+
+interface DepartmentOption {
+    id: number
+    branchId?: number
+    name: string
+}
+
+interface RoleOption {
+    roleId: number
+    roleName: string
+}
+
+const DEFAULT_COMPANIES: CompanyOption[] = [
+    { id: 1, name: "Tejco Vision Corp" },
+    { id: 2, name: "Tejco Surgical Solutions" },
+]
+
+const DEFAULT_BRANCHES: BranchOption[] = [
+    { id: 1, companyId: 1, name: "Mumbai HQ - Andheri" },
+    { id: 2, companyId: 1, name: "Delhi Branch - Okhla" },
+    { id: 3, companyId: 2, name: "Bangalore Tech Hub" },
+]
+
+const DEFAULT_DEPARTMENTS: DepartmentOption[] = [
+    { id: 1, branchId: 1, name: "Administration" },
+    { id: 2, branchId: 1, name: "Sales & Marketing" },
+    { id: 3, branchId: 1, name: "Inventory & Warehousing" },
+    { id: 4, branchId: 2, name: "Customer Support" },
+    { id: 5, branchId: 3, name: "R&D / Engineering" },
+]
+
+const DEFAULT_ROLES: RoleOption[] = [
+    { roleId: 1, roleName: "Administrator" },
+    { roleId: 2, roleName: "Manager" },
+    { roleId: 3, roleName: "Sales Representative" },
+    { roleId: 4, roleName: "Inventory Specialist" },
+    { roleId: 5, roleName: "Viewer" },
+]
 
 export default function AddUserPage() {
-  const navigate = useNavigate()
-    const router = useNavigate()
+    const navigate = useNavigate()
     const [isLoading, setIsLoading] = React.useState(false)
+    const [isFetchingMasters, setIsFetchingMasters] = React.useState(true)
+
+    // Master Options
+    const [companies, setCompanies] = React.useState<CompanyOption[]>(DEFAULT_COMPANIES)
+    const [branches, setBranches] = React.useState<BranchOption[]>(DEFAULT_BRANCHES)
+    const [departments, setDepartments] = React.useState<DepartmentOption[]>(DEFAULT_DEPARTMENTS)
+    const [roles, setRoles] = React.useState<RoleOption[]>(DEFAULT_ROLES)
+
+    // Form State
+    const [formData, setFormData] = React.useState({
+        firstName: "",
+        lastName: "",
+        gender: "Male",
+        employeeId: "",
+        email: "",
+        phone: "",
+        companyId: "1",
+        branchId: "1",
+        departmentId: "1",
+        roleId: "1",
+        handlerId: "0",
+        status: "Active",
+        password: "",
+        confirmPassword: "",
+        imageUrl: "",
+    })
+
+    // Load master organizational and role data
+    React.useEffect(() => {
+        let isMounted = true
+        async function loadMasterData() {
+            setIsFetchingMasters(true)
+            try {
+                const [compsRes, brsRes, deptsRes, rolesRes] = await Promise.all([
+                    systemMastersApi.getCompanies().catch(() => []),
+                    systemMastersApi.getBranches().catch(() => []),
+                    systemMastersApi.getDepartments().catch(() => []),
+                    rolesApi.getAll().catch(() => []),
+                ])
+
+                if (!isMounted) return
+
+                const compList = Array.isArray(compsRes) ? compsRes : ((compsRes as any)?.data || [])
+                const brList = Array.isArray(brsRes) ? brsRes : ((brsRes as any)?.data || [])
+                const deptList = Array.isArray(deptsRes) ? deptsRes : ((deptsRes as any)?.data || [])
+                const rList = Array.isArray(rolesRes) ? rolesRes : ((rolesRes as any)?.data || [])
+
+                if (compList.length > 0) {
+                    setCompanies(
+                        compList.map((c: any) => ({
+                            id: Number(c.id ?? c.companyId ?? 0),
+                            name: String(c.name ?? c.registeredName ?? c.companyName ?? `Company #${c.id}`),
+                        }))
+                    )
+                }
+
+                if (brList.length > 0) {
+                    setBranches(
+                        brList.map((b: any) => ({
+                            id: Number(b.id ?? b.branchId ?? b.BranchID ?? 0),
+                            companyId: Number(b.companyId ?? b.companyID ?? b.CompanyId ?? b.company?.id ?? 0),
+                            name: String(b.name ?? b.branchName ?? `Branch #${b.id}`),
+                        }))
+                    )
+                }
+
+                if (deptList.length > 0) {
+                    setDepartments(
+                        deptList.map((d: any) => ({
+                            id: Number(d.id ?? d.departmentId ?? d.DepartmentID ?? 0),
+                            branchId: Number(d.branchId ?? d.branchID ?? d.BranchID ?? d.branch?.id ?? 0),
+                            name: String(d.name ?? d.departmentName ?? `Dept #${d.id}`),
+                        }))
+                    )
+                }
+
+                if (rList.length > 0) {
+                    setRoles(
+                        rList.map((r: any) => ({
+                            roleId: Number(r.roleId ?? r.id ?? 0),
+                            roleName: String(r.roleName ?? r.name ?? `Role #${r.roleId}`),
+                        }))
+                    )
+                }
+            } catch (err) {
+                console.error("Failed to load organizational masters:", err)
+            } finally {
+                if (isMounted) setIsFetchingMasters(false)
+            }
+        }
+
+        loadMasterData()
+        return () => {
+            isMounted = false
+        }
+    }, [])
+
+    // Filter branches & departments based on selection (with fallback to all if no matches)
+    const availableBranches = React.useMemo(() => {
+        if (!formData.companyId) return branches
+        const filtered = branches.filter((b) => !b.companyId || String(b.companyId) === String(formData.companyId))
+        return filtered.length > 0 ? filtered : branches
+    }, [branches, formData.companyId])
+
+    const availableDepartments = React.useMemo(() => {
+        if (!formData.branchId) return departments
+        const filtered = departments.filter((d) => !d.branchId || String(d.branchId) === String(formData.branchId))
+        return filtered.length > 0 ? filtered : departments
+    }, [departments, formData.branchId])
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault()
+
+        if (formData.password !== formData.confirmPassword) {
+            toast.error("Passwords do not match. Please verify your entries.")
+            return
+        }
+
+        if (!formData.password) {
+            toast.error("Password is required.")
+            return
+        }
+
         setIsLoading(true)
 
-        // Simulate API call
-        setTimeout(() => {
-            setIsLoading(false)
+        const now = new Date().toISOString()
+        const selectedRole = roles.find((r) => String(r.roleId) === String(formData.roleId))
+        const roleName = selectedRole ? selectedRole.roleName : "User"
+
+        const payload = {
+            userId: 0,
+            firstName: formData.firstName.trim(),
+            lastName: formData.lastName.trim(),
+            gender: formData.gender,
+            employeeId: formData.employeeId.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim(),
+            companyId: Number(formData.companyId) || 0,
+            branchId: Number(formData.branchId) || 0,
+            departmentId: Number(formData.departmentId) || 0,
+            roleId: Number(formData.roleId) || 0,
+            role: roleName,
+            handlerId: Number(formData.handlerId) || 0,
+            status: formData.status,
+            lastLogin: now,
+            imageUrl: formData.imageUrl.trim(),
+            passwordHash: formData.password,
+            createdAt: now,
+            updatedAt: now,
+        }
+
+        try {
+            await usersApi.create(payload)
             toast.success("User created successfully")
             navigate("/system/users")
-        }, 1000)
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : "Something went wrong"
+            toast.error(`Failed to create user: ${message}`)
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
-        <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+        <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-12">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                     <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
@@ -50,176 +246,335 @@ export default function AddUserPage() {
                     </Button>
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Add New User</h1>
-                        <p className="text-muted-foreground">Fill in the details to create a new system user.</p>
+                        <p className="text-muted-foreground text-sm">
+                            Configure user identity, organizational assignment, security credentials, and system role.
+                        </p>
                     </div>
                 </div>
             </div>
 
             <form onSubmit={onSubmit}>
                 <div className="grid gap-6">
-                    <Card>
+                    {/* PERSONAL INFORMATION */}
+                    <Card className="shadow-sm border">
                         <CardHeader>
-                            <CardTitle>Personal Information</CardTitle>
+                            <div className="flex items-center gap-2">
+                                <User className="h-5 w-5 text-primary" />
+                                <CardTitle className="text-lg">Personal Information</CardTitle>
+                            </div>
                             <CardDescription>
-                                Basic identification details for the user.
+                                Basic identification details and personal profile info.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="firstName">First Name</Label>
-                                    <Input id="firstName" placeholder="Enter first name" required />
+                                    <Label htmlFor="firstName">
+                                        First Name <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="firstName"
+                                        placeholder="Enter first name"
+                                        required
+                                        value={formData.firstName}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, firstName: e.target.value }))}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="lastName">Last Name</Label>
-                                    <Input id="lastName" placeholder="Enter last name" required />
+                                    <Label htmlFor="lastName">
+                                        Last Name <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="lastName"
+                                        placeholder="Enter last name"
+                                        required
+                                        value={formData.lastName}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, lastName: e.target.value }))}
+                                    />
                                 </div>
                             </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="gender">Gender</Label>
-                                    <Select>
+                                    <Select
+                                        value={formData.gender}
+                                        onValueChange={(val) => setFormData((prev) => ({ ...prev, gender: val ?? "Male" }))}
+                                    >
                                         <SelectTrigger id="gender">
                                             <SelectValue placeholder="Select gender" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="male">Male</SelectItem>
-                                            <SelectItem value="female">Female</SelectItem>
-                                            <SelectItem value="other">Other</SelectItem>
-                                            <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
+                                            <SelectItem value="Male">Male</SelectItem>
+                                            <SelectItem value="Female">Female</SelectItem>
+                                            <SelectItem value="Other">Other</SelectItem>
+                                            <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="employeeId">Employee ID</Label>
-                                    <Input id="employeeId" placeholder="EMP-000" required />
+                                    <Label htmlFor="employeeId">
+                                        Employee ID <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="employeeId"
+                                        placeholder="EMP-000"
+                                        required
+                                        value={formData.employeeId}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, employeeId: e.target.value }))}
+                                    />
                                 </div>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label htmlFor="imageUrl" className="flex items-center gap-1.5">
+                                    <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                                    Profile Image URL <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                                </Label>
+                                <Input
+                                    id="imageUrl"
+                                    type="url"
+                                    placeholder="https://example.com/profile-photo.jpg"
+                                    value={formData.imageUrl}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                                />
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    {/* CONTACT & ORGANIZATIONAL DETAILS */}
+                    <Card className="shadow-sm border">
                         <CardHeader>
-                            <CardTitle>Contact & Employment</CardTitle>
+                            <div className="flex items-center gap-2">
+                                <Building2 className="h-5 w-5 text-primary" />
+                                <CardTitle className="text-lg">Contact & Organization</CardTitle>
+                            </div>
                             <CardDescription>
-                                Work-related contact and organizational details.
+                                Official contact channels and organizational branch/department placement.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="email">Email Address</Label>
-                                    <Input id="email" type="email" placeholder="email@tejco.com" required />
+                                    <Label htmlFor="email" className="flex items-center gap-1.5">
+                                        <Mail className="h-4 w-4 text-muted-foreground" />
+                                        Email Address <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="email"
+                                        type="email"
+                                        placeholder="user@tejco.com"
+                                        required
+                                        value={formData.email}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="phone">Phone Number</Label>
-                                    <Input id="phone" type="tel" placeholder="+91 XXXXX XXXXX" required />
+                                    <Label htmlFor="phone">
+                                        Phone Number <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="phone"
+                                        type="tel"
+                                        placeholder="+91 98765 43210"
+                                        required
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+                                    />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="department">Department</Label>
-                                    <Select>
-                                        <SelectTrigger id="department">
-                                            <SelectValue placeholder="Select department" />
+                                    <Label htmlFor="companyId">Company</Label>
+                                    <Select
+                                        value={formData.companyId}
+                                        onValueChange={(val) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                companyId: val ?? "1",
+                                            }))
+                                        }
+                                    >
+                                        <SelectTrigger id="companyId">
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select company"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="administration">Administration</SelectItem>
-                                            <SelectItem value="sales">Sales</SelectItem>
-                                            <SelectItem value="inventory">Inventory</SelectItem>
-                                            <SelectItem value="manufacturing">Manufacturing</SelectItem>
-                                            <SelectItem value="supply-chain">Supply Chain</SelectItem>
-                                            <SelectItem value="it">IT Support</SelectItem>
+                                            {companies.map((c) => (
+                                                <SelectItem key={c.id} value={String(c.id)}>
+                                                    {c.name}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
+
                                 <div className="grid gap-2">
-                                    <Label htmlFor="location">Office Location</Label>
-                                    <Select>
-                                        <SelectTrigger id="location">
-                                            <SelectValue placeholder="Select location" />
+                                    <Label htmlFor="branchId">Branch / Location</Label>
+                                    <Select
+                                        value={formData.branchId}
+                                        onValueChange={(val) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                branchId: val ?? "1",
+                                            }))
+                                        }
+                                    >
+                                        <SelectTrigger id="branchId">
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select branch"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="mumbai-hq">Mumbai HQ</SelectItem>
-                                            <SelectItem value="delhi-branch">Delhi Branch</SelectItem>
-                                            <SelectItem value="bangalore-hub">Bangalore Hub</SelectItem>
-                                            <SelectItem value="pune-manufacturing">Pune Manufacturing</SelectItem>
+                                            {availableBranches.map((b) => (
+                                                <SelectItem key={b.id} value={String(b.id)}>
+                                                    {b.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="departmentId">Department</Label>
+                                    <Select
+                                        value={formData.departmentId}
+                                        onValueChange={(val) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                departmentId: val ?? "1",
+                                            }))
+                                        }
+                                    >
+                                        <SelectTrigger id="departmentId">
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select department"} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {availableDepartments.map((d) => (
+                                                <SelectItem key={d.id} value={String(d.id)}>
+                                                    {d.name}
+                                                </SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
+
                             <div className="grid gap-2">
-                                <Label htmlFor="handlerId">Handler (ID)</Label>
-                                <Input id="handlerId" placeholder="Enter superior/handler ID" />
+                                <Label htmlFor="handlerId">
+                                    Handler / Superior ID <span className="text-xs text-muted-foreground font-normal">(Optional manager ID)</span>
+                                </Label>
+                                <Input
+                                    id="handlerId"
+                                    type="number"
+                                    min={0}
+                                    placeholder="Enter reporting manager / handler ID (e.g. 0)"
+                                    value={formData.handlerId}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, handlerId: e.target.value }))}
+                                />
                             </div>
                         </CardContent>
                     </Card>
 
-                    <Card>
+                    {/* AUTHENTICATION & SYSTEM ACCESS */}
+                    <Card className="shadow-sm border">
                         <CardHeader>
                             <div className="flex items-center gap-2">
                                 <Lock className="h-5 w-5 text-primary" />
-                                <CardTitle>Authentication Credentials</CardTitle>
+                                <CardTitle className="text-lg">Authentication & Access Control</CardTitle>
                             </div>
                             <CardDescription>
-                                Account security settings and system access levels.
+                                Set system role, login password, and active account status.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="grid gap-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="username">Username</Label>
-                                    <Input id="username" placeholder="j.doe" required />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="role">User Role</Label>
-                                    <Select>
-                                        <SelectTrigger id="role">
-                                            <SelectValue placeholder="Select role" />
+                                    <Label htmlFor="roleId" className="flex items-center gap-1.5">
+                                        <Shield className="h-4 w-4 text-indigo-600" />
+                                        System Role <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Select
+                                        value={formData.roleId}
+                                        onValueChange={(val) => setFormData((prev) => ({ ...prev, roleId: val ?? "1" }))}
+                                    >
+                                        <SelectTrigger id="roleId">
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading roles..." : "Select role"} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="admin">Administrator</SelectItem>
-                                            <SelectItem value="manager">Manager</SelectItem>
-                                            <SelectItem value="operator">System Operator</SelectItem>
-                                            <SelectItem value="viewer">Viewer</SelectItem>
+                                            {roles.map((r) => (
+                                                <SelectItem key={r.roleId} value={String(r.roleId)}>
+                                                    {r.roleName} (ID: #{r.roleId})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="status">Account Status</Label>
+                                    <Select
+                                        value={formData.status}
+                                        onValueChange={(val) => setFormData((prev) => ({ ...prev, status: val ?? "Active" }))}
+                                    >
+                                        <SelectTrigger id="status">
+                                            <SelectValue placeholder="Select status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Active">Active</SelectItem>
+                                            <SelectItem value="Inactive">Inactive</SelectItem>
+                                            <SelectItem value="Suspended">Suspended</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label htmlFor="password">Password</Label>
-                                    <Input id="password" type="password" placeholder="••••••••" required />
+                                    <Label htmlFor="password">
+                                        Password <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="password"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        required
+                                        value={formData.password}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                                    <Input id="confirmPassword" type="password" placeholder="••••••••" required />
+                                    <Label htmlFor="confirmPassword">
+                                        Confirm Password <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="confirmPassword"
+                                        type="password"
+                                        placeholder="••••••••"
+                                        required
+                                        value={formData.confirmPassword}
+                                        onChange={(e) => setFormData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                                    />
                                 </div>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="status">Account Status</Label>
-                                <Select defaultValue="active">
-                                    <SelectTrigger id="status">
-                                        <SelectValue placeholder="Select status" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="active">Active</SelectItem>
-                                        <SelectItem value="inactive">Inactive</SelectItem>
-                                        <SelectItem value="suspended">Suspended</SelectItem>
-                                    </SelectContent>
-                                </Select>
                             </div>
                         </CardContent>
                     </Card>
 
-                    <div className="flex items-center justify-end gap-4">
-                        <Button variant="outline" type="button" onClick={() => navigate(-1)}>
+                    {/* ACTION BUTTONS */}
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                        <Button variant="outline" type="button" onClick={() => navigate(-1)} disabled={isLoading}>
                             <X className="mr-2 h-4 w-4" />
                             Cancel
                         </Button>
                         <Button type="submit" disabled={isLoading}>
-                            <Save className="mr-2 h-4 w-4" />
-                            {isLoading ? "Creating..." : "Create User"}
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Creating User...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Create User
+                                </>
+                            )}
                         </Button>
                     </div>
                 </div>

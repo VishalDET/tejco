@@ -557,27 +557,50 @@ export default function EditProductPage() {
                                                         required
                                                     />
                                                 </div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div className="grid gap-2">
-                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Warehouse</Label>
-                                                        <Select
-                                                            value={v.warehouseId ? String(v.warehouseId) : undefined}
-                                                            onValueChange={(val) => handleVariantChange(v.id, "warehouseId", val || "")}
-                                                        >
-                                                            <SelectTrigger className="h-9">
-                                                                <SelectValue placeholder="Select" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {warehouses.map(w => (
-                                                                    <SelectItem key={w.id} value={String(w.id)}>{w.name}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
+                                                <div className="grid grid-cols-2 gap-3 min-w-0">
+                                                    <div className="grid gap-2 min-w-0">
+                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground truncate" title="Warehouse">Warehouse</Label>
+                                                        {(() => {
+                                                            const selectedWarehouse = warehouses.find(w =>
+                                                                String(w.id) === String(v.warehouseId) ||
+                                                                String((w as any).warehouseId) === String(v.warehouseId) ||
+                                                                w.name?.toLowerCase().trim() === String(v.warehouseId).toLowerCase().trim()
+                                                            )
+                                                            const warehouseDisplayName = selectedWarehouse
+                                                                ? (selectedWarehouse.name || (selectedWarehouse as any).warehouseName)
+                                                                : ""
+
+                                                            return (
+                                                                <Select
+                                                                    value={v.warehouseId ? String(v.warehouseId) : ""}
+                                                                    onValueChange={(val) => handleVariantChange(v.id, "warehouseId", val || "")}
+                                                                >
+                                                                    <SelectTrigger className="h-9 w-full min-w-0 max-w-full overflow-hidden">
+                                                                        <SelectValue placeholder="Select" className="truncate text-left block w-full min-w-0">
+                                                                            <span className="truncate block" title={warehouseDisplayName || undefined}>
+                                                                                {warehouseDisplayName}
+                                                                            </span>
+                                                                        </SelectValue>
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {warehouses.map(w => {
+                                                                            const wId = String(w.id || (w as any).warehouseId)
+                                                                            const wName = w.name || (w as any).warehouseName || `Warehouse #${wId}`
+                                                                            return (
+                                                                                <SelectItem key={wId} value={wId}>
+                                                                                    {wName}
+                                                                                </SelectItem>
+                                                                            )
+                                                                        })}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )
+                                                        })()}
                                                     </div>
-                                                    <div className="grid gap-2">
-                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rack/Place</Label>
+                                                    <div className="grid gap-2 min-w-0">
+                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground truncate" title="Rack/Place">Rack/Place</Label>
                                                         <Input
-                                                            className="h-9"
+                                                            className="h-9 w-full min-w-0"
                                                             placeholder="A-1"
                                                             value={v.rackLocation}
                                                             onChange={(e) => handleVariantChange(v.id, "rackLocation", e.target.value)}

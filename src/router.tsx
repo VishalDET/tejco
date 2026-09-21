@@ -1,12 +1,16 @@
 import React from "react"
 import { createBrowserRouter, Navigate } from "react-router-dom"
 import { AppLayout } from "@/layouts/AppLayout"
+import { AuthProvider } from "@/hooks/use-auth"
 
 // Pages
 import DashboardPage from "@/app/page"
 import LoginPage from "@/app/login/page"
 
+import { ProtectedRoute } from "@/components/auth/protected-route"
+
 // Sales
+import SalesDashboardPage from "@/app/sales/dashboard/page"
 import QuotationsPage from "@/app/sales/quotations/page"
 import QuotationDetailsPage from "@/app/sales/quotations/[id]/page"
 import ProformaInvoicesPage from "@/app/sales/proforma-invoices/page"
@@ -32,7 +36,12 @@ import StockInwardPage from "@/app/inventory/stock-inward/page"
 import StockInwardFormPage from "@/app/inventory/stock-inward/add/page"
 import StockInwardDetailsPage from "@/app/inventory/stock-inward/[id]/page"
 
-// Supply Chain & Stakeholders
+// Purchases & Vendors
+import PurchaseOrdersPage from "@/app/purchase/page"
+import CreatePurchaseOrderPage from "@/app/purchase/create/page"
+import PurchaseOrderDetailsPage from "@/app/purchase/[id]/page"
+import EditPurchaseOrderPage from "@/app/purchase/[id]/edit/page"
+import PurchaseOrderPrintPage from "@/app/purchase/[id]/print/page"
 import VendorsPage from "@/app/supply-chain/vendors/page"
 import VendorDetailsPage from "@/app/supply-chain/vendors/[id]/page"
 import WarehousePage from "@/app/supply-chain/warehouse/page"
@@ -45,6 +54,7 @@ import SettingsPage from "@/app/system/settings/page"
 import UsersPage from "@/app/system/users/page"
 import AddUserPage from "@/app/system/users/add/page"
 import EditUserPage from "@/app/system/users/[id]/edit/page"
+import RolesPage from "@/app/system/roles/page"
 
 // Masters
 import MastersLayout from "@/app/system/masters/layout"
@@ -93,51 +103,65 @@ import SalesTeamPage from "@/app/stakeholders/sales-team/page"
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <AppLayout />,
+    element: (
+      <AuthProvider>
+        <AppLayout />
+      </AuthProvider>
+    ),
     children: [
       { index: true, element: <DashboardPage /> },
       { path: "login", element: <LoginPage /> },
 
       // Sales
-      { path: "sales/quotations", element: <QuotationsPage /> },
-      { path: "sales/quotations/:id", element: <QuotationDetailsPage /> },
-      { path: "sales/proforma-invoices", element: <ProformaInvoicesPage /> },
-      { path: "sales/proforma-invoices/:id", element: <ProformaDetailsPage /> },
-      { path: "sales/orders", element: <OrdersPage /> },
-      { path: "sales/orders/:id", element: <OrderDetailsPage /> },
-      { path: "sales/invoices", element: <InvoicesPage /> },
-      { path: "sales/invoices/:id", element: <InvoiceDetailsPage /> },
+      { path: "sales", element: <Navigate to="/sales/dashboard" replace /> },
+      { path: "sales/dashboard", element: <ProtectedRoute permission="SalesOrders.View"><SalesDashboardPage /></ProtectedRoute> },
+      { path: "sales/quotations", element: <ProtectedRoute permission="Quotations.View"><QuotationsPage /></ProtectedRoute> },
+      { path: "sales/quotations/:id", element: <ProtectedRoute permission="Quotations.View"><QuotationDetailsPage /></ProtectedRoute> },
+      { path: "sales/proforma-invoices", element: <ProtectedRoute permission="ProformaInvoices.View"><ProformaInvoicesPage /></ProtectedRoute> },
+      { path: "sales/proforma-invoices/:id", element: <ProtectedRoute permission="ProformaInvoices.View"><ProformaDetailsPage /></ProtectedRoute> },
+      { path: "sales/orders", element: <ProtectedRoute permission="SalesOrders.View"><OrdersPage /></ProtectedRoute> },
+      { path: "sales/orders/:id", element: <ProtectedRoute permission="SalesOrders.View"><OrderDetailsPage /></ProtectedRoute> },
+      { path: "sales/invoices", element: <ProtectedRoute permission="Invoices.View"><InvoicesPage /></ProtectedRoute> },
+      { path: "sales/invoices/:id", element: <ProtectedRoute permission="Invoices.View"><InvoiceDetailsPage /></ProtectedRoute> },
       { path: "sales/challans", element: <ChallansPage /> },
 
       // Inventory
-      { path: "inventory/products", element: <ProductsPage /> },
-      { path: "inventory/products/add", element: <AddProductPage /> },
-      { path: "inventory/products/:id", element: <ProductDetailsPage /> },
-      { path: "inventory/products/view/:id", element: <ViewProductPage /> },
+      { path: "inventory/products", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView"]}><ProductsPage /></ProtectedRoute> },
+      { path: "inventory/products/add", element: <ProtectedRoute permission="Products.Create"><AddProductPage /></ProtectedRoute> },
+      { path: "inventory/products/:id", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView"]}><ProductDetailsPage /></ProtectedRoute> },
+      { path: "inventory/products/view/:id", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView"]}><ViewProductPage /></ProtectedRoute> },
       { path: "inventory/raw-materials", element: <RawMaterialsPage /> },
-      { path: "inventory/dispatch", element: <DispatchPage /> },
-      { path: "inventory/dispatch/:id", element: <DispatchDetailsPage /> },
-      { path: "inventory/order-outward", element: <OrderOutwardPage /> },
-      { path: "inventory/order-outward/:id", element: <OrderOutwardScanPage /> },
-      { path: "inventory/stock-transfer", element: <StockTransferPage /> },
-      { path: "inventory/stock-inward", element: <StockInwardPage /> },
-      { path: "inventory/stock-inward/add", element: <StockInwardFormPage /> },
-      { path: "inventory/stock-inward/:id", element: <StockInwardDetailsPage /> },
-      { path: "inventory/stock-inward/:id/edit", element: <StockInwardFormPage /> },
+      { path: "inventory/dispatch", element: <ProtectedRoute permission="Inventory.Dispatch"><DispatchPage /></ProtectedRoute> },
+      { path: "inventory/dispatch/:id", element: <ProtectedRoute permission="Inventory.Dispatch"><DispatchDetailsPage /></ProtectedRoute> },
+      { path: "inventory/order-outward", element: <ProtectedRoute permission="Inventory.Dispatch"><OrderOutwardPage /></ProtectedRoute> },
+      { path: "inventory/order-outward/:id", element: <ProtectedRoute permission="Inventory.Dispatch"><OrderOutwardScanPage /></ProtectedRoute> },
+      { path: "inventory/stock-transfer", element: <ProtectedRoute permission="Inventory.Transfer"><StockTransferPage /></ProtectedRoute> },
+      { path: "inventory/stock-inward", element: <ProtectedRoute permission="Inventory.StockInward"><StockInwardPage /></ProtectedRoute> },
+      { path: "inventory/stock-inward/add", element: <ProtectedRoute permission="Inventory.StockInward"><StockInwardFormPage /></ProtectedRoute> },
+      { path: "inventory/stock-inward/:id", element: <ProtectedRoute permission="Inventory.StockInward"><StockInwardDetailsPage /></ProtectedRoute> },
+      { path: "inventory/stock-inward/:id/edit", element: <ProtectedRoute permission="Inventory.StockInward"><StockInwardFormPage /></ProtectedRoute> },
+
+      // Purchases
+      { path: "purchase", element: <ProtectedRoute permission="Purchases.View"><PurchaseOrdersPage /></ProtectedRoute> },
+      { path: "purchase/create", element: <ProtectedRoute permission="Purchases.Create"><CreatePurchaseOrderPage /></ProtectedRoute> },
+      { path: "purchase/:id", element: <ProtectedRoute permission="Purchases.View"><PurchaseOrderDetailsPage /></ProtectedRoute> },
+      { path: "purchase/:id/edit", element: <ProtectedRoute permission="Purchases.View"><EditPurchaseOrderPage /></ProtectedRoute> },
+      { path: "purchase/:id/print", element: <ProtectedRoute permission="Purchases.View"><PurchaseOrderPrintPage /></ProtectedRoute> },
 
       // Supply Chain & Stakeholders
-      { path: "supply-chain/vendors", element: <VendorsPage /> },
-      { path: "supply-chain/vendors/:id", element: <VendorDetailsPage /> },
-      { path: "supply-chain/warehouse", element: <WarehousePage /> },
-      { path: "stakeholders/clients", element: <ClientsPage /> },
-      { path: "stakeholders/clients/:id", element: <ClientDetailsPage /> },
+      { path: "supply-chain/vendors", element: <ProtectedRoute permission="Vendors.View"><VendorsPage /></ProtectedRoute> },
+      { path: "supply-chain/vendors/:id", element: <ProtectedRoute permission="Vendors.View"><VendorDetailsPage /></ProtectedRoute> },
+      { path: "supply-chain/warehouse", element: <ProtectedRoute permission="Warehouses.View"><WarehousePage /></ProtectedRoute> },
+      { path: "stakeholders/clients", element: <ProtectedRoute permission="Clients.View"><ClientsPage /></ProtectedRoute> },
+      { path: "stakeholders/clients/:id", element: <ProtectedRoute permission="Clients.View"><ClientDetailsPage /></ProtectedRoute> },
 
       // System
       { path: "system/profile", element: <ProfilePage /> },
       { path: "system/settings", element: <SettingsPage /> },
-      { path: "system/users", element: <UsersPage /> },
-      { path: "system/users/add", element: <AddUserPage /> },
-      { path: "system/users/:id/edit", element: <EditUserPage /> },
+      { path: "system/users", element: <ProtectedRoute permission="System.Users.View"><UsersPage /></ProtectedRoute> },
+      { path: "system/users/add", element: <ProtectedRoute permission="System.Users.View"><AddUserPage /></ProtectedRoute> },
+      { path: "system/users/:id/edit", element: <ProtectedRoute permission="System.Users.View"><EditUserPage /></ProtectedRoute> },
+      { path: "system/roles", element: <ProtectedRoute permission="System.Roles.View"><RolesPage /></ProtectedRoute> },
 
       // Masters
       {

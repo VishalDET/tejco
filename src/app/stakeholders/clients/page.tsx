@@ -1,7 +1,23 @@
 
 import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, ExternalLink, Mail, Phone, ChevronLeft, ChevronRight } from "lucide-react"
+import {
+  Plus,
+  Search,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  ExternalLink,
+  Mail,
+  Phone,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,10 +36,23 @@ import {
 import { Client } from "./types"
 import { ClientFormDialog } from "./client-form-dialog"
 import { clientsApi } from "@/lib/api"
+import { PermissionGuard } from "@/components/auth/permission-guard"
+
+function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+  if (currentPage <= 3) {
+    return [1, 2, 3, 4, "...", totalPages]
+  }
+  if (currentPage >= totalPages - 2) {
+    return [1, "...", totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+  }
+  return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages]
+}
 
 export default function ClientsPage() {
   const navigate = useNavigate()
-  const router = useNavigate()
   const [clients, setClients] = useState<Client[]>([])
   const [totalCount, setTotalCount] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
@@ -133,6 +162,16 @@ export default function ClientsPage() {
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
 
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortDir((prev) => (prev === "ASC" ? "DESC" : "ASC"))
+    } else {
+      setSortBy(column)
+      setSortDir(column === "ClientId" ? "DESC" : "ASC")
+    }
+    setPageNumber(1)
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -140,9 +179,11 @@ export default function ClientsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Doctors / Clients</h1>
           <p className="text-muted-foreground">Manage client relationships and delivery history.</p>
         </div>
-        <Button onClick={handleAdd} disabled={isLoading}>
-          <Plus className="mr-2 h-4 w-4" /> Add Client
-        </Button>
+        <PermissionGuard permission="Clients.Create">
+          <Button onClick={handleAdd} disabled={isLoading}>
+            <Plus className="mr-2 h-4 w-4" /> Add Client
+          </Button>
+        </PermissionGuard>
       </div>
 
       {fetchError && (
@@ -188,7 +229,7 @@ export default function ClientsPage() {
 
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">Sort By:</span>
-          <Select value={sortBy} onValueChange={(val) => { if (val) setSortBy(val); }}>
+          <Select value={sortBy} onValueChange={(val) => { if (val) { setSortBy(val); setPageNumber(1); } }}>
             <SelectTrigger className="w-[130px] h-9 text-xs">
               <SelectValue placeholder="Sort By" />
             </SelectTrigger>
@@ -196,31 +237,17 @@ export default function ClientsPage() {
               <SelectItem value="ClientId">Client ID</SelectItem>
               <SelectItem value="ClientName">Name</SelectItem>
               <SelectItem value="Company">Company</SelectItem>
+              <SelectItem value="Status">Status</SelectItem>
             </SelectContent>
           </Select>
 
-          <Select value={sortDir} onValueChange={(val) => { if (val) setSortDir(val); }}>
+          <Select value={sortDir} onValueChange={(val) => { if (val) { setSortDir(val); setPageNumber(1); } }}>
             <SelectTrigger className="w-[100px] h-9 text-xs">
               <SelectValue placeholder="Order" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="DESC">DESC</SelectItem>
               <SelectItem value="ASC">ASC</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs font-medium text-muted-foreground">Page Size:</span>
-          <Select value={String(pageSize)} onValueChange={(val) => { if (val) { setPageSize(Number(val)); setPageNumber(1); } }}>
-            <SelectTrigger className="w-[80px] h-9 text-xs">
-              <SelectValue placeholder="Size" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="5">5</SelectItem>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -231,10 +258,44 @@ export default function ClientsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Client Info</TableHead>
+                <TableHead
+                  className="pl-6 cursor-pointer select-none hover:text-foreground group"
+                  onClick={() => handleSort("ClientId")}
+                  title="Click to sort by Client ID"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Client Info</span>
+                    {sortBy === "ClientId" || sortBy === "ClientName" ? (
+                      sortDir === "ASC" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Contact Detail</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead
+                  className="cursor-pointer select-none hover:text-foreground group"
+                  onClick={() => handleSort("Status")}
+                  title="Click to sort by Status"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Status</span>
+                    {sortBy === "Status" ? (
+                      sortDir === "ASC" ? (
+                        <ArrowUp className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <ArrowDown className="h-3.5 w-3.5 text-primary" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                </TableHead>
                 <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -260,12 +321,17 @@ export default function ClientsPage() {
                   <TableRow key={client.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="pl-6 py-4">
                       <div className="flex flex-col">
-                        <button
-                          className="font-bold text-slate-900 hover:text-primary text-left transition-colors text-sm"
-                          onClick={() => navigate(`/stakeholders/clients/${client.id}`)}
-                        >
-                          {client.name}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="font-bold text-slate-900 hover:text-primary text-left transition-colors text-sm"
+                            onClick={() => navigate(`/stakeholders/clients/${client.id}`)}
+                          >
+                            {client.name}
+                          </button>
+                          <Badge variant="outline" className="text-[10px] font-mono font-medium text-muted-foreground px-1.5 py-0 h-4 border-slate-200">
+                            #{client.id}
+                          </Badge>
+                        </div>
                         <span className="text-[11px] text-slate-500 font-medium">{client.company}</span>
                       </div>
                     </TableCell>
@@ -309,13 +375,17 @@ export default function ClientsPage() {
                           <DropdownMenuItem onClick={() => navigate(`/stakeholders/clients/${client.id}`)}>
                             <ExternalLink className="mr-2 h-4 w-4" /> View Details
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEdit(client)}>
-                            <Pencil className="mr-2 h-4 w-4" /> Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleDelete(client.id)} className="text-destructive focus:text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
+                          <PermissionGuard permission="Clients.Edit">
+                            <DropdownMenuItem onClick={() => handleEdit(client)}>
+                              <Pencil className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                          </PermissionGuard>
+                          <PermissionGuard permission="Clients.Delete">
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDelete(client.id)} className="text-destructive focus:text-destructive">
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </PermissionGuard>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -326,36 +396,146 @@ export default function ClientsPage() {
           </Table>
 
           {/* Pagination Footer */}
-          {!isLoading && totalCount > 0 && (
-            <div className="flex items-center justify-between px-6 py-4 border-t">
-              <span className="text-xs text-muted-foreground">
-                Showing {((pageNumber - 1) * pageSize) + 1} to {Math.min(pageNumber * pageSize, totalCount)} of {totalCount} clients
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pageNumber <= 1}
-                  onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
-                  className="h-8 text-xs"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Previous
-                </Button>
-                <span className="text-xs font-medium px-2">
-                  Page {pageNumber} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pageNumber >= totalPages}
-                  onClick={() => setPageNumber((p) => p + 1)}
-                  className="h-8 text-xs"
-                >
-                  Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                </Button>
+          {(() => {
+            const currentPage = pageNumber
+            const startRow = totalCount === 0 ? 0 : (pageNumber - 1) * pageSize + 1
+            const endRow = Math.min(pageNumber * pageSize, totalCount)
+            const pageNumbers = getPageNumbers(currentPage, totalPages)
+
+            return (
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-6 py-4 border-t text-xs">
+                {/* Left side: Item Count & Rows Per Page */}
+                <div className="flex flex-wrap items-center gap-4 text-muted-foreground w-full md:w-auto justify-between md:justify-start">
+                  <div>
+                    Showing <span className="font-semibold text-foreground">{startRow}</span> to{" "}
+                    <span className="font-semibold text-foreground">{endRow}</span> of{" "}
+                    <span className="font-semibold text-foreground">{totalCount}</span> clients
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="whitespace-nowrap">Rows per page</span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(val) => {
+                        if (val) {
+                          setPageSize(Number(val))
+                          setPageNumber(1)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[72px] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[10, 20, 30, 50, 100].map((size) => (
+                          <SelectItem key={size} value={String(size)} className="text-xs">
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Right side: Page Navigation */}
+                <div className="flex items-center gap-1 sm:gap-1.5 w-full md:w-auto justify-center md:justify-end">
+                  {/* Number of Pages Display */}
+                  <div className="text-xs text-muted-foreground font-medium mr-2 whitespace-nowrap bg-muted/40 px-2.5 py-1 rounded-md border">
+                    Page <span className="font-bold text-foreground">{totalCount === 0 ? 0 : currentPage}</span> of{" "}
+                    <span className="font-bold text-foreground">{totalCount === 0 ? 0 : totalPages}</span>
+                  </div>
+
+                  {/* First Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setPageNumber(1)}
+                    disabled={pageNumber <= 1 || isLoading || totalCount === 0}
+                    title="First page"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                    <span className="sr-only">First page</span>
+                  </Button>
+
+                  {/* Previous Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                    disabled={pageNumber <= 1 || isLoading || totalCount === 0}
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span className="sr-only">Previous page</span>
+                  </Button>
+
+                  {/* Direct Page Numbers */}
+                  {totalCount > 0 && (
+                    <div className="hidden sm:flex items-center gap-1">
+                      {pageNumbers.map((p, idx) => {
+                        if (p === "...") {
+                          return (
+                            <span
+                              key={`ellipsis-${idx}`}
+                              className="px-1 text-xs text-muted-foreground select-none"
+                            >
+                              ...
+                            </span>
+                          )
+                        }
+                        const pageNum = p as number
+                        const isSelected = pageNum === currentPage
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            disabled={isLoading}
+                            className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${
+                              isSelected
+                                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs font-semibold"
+                                : "hover:bg-muted"
+                            }`}
+                            onClick={() => setPageNumber(pageNum)}
+                          >
+                            {pageNum}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Next Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                    disabled={pageNumber >= totalPages || isLoading || totalCount === 0}
+                    title="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                    <span className="sr-only">Next page</span>
+                  </Button>
+
+                  {/* Last Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => setPageNumber(totalPages)}
+                    disabled={pageNumber >= totalPages || isLoading || totalCount === 0}
+                    title="Last page"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                    <span className="sr-only">Last page</span>
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
         </CardContent>
       </Card>
 

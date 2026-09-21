@@ -2,8 +2,9 @@
 import * as React from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { Loader2, Lock, Mail, Eye, EyeOff, ShieldCheck } from "lucide-react"
-import { authApi, usersApi } from "@/lib/api"
-import { stampActivity } from "@/hooks/use-auth"
+import { authApi, usersApi, rolesApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
+import { extractPermissionNames } from "@/lib/rbac"
 import { Button } from "@/components/ui/button"
 import {
     Card,
@@ -18,8 +19,9 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 
 export default function LoginPage() {
-  const navigate = useNavigate()
+    const navigate = useNavigate()
     const location = useLocation()
+    const { login } = useAuth()
     const [isLoading, setIsLoading] = React.useState(false)
     const [showPassword, setShowPassword] = React.useState(false)
     const [formData, setFormData] = React.useState({
@@ -33,29 +35,41 @@ export default function LoginPage() {
 
         try {
             const loginResponse = await authApi.login(formData)
-            
+
             // Extract token
             const token = loginResponse.token || loginResponse.data?.token || loginResponse.accessToken || (typeof loginResponse === 'string' ? loginResponse : null)
-            
+
             if (!token) {
                 throw new Error("Invalid response from server. No token received.")
             }
 
-            // Save token in localStorage and Cookie (Middleware needs the cookie)
+            // Temporarily store token so subsequent apiClient calls include Authorization: Bearer <token>
             localStorage.setItem("tejco_auth_token", token)
-            document.cookie = `tejco_auth_token=${token}; path=/; max-age=86400; SameSite=Lax`
-
-            // Stamp initial activity so the inactivity timer starts clean
-            stampActivity()
 
             // Fetch full user details by email
+            let userData: any = null
             try {
                 const userRes = await usersApi.getByEmail(formData.username)
-                const userData = userRes.data || userRes
-                localStorage.setItem("tejco_user", JSON.stringify(userData))
+                userData = userRes.data || userRes
             } catch (userErr) {
                 console.error("Failed to fetch user details:", userErr)
             }
+
+            // Extract roleId (from userData or login response)
+            const roleId = userData?.roleId ?? loginResponse?.roleId ?? loginResponse?.data?.roleId ?? 3
+
+            // Immediately fetch user permissions for this role
+            let userPermissions: string[] = []
+            try {
+                const permRes: any = await rolesApi.getRolePermissions(roleId)
+                const rawPerms = Array.isArray(permRes) ? permRes : permRes?.data || []
+                userPermissions = extractPermissionNames(rawPerms)
+            } catch (permErr) {
+                console.error(`Failed to fetch permissions for roleId ${roleId}:`, permErr)
+            }
+
+            // Update auth context state, storage, cookies, and activity timestamp
+            login(token, userData, userPermissions)
 
             toast.success("Login successful! Welcome back.")
             // Redirect to the page the user originally tried to visit
@@ -72,16 +86,14 @@ export default function LoginPage() {
     const handleDevBypass = () => {
         setIsLoading(true)
         const mockToken = "dev-bypass-token"
-        localStorage.setItem("tejco_auth_token", mockToken)
-        document.cookie = `tejco_auth_token=${mockToken}; path=/; max-age=86400; SameSite=Lax`
-        stampActivity()
-
         const mockUser = {
             userId: "0001",
             firstName: "Developer",
             lastName: "User",
             email: "dev@tejco.com",
             role: "Administrator",
+            roleId: 1,
+            permissions: ["*"],
             phone: "+91 98765 43210",
             company: "Tejco Group (Dev)",
             branch: "Mumbai HO",
@@ -89,7 +101,7 @@ export default function LoginPage() {
             imageUrl: null,
             createdAt: new Date().toISOString()
         }
-        localStorage.setItem("tejco_user", JSON.stringify(mockUser))
+        login(mockToken, mockUser, ["*"])
         toast.success("Bypassed login (Dev Mode)")
         const from = (location.state as any)?.from?.pathname ?? "/"
         navigate(from, { replace: true })
@@ -146,6 +158,7 @@ export default function LoginPage() {
                                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                                 <Input
                                     id="password"
+                                    placeholder="password"
                                     type={showPassword ? "text" : "password"}
                                     required
                                     className="pl-10 pr-10 h-11 bg-white dark:bg-slate-950"
@@ -168,9 +181,9 @@ export default function LoginPage() {
                             Sign In
                         </Button>
                         {import.meta.env.DEV && (
-                            <Button 
+                            <Button
                                 type="button"
-                                variant="outline" 
+                                variant="outline"
                                 className="w-full h-11 text-base font-medium border-dashed border-primary/40 hover:border-primary hover:bg-primary/5 transition-all text-primary"
                                 onClick={handleDevBypass}
                                 disabled={isLoading}
