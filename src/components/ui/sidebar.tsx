@@ -216,8 +216,13 @@ function Sidebar({
       {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
+        style={{
+          width: state === "collapsed"
+            ? (variant === "floating" || variant === "inset" ? "calc(var(--sidebar-width-icon, 3rem) + 1rem)" : "var(--sidebar-width-icon, 3rem)")
+            : "var(--sidebar-width, 16rem)",
+        }}
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) shrink-0 bg-transparent transition-[width] duration-200 ease-linear",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
@@ -228,6 +233,11 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         data-side={side}
+        style={{
+          width: state === "collapsed"
+            ? (variant === "floating" || variant === "inset" ? "calc(var(--sidebar-width-icon, 3rem) + 1rem + 2px)" : "var(--sidebar-width-icon, 3rem)")
+            : "var(--sidebar-width, 16rem)",
+        }}
         className={cn(
           "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex",
           // Adjust the padding for floating and inset variants.

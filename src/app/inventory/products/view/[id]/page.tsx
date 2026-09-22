@@ -796,27 +796,35 @@ export default function ViewProductPage() {
 
                                                         {/* Pricing Matrix */}
                                                         <div className="grid grid-cols-2 gap-2.5">
-                                                            {/* Domestic Sell Price */}
-                                                            <div className="p-2.5 rounded-xl border bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40">
-                                                                <div className="flex items-center justify-between">
-                                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
-                                                                        Sale Price (IND)
-                                                                    </span>
-                                                                    {margin !== null && (
-                                                                        <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded">
-                                                                            +{margin}%
+                                                            {/* Domestic & Export Sell Price */}
+                                                            <div className="p-2.5 rounded-xl border bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-800/40 flex flex-col justify-between">
+                                                                <div>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                                                                            Sale Price (IND)
                                                                         </span>
-                                                                    )}
+                                                                        {margin !== null && (
+                                                                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.2 rounded">
+                                                                                +{margin}%
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-base font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                                                                        {formatCurrency(v.sellingPrice)}
+                                                                    </div>
+                                                                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                                                                        GST: {v.gstPercentage || 0}%
+                                                                    </span>
                                                                 </div>
-                                                                <div className="text-base font-bold text-emerald-700 dark:text-emerald-400 mt-0.5">
-                                                                    {formatCurrency(v.sellingPrice)}
+                                                                <div className="pt-1.5 border-t border-emerald-200/60 dark:border-emerald-800/40 mt-1.5 flex items-center justify-between text-[11px]">
+                                                                    <span className="text-emerald-800 dark:text-emerald-300 font-medium">Export:</span>
+                                                                    <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                                                        ${v.usdAmount || v.exportSellingPrice || 0}
+                                                                    </span>
                                                                 </div>
-                                                                <span className="text-[10px] text-muted-foreground block mt-0.5">
-                                                                    GST: {v.gstPercentage || 0}%
-                                                                </span>
                                                             </div>
 
-                                                            {/* Cost & Export */}
+                                                            {/* Cost Price */}
                                                             <div className="p-2.5 rounded-xl border bg-muted/30 flex flex-col justify-between">
                                                                 <div>
                                                                     <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -825,12 +833,6 @@ export default function ViewProductPage() {
                                                                     <div className="text-sm font-semibold text-foreground mt-0.5">
                                                                         {formatCurrency(v.purchasePrice)}
                                                                     </div>
-                                                                </div>
-                                                                <div className="pt-1.5 border-t mt-1.5 flex items-center justify-between text-[11px]">
-                                                                    <span className="text-muted-foreground">Export:</span>
-                                                                    <span className="font-bold text-foreground">
-                                                                        ${v.usdAmount || v.exportSellingPrice || 0}
-                                                                    </span>
                                                                 </div>
                                                             </div>
                                                         </div>

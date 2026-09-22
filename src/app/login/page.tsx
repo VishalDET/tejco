@@ -46,26 +46,59 @@ export default function LoginPage() {
             // Temporarily store token so subsequent apiClient calls include Authorization: Bearer <token>
             localStorage.setItem("tejco_auth_token", token)
 
-            // Fetch full user details by email
-            let userData: any = null
+            // Extract user and permissions directly from login response if available
+            const loginUser = loginResponse.user || loginResponse.data?.user
+            const loginPerms = loginResponse.permissions || loginResponse.data?.permissions
+
+            // Fetch full user details by email if possible to enrich user profile
+            let userData: any = loginUser ? { ...loginUser } : null
             try {
                 const userRes = await usersApi.getByEmail(formData.username)
-                userData = userRes.data || userRes
+                const fullUser = userRes.data || userRes
+                if (fullUser) {
+                    userData = { ...(loginUser || {}), ...fullUser }
+                }
             } catch (userErr) {
-                console.error("Failed to fetch user details:", userErr)
+                console.warn("Could not fetch user details by email:", userErr)
             }
 
-            // Extract roleId (from userData or login response)
-            const roleId = userData?.roleId ?? loginResponse?.roleId ?? loginResponse?.data?.roleId ?? 3
+            // Extract roleId (from loginResponse, loginUser, or userData)
+            const roleId = loginResponse?.roleId ?? loginUser?.roleId ?? userData?.roleId ?? loginResponse?.data?.roleId ?? 1
 
-            // Immediately fetch user permissions for this role
+            // Resolve role name if not present in userData
+            if (userData && !userData.role) {
+                if (loginUser?.role) {
+                    userData.role = loginUser.role
+                } else {
+                    try {
+                        const roleRes: any = await rolesApi.getById(roleId)
+                        const roleObj = roleRes?.data || roleRes
+                        if (roleObj?.roleName) {
+                            userData.role = roleObj.roleName
+                        }
+                    } catch {
+                        userData.role = roleId === 1 ? "Administrator" : `Role-${roleId}`
+                    }
+                }
+            }
+
+            // Extract permissions: prefer loginResponse.permissions, fallback to rolesApi.getRolePermissions
             let userPermissions: string[] = []
-            try {
-                const permRes: any = await rolesApi.getRolePermissions(roleId)
-                const rawPerms = Array.isArray(permRes) ? permRes : permRes?.data || []
-                userPermissions = extractPermissionNames(rawPerms)
-            } catch (permErr) {
-                console.error(`Failed to fetch permissions for roleId ${roleId}:`, permErr)
+            if (loginPerms && Array.isArray(loginPerms) && loginPerms.length > 0) {
+                userPermissions = extractPermissionNames(loginPerms)
+            } else {
+                try {
+                    const permRes: any = await rolesApi.getRolePermissions(roleId)
+                    const rawPerms = Array.isArray(permRes) ? permRes : permRes?.data || []
+                    userPermissions = extractPermissionNames(rawPerms)
+                } catch (permErr) {
+                    console.error(`Failed to fetch permissions for roleId ${roleId}:`, permErr)
+                }
+            }
+
+            // If user is Administrator (roleId 1) and no specific permissions returned, fallback to wildcard
+            if (userPermissions.length === 0 && (roleId === 1 || userData?.role?.toLowerCase() === "administrator")) {
+                userPermissions = ["*"]
             }
 
             // Update auth context state, storage, cookies, and activity timestamp

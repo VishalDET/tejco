@@ -58,22 +58,22 @@ const data: { navMain: NavItem[] } = {
             title: "Inventory",
             url: "#",
             icon: Package,
-            permission: ["Products.View", "Products.MaskedView", "Inventory.View"],
+            permission: ["Products.View", "Products.MaskedView", "Products.FullView", "Inventory.View", "StockInward.View", "OrderOutward.View", "Dispatch.View"],
             items: [
-                { title: "Products", url: "/inventory/products", permission: ["Products.View", "Products.MaskedView"] },
-                { title: "Stock Inward", url: "/inventory/stock-inward", permission: "Inventory.StockInward" },
-                { title: "Stock Transfer", url: "/inventory/stock-transfer", permission: "Inventory.Transfer" },
-                { title: "Order Outward", url: "/inventory/order-outward", permission: "Inventory.Dispatch" },
-                { title: "Dispatch Orders", url: "/inventory/dispatch", permission: "Inventory.Dispatch" },
+                { title: "Products", url: "/inventory/products", permission: ["Products.View", "Products.MaskedView", "Products.FullView"] },
+                { title: "Stock Inward", url: "/inventory/stock-inward", permission: ["StockInward.View", "Inventory.StockInward", "Inventory.View"] },
+                { title: "Stock Transfer", url: "/inventory/stock-transfer", permission: ["Inventory.Transfer", "Inventory.View", "Warehouses.View"] },
+                { title: "Order Outward", url: "/inventory/order-outward", permission: ["OrderOutward.View", "Inventory.Dispatch", "Inventory.View"] },
+                { title: "Dispatch Orders", url: "/inventory/dispatch", permission: ["Dispatch.View", "Inventory.Dispatch", "Inventory.View"] },
             ],
         },
         {
             title: "Purchases",
             url: "#",
             icon: ShoppingBag,
-            permission: "Purchases.View",
+            permission: ["PurchaseOrders.View", "Purchases.View"],
             items: [
-                { title: "Purchase Orders", url: "/purchase", permission: "Purchases.View" },
+                { title: "Purchase Orders", url: "/purchase", permission: ["PurchaseOrders.View", "Purchases.View"] },
             ],
         },
         {
@@ -90,13 +90,13 @@ const data: { navMain: NavItem[] } = {
             title: "Sales & Orders",
             url: "#",
             icon: ShoppingCart,
-            permission: ["SalesOrders.View", "Quotations.View", "Invoices.View", "ProformaInvoices.View"],
+            permission: ["SalesOrders.View", "Quotations.View", "ProformaInvoices.View", "Invoices.View"],
             items: [
                 { title: "Sales Dashboard", url: "/sales/dashboard", permission: "SalesOrders.View" },
                 { title: "Quotations", url: "/sales/quotations", permission: "Quotations.View" },
                 { title: "Proforma Invoices", url: "/sales/proforma-invoices", permission: "ProformaInvoices.View" },
                 { title: "Sales Order", url: "/sales/orders", permission: "SalesOrders.View" },
-                { title: "Invoices", url: "/sales/invoices", permission: "Invoices.View" },
+                { title: "Invoices", url: "/sales/invoices", permission: ["Invoices.View", "SalesOrders.View", "ProformaInvoices.View"] },
             ],
         },
         {
@@ -121,15 +121,15 @@ const data: { navMain: NavItem[] } = {
             title: "System Setup",
             url: "#",
             icon: Settings,
-            permission: ["System.Users.View", "System.Roles.View", "System.Masters.View"],
+            permission: ["Users.View", "Roles.View", "Masters.View", "Categories.View", "System.Users.View", "System.Roles.View", "System.Masters.View"],
             items: [
-                { title: "Companies", url: "/system/masters/companies", permission: "System.Masters.View" },
-                { title: "Branches", url: "/system/masters/branches", permission: "System.Masters.View" },
-                { title: "Departments", url: "/system/masters/departments", permission: "System.Masters.View" },
-                { title: "Categories", url: "/system/masters/categories", permission: "System.Masters.View" },
-                { title: "Countries", url: "/system/masters/countries", permission: "System.Masters.View" },
-                { title: "Users & Employees", url: "/system/users", permission: "System.Users.View" },
-                { title: "Roles & Permissions", url: "/system/roles", permission: "System.Roles.View" },
+                { title: "Companies", url: "/system/masters/companies", permission: ["Masters.View", "System.Masters.View"] },
+                { title: "Branches", url: "/system/masters/branches", permission: ["Masters.View", "System.Masters.View"] },
+                { title: "Departments", url: "/system/masters/departments", permission: ["Masters.View", "System.Masters.View"] },
+                { title: "Categories", url: "/system/masters/categories", permission: ["Categories.View", "Masters.View", "System.Masters.View"] },
+                { title: "Countries", url: "/system/masters/countries", permission: ["Masters.View", "System.Masters.View"] },
+                { title: "Users & Employees", url: "/system/users", permission: ["Users.View", "System.Users.View"] },
+                { title: "Roles & Permissions", url: "/system/roles", permission: ["Roles.View", "System.Roles.View"] },
             ],
         },
     ],
@@ -138,30 +138,44 @@ const data: { navMain: NavItem[] } = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const location = useLocation()
     const pathname = location.pathname
-    const { hasPermission } = useAuth()
+    const { hasPermission, permissions, user } = useAuth()
 
-    // Filter nav items based on user permissions
+    // Filter nav items strictly based on user permissions
     const visibleNavItems = React.useMemo(() => {
+        // Super-admin / roleId 1 / wildcard bypass
+        if (permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator") {
+            return data.navMain
+        }
+
+        const activePermissions = permissions && permissions.length > 0 
+            ? permissions 
+            : (user?.permissions && user.permissions.length > 0 ? user.permissions : [])
+
         return data.navMain
             .map((item) => {
-                // If item has sub-items, filter visible sub-items
-                if (item.items) {
-                    const visibleSubItems = item.items.filter((sub) =>
-                        !sub.permission || hasPermission(sub.permission)
-                    )
-                    // If no sub-items are visible and parent has permission check
+                // If item has sub-items, filter visible sub-items strictly
+                if (item.items && item.items.length > 0) {
+                    const visibleSubItems = item.items.filter((sub) => {
+                        if (!sub.permission) return true
+                        if (activePermissions.length === 0) return false
+                        return hasPermission(sub.permission)
+                    })
+                    // If no sub-items are visible/allowed, hide the entire parent menu
                     if (visibleSubItems.length === 0) return null
                     return { ...item, items: visibleSubItems }
                 }
 
-                // Single direct item
-                if (item.permission && !hasPermission(item.permission)) {
-                    return null
+                // Direct item (e.g. Dashboard)
+                if (item.permission) {
+                    if (activePermissions.length === 0) return null
+                    if (!hasPermission(item.permission)) {
+                        return null
+                    }
                 }
                 return item
             })
             .filter((item): item is NavItem => item !== null)
-    }, [hasPermission])
+    }, [hasPermission, permissions, user])
 
     function NavMainItem({ item, pathname }: { item: any; pathname: string | null }) {
         const hasActiveSubItem = item.items?.some((subItem: any) =>

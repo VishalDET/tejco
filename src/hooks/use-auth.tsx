@@ -10,6 +10,8 @@
 import * as React from "react"
 import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
+import { checkPermission, extractPermissionNames } from "@/lib/rbac"
+import { rolesApi } from "@/lib/api"
 
 const TOKEN_KEY = "tejco_auth_token"
 const USER_KEY = "tejco_user"
@@ -80,6 +82,7 @@ interface AuthContextType {
     permissions: string[]
     hasPermission: (permission: string | string[]) => boolean
     hasAnyPermission: (permissions: string[]) => boolean
+    refreshPermissions: () => Promise<void>
     login: (token: string, userData?: UserProfile | null, permissions?: string[]) => void
     logout: (reason?: "manual" | "inactivity" | "expired") => void
     setIsAuthenticated: React.Dispatch<React.SetStateAction<boolean>>
@@ -102,16 +105,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const isAuthenticated = !!token
 
+    // Dynamic Permission Refresher
+    const refreshPermissions = React.useCallback(async () => {
+        if (!token || !user?.roleId) return
+        try {
+            const permRes = await rolesApi.getRolePermissions(user.roleId)
+            const rawPerms = Array.isArray(permRes) ? permRes : (permRes as any)?.data || []
+            const perms = extractPermissionNames(rawPerms)
+            if (perms && perms.length > 0) {
+                setPermissions(perms)
+                localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(perms))
+            }
+        } catch (err) {
+            console.warn(`Could not refresh role permissions for roleId ${user.roleId}:`, err)
+        }
+    }, [token, user?.roleId])
+
+    // Synchronize latest permissions on load or when role changes
+    React.useEffect(() => {
+        if (!token || !user?.roleId) return
+
+        // If permissions are missing from localStorage, fetch immediately
+        if (!permissions || permissions.length === 0) {
+            refreshPermissions()
+        }
+
+        // Listen for live permission updates from Roles Management or other tabs
+        const handlePermUpdate = () => {
+            refreshPermissions()
+        }
+
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key === PERMISSIONS_KEY && e.newValue) {
+                try {
+                    setPermissions(JSON.parse(e.newValue))
+                } catch {}
+            }
+        }
+
+        window.addEventListener("tejco_permissions_updated", handlePermUpdate)
+        window.addEventListener("storage", handleStorageChange)
+
+        return () => {
+            window.removeEventListener("tejco_permissions_updated", handlePermUpdate)
+            window.removeEventListener("storage", handleStorageChange)
+        }
+    }, [token, user?.roleId, refreshPermissions, permissions])
+
     const hasPermission = React.useCallback(
         (required: string | string[]) => {
             if (!required) return true
-            // If super-admin or wildcard
-            if (permissions.includes("*") || user?.role?.toLowerCase() === "administrator") return true
-            const userSet = new Set(permissions.map((p) => p.toLowerCase()))
-            const requiredList = Array.isArray(required) ? required : [required]
-            return requiredList.some((req) => userSet.has(req.toLowerCase()))
+            // If super-admin, roleId 1, or wildcard
+            if (permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator") {
+                return true
+            }
+            return checkPermission(permissions, required)
         },
-        [permissions, user?.role]
+        [permissions, user?.role, user?.roleId]
     )
 
     const hasAnyPermission = React.useCallback(
@@ -294,11 +344,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             permissions,
             hasPermission,
             hasAnyPermission,
+            refreshPermissions,
             login,
             logout,
             setIsAuthenticated,
         }),
-        [isAuthenticated, user, permissions, hasPermission, hasAnyPermission, login, logout, setIsAuthenticated]
+        [isAuthenticated, user, permissions, hasPermission, hasAnyPermission, refreshPermissions, login, logout, setIsAuthenticated]
     )
 
     return (
@@ -321,16 +372,14 @@ export function useAuth(): AuthContextType {
             hasPermission: (required: string | string[]) => {
                 if (!required) return true
                 if (storedPerms.includes("*")) return true
-                const userSet = new Set(storedPerms.map((p) => p.toLowerCase()))
-                const list = Array.isArray(required) ? required : [required]
-                return list.some((req) => userSet.has(req.toLowerCase()))
+                return checkPermission(storedPerms, required)
             },
             hasAnyPermission: (reqs: string[]) => {
                 if (!reqs || reqs.length === 0) return true
                 if (storedPerms.includes("*")) return true
-                const userSet = new Set(storedPerms.map((p) => p.toLowerCase()))
-                return reqs.some((req) => userSet.has(req.toLowerCase()))
+                return checkPermission(storedPerms, reqs)
             },
+            refreshPermissions: async () => {},
             login: (newToken: string, userData?: UserProfile | null, userPermissions?: string[]) => {
                 localStorage.setItem(TOKEN_KEY, newToken)
                 document.cookie = `${TOKEN_KEY}=${newToken}; path=/; max-age=86400; SameSite=Lax`

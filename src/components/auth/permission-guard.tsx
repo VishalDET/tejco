@@ -27,17 +27,12 @@ export function PermissionGuard({
     return <>{children}</>
   }
 
-  // Superadmin or wildcard bypass
-  if (permissions.includes("*") || user?.role?.toLowerCase() === "administrator") {
+  // Superadmin, roleId 1, or wildcard bypass
+  if (permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator") {
     return <>{children}</>
   }
 
-  const userPerms = new Set(permissions.map((p) => p.toLowerCase()))
-  const requiredList = Array.isArray(permission) ? permission : [permission]
-
-  const isAllowed = requireAll
-    ? requiredList.every((req) => userPerms.has(req.toLowerCase()))
-    : requiredList.some((req) => userPerms.has(req.toLowerCase()))
+  const isAllowed = hasPermission(permission)
 
   if (!isAllowed) {
     return <>{fallback}</>

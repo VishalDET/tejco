@@ -13,8 +13,8 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ permission, children }: ProtectedRouteProps) {
   const { hasPermission, permissions, user } = useAuth()
 
-  // Wildcard or Administrator full access
-  if (permissions.includes("*") || user?.role?.toLowerCase() === "administrator") {
+  // Wildcard, roleId 1, or Administrator full access
+  if (permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator") {
     return <>{children}</>
   }
 

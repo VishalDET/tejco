@@ -66,37 +66,117 @@ import { rolesApi, Role, RolePermission, RoleAuditLog } from "@/lib/api"
 
 // Default system permission modules if server returns empty list
 const DEFAULT_PERMISSIONS: RolePermission[] = [
-  // Sales Module
-  { permissionId: 101, permissionName: "sales.view", name: "View Sales", module: "Sales & Billing", description: "Access quotations, orders, proforma invoices, and challans" },
-  { permissionId: 102, permissionName: "sales.create", name: "Create Quotations & Orders", module: "Sales & Billing", description: "Generate new sales quotations and orders" },
-  { permissionId: 103, permissionName: "sales.edit", name: "Edit Sales Documents", module: "Sales & Billing", description: "Modify pricing, terms, and items in sales documents" },
-  { permissionId: 104, permissionName: "sales.approve", name: "Approve Quotations & Invoices", module: "Sales & Billing", description: "Authorize discount thresholds and approve transactions" },
-  { permissionId: 105, permissionName: "sales.delete", name: "Cancel & Delete Orders", module: "Sales & Billing", description: "Cancel or void confirmed sales orders and invoices" },
+  // Dashboard
+  { permissionId: 1, permissionName: "Dashboard.View", name: "Dashboard.View", module: "Dashboard", description: "Allows viewing the dashboard and KPIs" },
 
-  // Inventory Module
-  { permissionId: 201, permissionName: "inventory.view", name: "View Products & Stock", module: "Inventory & Warehouse", description: "Browse catalog, SKU inventory, and warehouse storage" },
-  { permissionId: 202, permissionName: "inventory.manage", name: "Manage Products & Variants", module: "Inventory & Warehouse", description: "Create and update product items, barcodes, and pricing" },
-  { permissionId: 203, permissionName: "inventory.stock_inward", name: "Process Stock Inward", module: "Inventory & Warehouse", description: "Inspect, scan, and record inward shipments" },
-  { permissionId: 204, permissionName: "inventory.dispatch", name: "Process Dispatch & Outward", module: "Inventory & Warehouse", description: "Verify packaging, scan items, and dispatch shipments" },
-  { permissionId: 205, permissionName: "inventory.transfer", name: "Warehouse Stock Transfers", module: "Inventory & Warehouse", description: "Initiate and accept inter-warehouse inventory transfers" },
+  // Products
+  { permissionId: 2, permissionName: "Products.View", name: "Products.View", module: "Products", description: "Allows viewing basic product details" },
+  { permissionId: 3, permissionName: "Products.FullView", name: "Products.FullView", module: "Products", description: "Allows viewing all product details including cost price and vendor" },
+  { permissionId: 4, permissionName: "Products.MaskedView", name: "Products.MaskedView", module: "Products", description: "Allows viewing products with cost price and vendor masked (Sales Person view)" },
+  { permissionId: 5, permissionName: "Products.Create", name: "Products.Create", module: "Products", description: "Allows creating new products" },
+  { permissionId: 6, permissionName: "Products.Edit", name: "Products.Edit", module: "Products", description: "Allows editing existing products" },
+  { permissionId: 7, permissionName: "Products.Delete", name: "Products.Delete", module: "Products", description: "Allows deleting products" },
 
-  // Purchasing Module
-  { permissionId: 301, permissionName: "purchasing.view", name: "View Purchase Orders", module: "Purchasing & Procurement", description: "Browse purchase orders and vendor procurement history" },
-  { permissionId: 302, permissionName: "purchasing.create", name: "Create Purchase Orders", module: "Purchasing & Procurement", description: "Draft and place purchase orders with vendors" },
-  { permissionId: 303, permissionName: "purchasing.approve", name: "Approve Purchase Orders", module: "Purchasing & Procurement", description: "Authorize purchase expenditure and vendor contracts" },
-  { permissionId: 304, permissionName: "purchasing.manage", name: "Manage Vendors & Warehouses", module: "Purchasing & Procurement", description: "Manage vendor contacts, terms, and warehouse layouts" },
+  // Categories
+  { permissionId: 8, permissionName: "Categories.View", name: "Categories.View", module: "Categories", description: "Allows viewing categories" },
+  { permissionId: 9, permissionName: "Categories.Create", name: "Categories.Create", module: "Categories", description: "Allows creating categories" },
+  { permissionId: 10, permissionName: "Categories.Edit", name: "Categories.Edit", module: "Categories", description: "Allows editing categories" },
+  { permissionId: 11, permissionName: "Categories.Delete", name: "Categories.Delete", module: "Categories", description: "Allows deleting categories" },
 
-  // Stakeholders Module
-  { permissionId: 401, permissionName: "clients.view", name: "View Clients & Clinics", module: "Stakeholders & CRM", description: "Browse client database, doctor profiles, and order history" },
-  { permissionId: 402, permissionName: "clients.manage", name: "Create & Edit Clients", module: "Stakeholders & CRM", description: "Add and maintain client accounts and branch locations" },
-  { permissionId: 403, permissionName: "clients.delete", name: "Delete Clients", module: "Stakeholders & CRM", description: "Remove client records from active directory" },
+  // Masters
+  { permissionId: 12, permissionName: "Masters.View", name: "Masters.View", module: "Masters", description: "Allows viewing system masters (Countries, etc)" },
+  { permissionId: 13, permissionName: "Masters.Create", name: "Masters.Create", module: "Masters", description: "Allows creating system masters" },
+  { permissionId: 14, permissionName: "Masters.Edit", name: "Masters.Edit", module: "Masters", description: "Allows editing system masters" },
 
-  // System Administration
-  { permissionId: 501, permissionName: "system.users", name: "Manage System Users", module: "System & Security", description: "Add, edit, deactivate user accounts and credentials" },
-  { permissionId: 502, permissionName: "system.roles", name: "Manage Roles & Permissions", module: "System & Security", description: "Define roles and assign granular system permissions" },
-  { permissionId: 503, permissionName: "system.masters", name: "Manage System Masters", module: "System & Security", description: "Configure companies, branches, departments, and categories" },
-  { permissionId: 504, permissionName: "system.audit", name: "View Audit Logs", module: "System & Security", description: "Inspect system security logs, changes, and user activities" },
-  { permissionId: 505, permissionName: "system.settings", name: "System Settings", module: "System & Security", description: "Update ERP global preferences and company profiles" },
+  // Clients
+  { permissionId: 15, permissionName: "Clients.View", name: "Clients.View", module: "Clients", description: "Allows viewing client data" },
+  { permissionId: 16, permissionName: "Clients.Create", name: "Clients.Create", module: "Clients", description: "Allows creating new clients" },
+  { permissionId: 17, permissionName: "Clients.Edit", name: "Clients.Edit", module: "Clients", description: "Allows editing existing clients" },
+  { permissionId: 18, permissionName: "Clients.Delete", name: "Clients.Delete", module: "Clients", description: "Allows deleting clients" },
+
+  // Vendors
+  { permissionId: 19, permissionName: "Vendors.View", name: "Vendors.View", module: "Vendors", description: "Allows viewing vendor data" },
+  { permissionId: 20, permissionName: "Vendors.Create", name: "Vendors.Create", module: "Vendors", description: "Allows creating new vendors" },
+  { permissionId: 21, permissionName: "Vendors.Edit", name: "Vendors.Edit", module: "Vendors", description: "Allows editing existing vendors" },
+  { permissionId: 22, permissionName: "Vendors.Delete", name: "Vendors.Delete", module: "Vendors", description: "Allows deleting vendors" },
+
+  // Users
+  { permissionId: 23, permissionName: "Users.View", name: "Users.View", module: "Users", description: "Allows viewing user accounts" },
+  { permissionId: 24, permissionName: "Users.Create", name: "Users.Create", module: "Users", description: "Allows creating user accounts" },
+  { permissionId: 25, permissionName: "Users.Edit", name: "Users.Edit", module: "Users", description: "Allows editing user accounts" },
+  { permissionId: 26, permissionName: "Users.Delete", name: "Users.Delete", module: "Users", description: "Allows deleting user accounts" },
+
+  // Roles
+  { permissionId: 27, permissionName: "Roles.View", name: "Roles.View", module: "Roles", description: "Allows viewing roles and permissions" },
+  { permissionId: 28, permissionName: "Roles.Create", name: "Roles.Create", module: "Roles", description: "Allows creating new roles" },
+  { permissionId: 29, permissionName: "Roles.Edit", name: "Roles.Edit", module: "Roles", description: "Allows editing roles and modifying permissions" },
+  { permissionId: 30, permissionName: "Roles.Delete", name: "Roles.Delete", module: "Roles", description: "Allows deleting roles" },
+
+  // Sales Orders
+  { permissionId: 31, permissionName: "SalesOrders.View", name: "SalesOrders.View", module: "SalesOrders", description: "Allows viewing sales orders" },
+  { permissionId: 32, permissionName: "SalesOrders.Create", name: "SalesOrders.Create", module: "SalesOrders", description: "Allows creating sales orders" },
+  { permissionId: 33, permissionName: "SalesOrders.Edit", name: "SalesOrders.Edit", module: "SalesOrders", description: "Allows editing sales orders" },
+  { permissionId: 34, permissionName: "SalesOrders.Delete", name: "SalesOrders.Delete", module: "SalesOrders", description: "Allows deleting sales orders" },
+  { permissionId: 35, permissionName: "SalesOrders.Approve", name: "SalesOrders.Approve", module: "SalesOrders", description: "Allows approving sales orders" },
+
+  // Quotations
+  { permissionId: 36, permissionName: "Quotations.View", name: "Quotations.View", module: "Quotations", description: "Allows viewing quotations" },
+  { permissionId: 37, permissionName: "Quotations.Create", name: "Quotations.Create", module: "Quotations", description: "Allows creating quotations" },
+  { permissionId: 38, permissionName: "Quotations.Edit", name: "Quotations.Edit", module: "Quotations", description: "Allows editing quotations" },
+  { permissionId: 39, permissionName: "Quotations.Delete", name: "Quotations.Delete", module: "Quotations", description: "Allows deleting quotations" },
+  { permissionId: 40, permissionName: "Quotations.Convert", name: "Quotations.Convert", module: "Quotations", description: "Allows converting quotations to sales orders" },
+
+  // Proforma Invoices
+  { permissionId: 41, permissionName: "ProformaInvoices.View", name: "ProformaInvoices.View", module: "ProformaInvoices", description: "Allows viewing proforma invoices" },
+  { permissionId: 42, permissionName: "ProformaInvoices.Create", name: "ProformaInvoices.Create", module: "ProformaInvoices", description: "Allows creating proforma invoices" },
+  { permissionId: 43, permissionName: "ProformaInvoices.Edit", name: "ProformaInvoices.Edit", module: "ProformaInvoices", description: "Allows editing proforma invoices" },
+  { permissionId: 44, permissionName: "ProformaInvoices.Delete", name: "ProformaInvoices.Delete", module: "ProformaInvoices", description: "Allows deleting proforma invoices" },
+  { permissionId: 45, permissionName: "ProformaInvoices.Convert", name: "ProformaInvoices.Convert", module: "ProformaInvoices", description: "Allows converting proforma invoices to sales orders" },
+
+  // Purchase Orders
+  { permissionId: 46, permissionName: "PurchaseOrders.View", name: "PurchaseOrders.View", module: "PurchaseOrders", description: "Allows viewing purchase orders" },
+  { permissionId: 47, permissionName: "PurchaseOrders.Create", name: "PurchaseOrders.Create", module: "PurchaseOrders", description: "Allows creating purchase orders" },
+  { permissionId: 48, permissionName: "PurchaseOrders.Edit", name: "PurchaseOrders.Edit", module: "PurchaseOrders", description: "Allows editing purchase orders" },
+  { permissionId: 49, permissionName: "PurchaseOrders.Delete", name: "PurchaseOrders.Delete", module: "PurchaseOrders", description: "Allows deleting purchase orders" },
+
+  // Inventory
+  { permissionId: 50, permissionName: "Inventory.View", name: "Inventory.View", module: "Inventory", description: "Allows viewing stock levels" },
+  { permissionId: 51, permissionName: "Inventory.Adjust", name: "Inventory.Adjust", module: "Inventory", description: "Allows manual adjustment of stock levels" },
+
+  // Warehouses
+  { permissionId: 52, permissionName: "Warehouses.View", name: "Warehouses.View", module: "Warehouses", description: "Allows viewing warehouses" },
+  { permissionId: 53, permissionName: "Warehouses.Create", name: "Warehouses.Create", module: "Warehouses", description: "Allows creating warehouses" },
+  { permissionId: 54, permissionName: "Warehouses.Edit", name: "Warehouses.Edit", module: "Warehouses", description: "Allows editing warehouses" },
+  { permissionId: 55, permissionName: "Warehouses.Delete", name: "Warehouses.Delete", module: "Warehouses", description: "Allows deleting warehouses" },
+
+  // Stock Inward
+  { permissionId: 56, permissionName: "StockInward.View", name: "StockInward.View", module: "StockInward", description: "Allows viewing stock inward entries" },
+  { permissionId: 57, permissionName: "StockInward.Create", name: "StockInward.Create", module: "StockInward", description: "Allows creating stock inward entries" },
+  { permissionId: 58, permissionName: "StockInward.Edit", name: "StockInward.Edit", module: "StockInward", description: "Allows editing stock inward entries" },
+
+  // Order Outward
+  { permissionId: 59, permissionName: "OrderOutward.View", name: "OrderOutward.View", module: "OrderOutward", description: "Allows viewing outward orders" },
+  { permissionId: 60, permissionName: "OrderOutward.Create", name: "OrderOutward.Create", module: "OrderOutward", description: "Allows creating outward orders" },
+  { permissionId: 61, permissionName: "OrderOutward.Edit", name: "OrderOutward.Edit", module: "OrderOutward", description: "Allows editing outward orders" },
+  { permissionId: 62, permissionName: "OrderOutward.Delete", name: "OrderOutward.Delete", module: "OrderOutward", description: "Allows deleting outward orders" },
+  { permissionId: 63, permissionName: "OrderOutward.Override", name: "OrderOutward.Override", module: "OrderOutward", description: "Allows overriding the strict state machine for order dispatch (Super Admin view)" },
+
+  // Dispatch
+  { permissionId: 64, permissionName: "Dispatch.View", name: "Dispatch.View", module: "Dispatch", description: "Allows viewing dispatches" },
+  { permissionId: 65, permissionName: "Dispatch.Create", name: "Dispatch.Create", module: "Dispatch", description: "Allows creating dispatches" },
+  { permissionId: 66, permissionName: "Dispatch.Edit", name: "Dispatch.Edit", module: "Dispatch", description: "Allows editing dispatches" },
+  { permissionId: 67, permissionName: "Dispatch.Delete", name: "Dispatch.Delete", module: "Dispatch", description: "Allows deleting dispatches" },
+
+  // Reports
+  { permissionId: 68, permissionName: "Reports.View", name: "Reports.View", module: "Reports", description: "Allows generating and viewing system reports" },
+
+  // Audit Logs
+  { permissionId: 69, permissionName: "AuditLogs.View", name: "AuditLogs.View", module: "AuditLogs", description: "Allows viewing system audit logs" },
+
+  // Email Templates
+  { permissionId: 70, permissionName: "EmailTemplates.View", name: "EmailTemplates.View", module: "EmailTemplates", description: "Allows viewing email templates" },
+  { permissionId: 71, permissionName: "EmailTemplates.Create", name: "EmailTemplates.Create", module: "EmailTemplates", description: "Allows creating email templates" },
+  { permissionId: 72, permissionName: "EmailTemplates.Edit", name: "EmailTemplates.Edit", module: "EmailTemplates", description: "Allows editing email templates" },
 ]
 
 export function RolesManagement() {
@@ -127,6 +207,7 @@ export function RolesManagement() {
   const [savingPerms, setSavingPerms] = React.useState(false)
   const [permSearch, setPermSearch] = React.useState("")
   const [selectedModuleFilter, setSelectedModuleFilter] = React.useState<string>("ALL")
+  const [statusFilter, setStatusFilter] = React.useState<"ALL" | "ALLOTTED" | "UNASSIGNED">("ALL")
 
   // Audit logs state
   const [auditLogs, setAuditLogs] = React.useState<RoleAuditLog[]>([])
@@ -265,16 +346,65 @@ export function RolesManagement() {
     setPermsLoading(true)
     setPermSearch("")
     setSelectedModuleFilter("ALL")
+    setStatusFilter("ALL")
 
     try {
-      const assigned = await rolesApi.getRolePermissions(role.roleId)
-      let ids: number[] = []
+      const assigned: any = await rolesApi.getRolePermissions(role.roleId)
+      const raw = Array.isArray(assigned)
+        ? assigned
+        : Array.isArray(assigned?.data)
+          ? assigned.data
+          : Array.isArray(assigned?.data?.data)
+            ? assigned.data.data
+            : []
 
-      if (Array.isArray(assigned)) {
-        ids = assigned.map((p) => (typeof p === "number" ? p : p.permissionId || p.id))
+      const permissionsPool = allPermissions.length > 0 ? allPermissions : DEFAULT_PERMISSIONS
+      const resolvedIds: number[] = []
+
+      if (Array.isArray(raw)) {
+        raw.forEach((p: any) => {
+          if (typeof p === "number" && !isNaN(p)) {
+            resolvedIds.push(p)
+            return
+          }
+          if (typeof p === "string") {
+            const num = Number(p.trim())
+            if (!isNaN(num) && num > 0) {
+              resolvedIds.push(num)
+              return
+            }
+            const cleanStr = p.trim().toLowerCase()
+            const matched = permissionsPool.find(
+              (ap) =>
+                ap.permissionName?.toLowerCase() === cleanStr ||
+                ap.name?.toLowerCase() === cleanStr
+            )
+            if (matched) resolvedIds.push(matched.permissionId)
+            return
+          }
+          if (p && typeof p === "object") {
+            const possibleId = p.permissionId ?? p.PermissionId ?? p.id ?? p.Id
+            if (possibleId !== undefined && possibleId !== null && !isNaN(Number(possibleId))) {
+              resolvedIds.push(Number(possibleId))
+              return
+            }
+            const nameStr = (p.permissionName || p.PermissionName || p.name || p.Name || "")
+              .toString()
+              .trim()
+              .toLowerCase()
+            if (nameStr) {
+              const matched = permissionsPool.find(
+                (ap) =>
+                  ap.permissionName?.toLowerCase() === nameStr ||
+                  ap.name?.toLowerCase() === nameStr
+              )
+              if (matched) resolvedIds.push(matched.permissionId)
+            }
+          }
+        })
       }
 
-      setRolePermissions(ids)
+      setRolePermissions(Array.from(new Set(resolvedIds)))
     } catch (err: any) {
       console.error(`Failed to fetch permissions for role ${role.roleId}:`, err)
       setRolePermissions([])
@@ -320,6 +450,10 @@ export function RolesManagement() {
     try {
       await rolesApi.assignPermissions(activeRole.roleId, rolePermissions)
       toast.success(`Assigned ${rolePermissions.length} permissions to "${activeRole.roleName}"!`)
+      
+      // Notify active auth sessions and window listeners to refresh live permissions
+      window.dispatchEvent(new Event("tejco_permissions_updated"))
+      
       setIsPermsOpen(false)
     } catch (err: any) {
       const message = err instanceof Error ? err.message : "Failed to assign permissions"
@@ -369,24 +503,34 @@ export function RolesManagement() {
       base = { [selectedModuleFilter]: permissionsByModule[selectedModuleFilter] }
     }
 
-    if (!permSearch.trim()) return base
-    const query = permSearch.toLowerCase()
+    const query = permSearch.trim().toLowerCase()
     const result: Record<string, RolePermission[]> = {}
 
     Object.entries(base).forEach(([moduleName, perms]) => {
-      const matching = perms.filter(
-        (p) =>
-          p.permissionName?.toLowerCase().includes(query) ||
-          p.name?.toLowerCase().includes(query) ||
-          p.description?.toLowerCase().includes(query) ||
-          moduleName.toLowerCase().includes(query)
-      )
+      const matching = perms.filter((p) => {
+        // Status filter (Allotted vs Unassigned)
+        const isAllotted = rolePermissions.includes(p.permissionId)
+        if (statusFilter === "ALLOTTED" && !isAllotted) return false
+        if (statusFilter === "UNASSIGNED" && isAllotted) return false
+
+        // Search query filter
+        if (query) {
+          return (
+            p.permissionName?.toLowerCase().includes(query) ||
+            p.name?.toLowerCase().includes(query) ||
+            p.description?.toLowerCase().includes(query) ||
+            moduleName.toLowerCase().includes(query)
+          )
+        }
+        return true
+      })
+
       if (matching.length > 0) {
         result[moduleName] = matching
       }
     })
     return result
-  }, [permissionsByModule, permSearch, selectedModuleFilter])
+  }, [permissionsByModule, permSearch, selectedModuleFilter, statusFilter, rolePermissions])
 
   // Dynamic access percentage calculation
   const accessPercentage = React.useMemo(() => {
@@ -893,8 +1037,8 @@ export function RolesManagement() {
               </div>
             </div>
 
-            {/* Toolbar: Search & Global Batch Toggles */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
+            {/* Toolbar: Search, Status Filter & Global Batch Toggles */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-1">
               <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -913,13 +1057,48 @@ export function RolesManagement() {
                 )}
               </div>
 
+              {/* Status Filter Buttons */}
+              <div className="flex items-center gap-1.5 p-1 bg-muted/60 rounded-xl border border-border/60 self-start sm:self-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("ALL")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${statusFilter === "ALL"
+                    ? "bg-background text-foreground shadow-2xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                  All ({allPermissions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("ALLOTTED")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${statusFilter === "ALLOTTED"
+                    ? "bg-emerald-600 text-white shadow-xs font-bold"
+                    : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/40"
+                    }`}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Allotted ({rolePermissions.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("UNASSIGNED")}
+                  className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${statusFilter === "UNASSIGNED"
+                    ? "bg-background text-foreground shadow-2xs font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                    }`}
+                >
+                  Unassigned ({Math.max(0, allPermissions.length - rolePermissions.length)})
+                </button>
+              </div>
+
               <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setRolePermissions(allPermissions.map((p) => p.permissionId))}
-                  className="text-xs h-9 flex-1 sm:flex-initial text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  onClick={handleSelectAllPermissions}
+                  className="text-xs h-9 flex-1 sm:flex-initial text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-medium"
                 >
                   <CheckCheck className="mr-1.5 h-3.5 w-3.5 text-emerald-600" /> Select All ({allPermissions.length})
                 </Button>
@@ -927,8 +1106,8 @@ export function RolesManagement() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setRolePermissions([])}
-                  className="text-xs h-9 flex-1 sm:flex-initial text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  onClick={handleClearAllPermissions}
+                  className="text-xs h-9 flex-1 sm:flex-initial text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 font-medium"
                 >
                   <RotateCcw className="mr-1.5 h-3.5 w-3.5 text-rose-600" /> Clear All
                 </Button>
@@ -997,17 +1176,27 @@ export function RolesManagement() {
                 <span>Loading permission matrix...</span>
               </div>
             ) : Object.keys(filteredModules).length === 0 ? (
-              <div className="py-24 text-center text-sm text-muted-foreground flex flex-col items-center gap-2">
+              <div className="py-24 text-center text-sm text-muted-foreground flex flex-col items-center gap-3">
                 <Search className="h-8 w-8 text-muted-foreground/50" />
-                <span>No permissions match "{permSearch}".</span>
-                {selectedModuleFilter !== "ALL" && (
+                <span className="text-sm font-medium">
+                  {statusFilter === "ALLOTTED"
+                    ? "No permissions are currently allotted to this role."
+                    : statusFilter === "UNASSIGNED"
+                      ? "All permissions are assigned to this role."
+                      : `No permissions match "${permSearch}".`}
+                </span>
+                {(selectedModuleFilter !== "ALL" || statusFilter !== "ALL" || permSearch) && (
                   <Button
-                    variant="link"
+                    variant="outline"
                     size="sm"
-                    onClick={() => setSelectedModuleFilter("ALL")}
-                    className="text-xs text-indigo-600"
+                    onClick={() => {
+                      setSelectedModuleFilter("ALL")
+                      setStatusFilter("ALL")
+                      setPermSearch("")
+                    }}
+                    className="text-xs text-indigo-600 border-indigo-200"
                   >
-                    Show all modules
+                    Reset all filters
                   </Button>
                 )}
               </div>
@@ -1032,14 +1221,14 @@ export function RolesManagement() {
                           <h4 className="font-bold text-sm text-foreground">{moduleName}</h4>
                           <Badge
                             variant="outline"
-                            className={`text-[10px] font-mono font-medium px-2 py-0.5 border ${activeCount === modulePermIds.length
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            className={`text-[10px] font-mono font-semibold px-2 py-0.5 border ${activeCount === modulePermIds.length
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300"
                               : activeCount > 0
-                                ? "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300"
-                                : "bg-muted text-muted-foreground"
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300"
+                                : "bg-muted text-muted-foreground border-border/60"
                               }`}
                           >
-                            {activeCount} of {modulePermIds.length} Active
+                            {activeCount} of {modulePermIds.length} Allotted
                           </Badge>
                         </div>
                       </div>
@@ -1055,7 +1244,7 @@ export function RolesManagement() {
                       </Button>
                     </div>
 
-                    {/* Responsive Card Grid (up to 3 columns on wide screens) */}
+                    {/* Responsive Card Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5 p-4 sm:p-5 bg-muted/5">
                       {perms.map((perm) => {
                         const isChecked = rolePermissions.includes(perm.permissionId)
@@ -1064,21 +1253,31 @@ export function RolesManagement() {
                           <div
                             key={perm.permissionId}
                             onClick={() => handleTogglePermission(perm.permissionId)}
-                            className={`group relative p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${isChecked
-                              ? "bg-indigo-50/40 dark:bg-indigo-950/30 border-indigo-300 dark:border-indigo-700 shadow-xs ring-1 ring-indigo-500/20"
-                              : "bg-card/70 hover:bg-card border-border/70 hover:border-border hover:shadow-2xs"
+                            className={`group relative p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-3 select-none ${isChecked
+                              ? "bg-gradient-to-br from-emerald-50/80 via-emerald-50/40 to-white dark:from-emerald-950/40 dark:via-emerald-950/20 dark:to-background border-emerald-300 dark:border-emerald-700 shadow-xs ring-1 ring-emerald-500/20 border-l-4 border-l-emerald-600 dark:border-l-emerald-400"
+                              : "bg-card/70 hover:bg-card border-border/70 hover:border-border hover:shadow-2xs border-l-4 border-l-transparent"
                               }`}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <div className="space-y-1 flex-1 min-w-0">
+                              <div className="space-y-1.5 flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-semibold text-xs sm:text-sm text-foreground">
+                                  <span className={`font-semibold text-xs sm:text-sm ${isChecked ? "text-emerald-950 dark:text-emerald-200" : "text-foreground"
+                                    }`}>
                                     {perm.name || perm.permissionName}
                                   </span>
-                                  <code className="text-[10px] font-mono text-muted-foreground bg-muted/80 px-1.5 py-0.5 rounded border border-border/40">
-                                    {perm.permissionName}
-                                  </code>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] font-mono px-1.5 py-0 h-4.5 rounded ${isChecked
+                                      ? "bg-emerald-100/90 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 font-bold"
+                                      : "bg-muted/80 text-muted-foreground border-border/60"
+                                      }`}
+                                  >
+                                    ID #{perm.permissionId}
+                                  </Badge>
                                 </div>
+                                <code className="text-[11px] font-mono text-muted-foreground block truncate">
+                                  {perm.permissionName}
+                                </code>
                                 {perm.description && (
                                   <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
                                     {perm.description}
@@ -1086,11 +1285,21 @@ export function RolesManagement() {
                                 )}
                               </div>
 
-                              <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex flex-col items-end gap-2 shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
                                 <Switch
                                   checked={isChecked}
                                   onCheckedChange={() => handleTogglePermission(perm.permissionId)}
+                                  className={isChecked ? "data-[state=checked]:bg-emerald-600" : ""}
                                 />
+                                {isChecked ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100/90 dark:bg-emerald-950/80 px-2 py-0.5 rounded-md">
+                                    <CheckCircle2 className="h-3 w-3" /> Allotted
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded">
+                                    Not Allotted
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1104,7 +1313,7 @@ export function RolesManagement() {
           </div>
 
           {/* Sticky Modern Footer */}
-          <DialogFooter className="p-4 sm:px-6 border-t bg-background flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 shrink-0 shadow-sm">
+          <DialogFooter className="py-4 px-8 sm:px-6 mb-0 border-t bg-background flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3 shrink-0 shadow-sm  ">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Selected for <strong className="text-foreground">{activeRole?.roleName}</strong>:</span>
               <Badge variant="outline" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-indigo-200 font-mono font-semibold">

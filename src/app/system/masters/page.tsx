@@ -6,6 +6,8 @@ import { Building2, GitBranch, LayoutGrid, ArrowRight, Layers, Globe } from "luc
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
+import { useAuth } from "@/hooks/use-auth"
+
 const masters = [
     {
         title: "Companies",
@@ -14,6 +16,7 @@ const masters = [
         href: "/system/masters/companies",
         count: "2 Entities",
         color: "bg-blue-500/10 text-blue-600",
+        permission: ["Masters.View", "System.Masters.View"],
     },
     {
         title: "Branches",
@@ -22,6 +25,7 @@ const masters = [
         href: "/system/masters/branches",
         count: "4 Branches",
         color: "bg-emerald-500/10 text-emerald-600",
+        permission: ["Masters.View", "System.Masters.View"],
     },
     {
         title: "Departments",
@@ -30,6 +34,7 @@ const masters = [
         href: "/system/masters/departments",
         count: "8 Departments",
         color: "bg-amber-500/10 text-amber-600",
+        permission: ["Masters.View", "System.Masters.View"],
     },
     {
         title: "Categories",
@@ -38,6 +43,7 @@ const masters = [
         href: "/system/masters/categories",
         count: "12 Categories",
         color: "bg-violet-500/10 text-violet-600",
+        permission: ["Categories.View", "Masters.View", "System.Masters.View"],
     },
     {
         title: "Countries",
@@ -46,10 +52,20 @@ const masters = [
         href: "/system/masters/countries",
         count: "Active Countries",
         color: "bg-sky-500/10 text-sky-600",
+        permission: ["Masters.View", "System.Masters.View"],
     },
 ]
 
 export default function MastersPage() {
+    const { hasPermission, permissions, user } = useAuth()
+
+    const visibleMasters = React.useMemo(() => {
+        if (permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator") {
+            return masters
+        }
+        return masters.filter((m) => !m.permission || hasPermission(m.permission))
+    }, [hasPermission, permissions, user])
+
     return (
         <div className="flex flex-col gap-6">
             <div>
@@ -58,7 +74,7 @@ export default function MastersPage() {
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {masters.map((master) => (
+                {visibleMasters.map((master) => (
                     <Card key={master.title} className="group hover:shadow-md transition-all">
                         <CardHeader>
                             <div className={`p-2 w-fit rounded-lg mb-2 ${master.color}`}>

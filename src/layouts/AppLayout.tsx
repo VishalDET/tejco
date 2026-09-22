@@ -33,7 +33,7 @@ export function AppLayout() {
           <Outlet />
         </main>
       ) : (
-        <SidebarProvider>
+        <SidebarProvider defaultOpen={true}>
           <AppSidebar />
           <SidebarInset className="flex flex-col">
             <TopNav onLogout={() => logout("manual")} />

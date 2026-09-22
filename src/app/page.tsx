@@ -49,6 +49,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Loader } from "@/components/ui/loader"
 
+import { useAuth } from "@/hooks/use-auth"
+
 const CHART_COLORS = [
   "#2563eb", // Vibrant Royal Blue
   "#10b981", // Emerald Green
@@ -60,6 +62,9 @@ const CHART_COLORS = [
 
 export default function DashboardPage() {
   const navigate = useNavigate()
+  const { hasPermission, permissions, user } = useAuth()
+  const hasDashboardAccess = hasPermission("Dashboard.View")
+
   const [kpis, setKpis] = useState({
     totalStockValue: 0,
     todaysOrders: 0,
@@ -77,7 +82,46 @@ export default function DashboardPage() {
   const [criticalStock, setCriticalStock] = useState([])
   const [loading, setLoading] = useState(true)
 
+  // Redirect users who don't have dashboard permission to their first accessible module
+  useEffect(() => {
+    if (hasDashboardAccess) return
+
+    if (hasPermission(["SalesOrders.View", "Quotations.View", "ProformaInvoices.View"])) {
+      navigate("/sales/dashboard", { replace: true })
+      return
+    }
+    if (hasPermission(["Products.View", "Products.MaskedView", "Products.FullView"])) {
+      navigate("/inventory/products", { replace: true })
+      return
+    }
+    if (hasPermission("Clients.View")) {
+      navigate("/stakeholders/clients", { replace: true })
+      return
+    }
+    if (hasPermission(["PurchaseOrders.View", "Purchases.View"])) {
+      navigate("/purchase", { replace: true })
+      return
+    }
+    if (hasPermission("Vendors.View")) {
+      navigate("/supply-chain/vendors", { replace: true })
+      return
+    }
+    if (hasPermission("Warehouses.View")) {
+      navigate("/supply-chain/warehouse", { replace: true })
+      return
+    }
+    if (hasPermission("Reports.View")) {
+      navigate("/intelligence/reports", { replace: true })
+      return
+    }
+    if (hasPermission(["Users.View", "Roles.View", "Masters.View", "System.Users.View"])) {
+      navigate("/system/users", { replace: true })
+      return
+    }
+  }, [hasDashboardAccess, hasPermission, navigate])
+
   const fetchDashboardData = async () => {
+    if (!hasDashboardAccess) return
     setLoading(true)
     try {
       const [
@@ -113,8 +157,30 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    fetchDashboardData()
-  }, [])
+    if (hasDashboardAccess) {
+      fetchDashboardData()
+    } else {
+      setLoading(false)
+    }
+  }, [hasDashboardAccess])
+
+  if (!hasDashboardAccess) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] p-4">
+        <Card className="max-w-md w-full text-center border-border shadow-md">
+          <CardHeader className="flex flex-col items-center gap-3">
+            <div className="h-14 w-14 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center">
+              <ShieldAlert className="h-7 w-7" />
+            </div>
+            <CardTitle className="text-xl font-bold">Access Restricted</CardTitle>
+            <CardDescription className="text-xs">
+              You do not have permission to view the main executive dashboard.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
