@@ -33,13 +33,15 @@ export function AppLayout() {
           <Outlet />
         </main>
       ) : (
-        <SidebarProvider defaultOpen={true}>
+        <SidebarProvider defaultOpen={true} className="min-h-screen w-full overflow-x-hidden max-w-full">
           <AppSidebar />
-          <SidebarInset className="flex flex-col">
+          <SidebarInset className="flex flex-col min-w-0 max-w-full overflow-x-hidden">
             <TopNav onLogout={() => logout("manual")} />
-            <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 mx-auto w-full max-w-[1320px]">
-              <Outlet />
-            </main>
+            <div className="flex-1 min-w-0 w-full overflow-y-auto overflow-x-hidden p-4 sm:p-6 lg:p-8">
+              <div className="mx-auto w-full max-w-[1600px] min-w-0">
+                <Outlet />
+              </div>
+            </div>
           </SidebarInset>
         </SidebarProvider>
       )}

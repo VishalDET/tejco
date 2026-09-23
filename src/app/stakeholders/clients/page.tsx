@@ -17,6 +17,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Loader2,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -33,6 +34,17 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 import { Client } from "./types"
 import { ClientFormDialog } from "./client-form-dialog"
 import { clientsApi } from "@/lib/api"
@@ -69,6 +81,8 @@ export default function ClientsPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [selectedClient, setSelectedClient] = useState<Client | null>(null)
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Debounce search input
   useEffect(() => {
@@ -118,9 +132,20 @@ export default function ClientsPage() {
     setIsFormOpen(true)
   }
 
-  const handleDelete = (id: string) => {
-    setClients((prev) => prev.filter((c) => c.id !== id))
-    setTotalCount((prev) => Math.max(0, prev - 1))
+  const handleConfirmDelete = async () => {
+    if (!clientToDelete) return
+    try {
+      setIsDeleting(true)
+      await clientsApi.remove(clientToDelete.id)
+      setClients((prev) => prev.filter((c) => c.id !== clientToDelete.id))
+      setTotalCount((prev) => Math.max(0, prev - 1))
+      toast.success(`Client "${clientToDelete.name}" deleted successfully`)
+      setClientToDelete(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete client. Please try again.")
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   const handleSave = (data: Partial<Client>) => {
@@ -382,7 +407,7 @@ export default function ClientsPage() {
                           </PermissionGuard>
                           <PermissionGuard permission="Clients.Delete">
                             <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleDelete(client.id)} className="text-destructive focus:text-destructive">
+                            <DropdownMenuItem onClick={() => setClientToDelete(client)} className="text-destructive focus:text-destructive">
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
                           </PermissionGuard>
@@ -545,6 +570,33 @@ export default function ClientsPage() {
         client={selectedClient}
         onSave={handleSave}
       />
+
+      <AlertDialog open={!!clientToDelete} onOpenChange={(open) => { if (!open && !isDeleting) setClientToDelete(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong className="text-foreground">{clientToDelete?.name}</strong>? This action cannot be undone and will permanently remove this client.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting} onClick={() => setClientToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault()
+                handleConfirmDelete()
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

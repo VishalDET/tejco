@@ -13,7 +13,8 @@ import {
   Clock,
   ShoppingCart,
   Calculator,
-  RefreshCw
+  RefreshCw,
+  Mail
 } from "lucide-react"
 import { SalesDocumentStatus } from "@/app/sales/types"
 import { ProformaInvoice } from "@/app/sales/proforma-invoices/types"
@@ -154,46 +155,37 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
     enrichProformaWithGst(initialProforma).then(setProforma)
   }, [initialProforma.items, initialProforma.paymentType, initialProforma.freight])
 
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false)
+
+  const handleSendEmail = async () => {
+    try {
+      setIsSendingEmail(true)
+      await proformaApi.sendEmail(proforma.proformaId || proforma.id)
+      toast.success(`Email sent successfully for Proforma Invoice ${proforma.number || proforma.proformaNumber}`)
+    } catch (err: any) {
+      console.error("Failed to send email:", err)
+      toast.error(err?.message || "Failed to send email.")
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
   const handleConvertToOrder = async () => {
     if (proforma.status?.toLowerCase() === "converted to sales order") return
     setIsConverting(true)
     try {
       const payload = {
-        proformaInvoiceId: proforma.proformaId,
-        piNo: proforma.proformaNumber || "",
-        piDate: new Date(proforma.date || new Date()).toISOString(),
-        billingName: proforma.clientName || "",
-        billingAddress: proforma.billingAddress || "",
-        freight: proforma.freight || 0,
-        totalAmount: proforma.totalAmount || 0,
-        deliveryTerms: proforma.deliveryTerms || proforma.deliveryTime || "10-15 Working Days",
-        paymentTerms: proforma.paymentTerms || proforma.notes || "",
-        salesPersonName: proforma.salesPersonName || "",
-        salesPersonCell: proforma.salesPersonCell || "",
-        salesPersonId: proforma.salesPersonId ? String(proforma.salesPersonId) : "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: "Converted to Sales Order",
-        paymentType: proforma.paymentType || "Domestic",
-        currencyType: proforma.currencyType || "INR",
-        items: (proforma.items || []).map(item => ({
-          proformaInvoiceItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
-          proformaInvoiceId: proforma.proformaId,
-          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
-          productName: item.productName || "",
-          imageUrl: (item as any).imageUrl || "",
-          quantity: item.quantity || 0,
-          rate: item.unitPrice || 0,
-          discountPercentage: (item as any).discountPercentage || 0,
-          discountAmount: (item as any).discountAmount || 0,
-          total: item.total || 0,
-        })),
+        clientId: proforma.clientId && !isNaN(Number(proforma.clientId)) ? Number(proforma.clientId) : 0,
+        salesPersonId: proforma.salesPersonId && !isNaN(Number(proforma.salesPersonId)) ? Number(proforma.salesPersonId) : 0,
+        targetDeliveryDate: proforma.validUntil ? new Date(proforma.validUntil).toISOString() : new Date().toISOString(),
+        orderNotes: proforma.notes || proforma.paymentTerms || proforma.subject || "",
       }
-      await proformaApi.update(String(proforma.proformaId), payload)
+      await proformaApi.convertToSalesOrder(proforma.proformaId, payload)
       toast.success("Proforma marked as converted to Sales Order")
       setProforma(prev => ({ ...prev, status: "Converted to Sales Order" }))
-    } catch (err) {
-      console.error("Failed to update proforma status:", err)
+    } catch (err: any) {
+      console.error("Failed to convert proforma to sales order:", err)
+      toast.error(err?.message || "Failed to convert proforma to sales order.")
     } finally {
       setIsConverting(false)
     }
@@ -288,6 +280,22 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="gap-2 border-slate-200 shadow-sm"
+              onClick={handleSendEmail}
+              disabled={isSendingEmail}
+            >
+              {isSendingEmail ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin text-slate-600" /> Sending Email...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 text-slate-600" /> Send Email
+                </>
+              )}
+            </Button>
             <Button variant="outline" className="gap-2 border-slate-200 shadow-sm" onClick={() => {
               const el = document.getElementById('proforma-print-area')
               if (el) {

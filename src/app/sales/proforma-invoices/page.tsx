@@ -1,7 +1,7 @@
 
 import * as React from "react"
 import { useNavigate } from "react-router-dom"
-import { Search, Plus, MoreVertical, Eye, FileDown, Printer, Edit, ShoppingCart, RefreshCw, Loader2, Receipt } from "lucide-react"
+import { Search, Plus, MoreVertical, Eye, FileDown, Printer, Edit, ShoppingCart, RefreshCw, Loader2, Receipt, Mail } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -45,6 +45,20 @@ export default function ProformaInvoicesPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [selectedProforma, setSelectedProforma] = React.useState<ProformaInvoice | null>(null)
   const [searchQuery, setSearchQuery] = React.useState("")
+  const [sendingEmailId, setSendingEmailId] = React.useState<string | null>(null)
+
+  const handleSendEmail = async (p: ProformaInvoice) => {
+    try {
+      setSendingEmailId(p.id)
+      await proformaApi.sendEmail(p.proformaId || p.id)
+      toast.success(`Email sent successfully for Proforma Invoice ${p.number || p.proformaNumber}`)
+    } catch (err: any) {
+      console.error("Failed to send email:", err)
+      toast.error(err?.message || "Failed to send email.")
+    } finally {
+      setSendingEmailId(null)
+    }
+  }
 
   const fetchProformas = async (silent = false) => {
     if (!silent) setIsLoading(true)
@@ -111,41 +125,17 @@ export default function ProformaInvoicesPage() {
     if (p.status?.toLowerCase() === "converted to sales order") return
     try {
       const payload = {
-        proformaInvoiceId: p.proformaId,
-        piNo: p.proformaNumber || "",
-        piDate: new Date(p.date || new Date()).toISOString(),
-        billingName: p.clientName || "",
-        billingAddress: p.billingAddress || "",
-        freight: p.freight || 0,
-        totalAmount: p.totalAmount || 0,
-        deliveryTerms: p.deliveryTerms || p.deliveryTime || "10-15 Working Days",
-        paymentTerms: p.paymentTerms || p.notes || "",
-        salesPersonName: p.salesPersonName || "",
-        salesPersonCell: p.salesPersonCell || "",
-        salesPersonId: p.salesPersonId ? String(p.salesPersonId) : "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: "Converted to Sales Order",
-        paymentType: p.paymentType || "Domestic",
-        currencyType: p.currencyType || "INR",
-        items: (p.items || []).map(item => ({
-          proformaInvoiceItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
-          proformaInvoiceId: p.proformaId,
-          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
-          productName: item.productName || "",
-          imageUrl: (item as any).imageUrl || "",
-          quantity: item.quantity || 0,
-          rate: item.unitPrice || 0,
-          discountPercentage: (item as any).discountPercentage || 0,
-          discountAmount: (item as any).discountAmount || 0,
-          total: item.total || 0,
-        })),
+        clientId: p.clientId && !isNaN(Number(p.clientId)) ? Number(p.clientId) : 0,
+        salesPersonId: p.salesPersonId && !isNaN(Number(p.salesPersonId)) ? Number(p.salesPersonId) : 0,
+        targetDeliveryDate: p.validUntil ? new Date(p.validUntil).toISOString() : new Date().toISOString(),
+        orderNotes: p.notes || p.paymentTerms || p.subject || "",
       }
-      await proformaApi.update(String(p.proformaId), payload)
+      await proformaApi.convertToSalesOrder(p.proformaId, payload)
       setProformas(prev => prev.map(o => o.id === p.id ? { ...o, status: "Converted to Sales Order" } as ProformaInvoice : o))
-      toast.success("Proforma invoice converted successfully.")
-    } catch (err) {
-      console.error("Failed to update proforma status:", err)
+      toast.success("Proforma invoice converted to Sales Order successfully.")
+    } catch (err: any) {
+      console.error("Failed to convert proforma to sales order:", err)
+      toast.error(err?.message || "Failed to convert proforma to sales order.")
     }
 
     localStorage.setItem("convert_source_data", JSON.stringify({
@@ -308,6 +298,14 @@ export default function ProformaInvoicesPage() {
                           )}
                           <DropdownMenuItem className="gap-2 cursor-pointer"><FileDown className="h-4 w-4 text-slate-500" /> Export as PDF</DropdownMenuItem>
                           <DropdownMenuItem className="gap-2 cursor-pointer"><Printer className="h-4 w-4 text-slate-500" /> Print Document</DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() => handleSendEmail(p)}
+                            disabled={sendingEmailId === p.id}
+                          >
+                            <Mail className="h-4 w-4 text-slate-500" />
+                            {sendingEmailId === p.id ? "Sending Email..." : "Send Email"}
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="gap-2 text-destructive cursor-pointer focus:bg-destructive/5"

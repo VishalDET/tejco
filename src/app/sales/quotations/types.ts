@@ -4,6 +4,7 @@ export interface ApiQuotationItem {
   quotationItemId: number
   quotationId: number
   productId: number
+  variantId?: number
   productName: string
   itemName: string
   imageUrl: string
@@ -25,21 +26,25 @@ export interface ApiQuotation {
   gstinNo: string
   validityDays: number
   deliveryTime: string
+  salesPersonId?: number | string
   salesPersonName: string
   salesPersonCell: string
-  salesPersonId?: string
   status?: string
   createdAt: string
   updatedAt: string | null
-  items: ApiQuotationItem[]
+  totalAmount?: number
   paymentType?: string
   currencyType?: string
+  doctorSpeciality?: string
+  items: ApiQuotationItem[]
 }
 
 export interface Quotation extends SalesDocument {
   quotationId: number
   quotationNumber: string
+  quotationDate?: string
   subject: string
+  clientAddress?: string
   clientMobileNo: string
   validityDays: number
   deliveryTime: string
@@ -47,6 +52,12 @@ export interface Quotation extends SalesDocument {
   salesPersonCell: string
   salesPersonId?: string
   gstinNo?: string
+  createdAt?: string
+  updatedAt?: string | null
+  totalAmount: number
+  paymentType?: string
+  currencyType?: string
+  doctorSpeciality?: string
 }
 
 export function mapApiQuotation(raw: ApiQuotation): Quotation {
@@ -67,7 +78,9 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
 
     return {
       id: String(item.quotationItemId),
+      quotationItemId: item.quotationItemId,
       productId: String(item.productId || item.quotationItemId),
+      variantId: (item as any).variantId || 0,
       productName: item.productName,
       name: item.itemName,
       sku: item.itemName, // The API doesn't seem to have a separate SKU field, using itemName as fallback
@@ -119,5 +132,6 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     gstinNo: raw.gstinNo,
     paymentType: (raw as any).paymentType || "Domestic",
     currencyType: (raw as any).currencyType || "INR",
+    doctorSpeciality: (raw as any).doctorSpeciality || "",
   }
 }

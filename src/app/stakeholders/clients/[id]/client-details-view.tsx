@@ -7,12 +7,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Mail, Phone, MapPin, ReceiptText, Hash, Building, ExternalLink, Users as UsersIcon, Pencil, Map, Globe } from "lucide-react"
+import { ArrowLeft, Mail, Phone, MapPin, ReceiptText, Hash, Building, ExternalLink, Users as UsersIcon, Pencil, Map, Globe, Trash2, Loader2 } from "lucide-react"
 import type { Address } from "../types"
 import { ClientFormDialog } from "../client-form-dialog"
 import { clientsApi } from "@/lib/api"
 import { useNavigate } from "react-router-dom"
 import { Link } from "react-router-dom"
+import { PermissionGuard } from "@/components/auth/permission-guard"
+import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const MONTHS = [
   { value: "all", label: "All Months" },
@@ -44,6 +56,20 @@ export function ClientDetailsView({ client, allDeliveries = [] }: Props) {
   const [month, setMonth] = useState("all")
   const [year, setYear] = useState("all")
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDeleteClient = async () => {
+    try {
+      setIsDeleting(true)
+      await clientsApi.remove(localClient.id)
+      toast.success(`Client "${localClient.name}" deleted successfully`)
+      navigate("/stakeholders/clients")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete client")
+      setIsDeleting(false)
+    }
+  }
 
   const safeDeliveries = Array.isArray(allDeliveries) ? allDeliveries : []
 
@@ -131,9 +157,22 @@ export function ClientDetailsView({ client, allDeliveries = [] }: Props) {
             </div>
           </div>
         </div>
-        <Button onClick={() => setIsEditDialogOpen(true)} className="gap-2 shadow-lg shadow-primary/20">
-          <Pencil className="h-4 w-4" /> Edit Profile
-        </Button>
+        <div className="flex items-center gap-2">
+          <PermissionGuard permission="Clients.Delete">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(true)}
+              className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive hover:border-destructive"
+            >
+              <Trash2 className="h-4 w-4" /> Delete Client
+            </Button>
+          </PermissionGuard>
+          <PermissionGuard permission="Clients.Edit">
+            <Button onClick={() => setIsEditDialogOpen(true)} className="gap-2 shadow-lg shadow-primary/20">
+              <Pencil className="h-4 w-4" /> Edit Profile
+            </Button>
+          </PermissionGuard>
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -437,6 +476,33 @@ export function ClientDetailsView({ client, allDeliveries = [] }: Props) {
         client={localClient} 
         onSave={handleSave} 
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if (!open && !isDeleting) setIsDeleteDialogOpen(false) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong className="text-foreground">{localClient?.name}</strong>? This action cannot be undone and will permanently remove this client.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting} onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteClient()
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2"
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

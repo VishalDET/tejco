@@ -201,7 +201,7 @@ export const clientsApi = {
       phone: (data.phone || "").trim(),
       status: data.status || "Active",
       clientType: data.clientType || "Clinic",
-      hasBranches: Boolean(data.hasBranches),
+      hasBranches: (data.branches && data.branches.length > 0) || Boolean(data.hasBranches),
       gstin: (data.gstin || "").trim(),
       joinedDate: data.joinedDate
         ? (data.joinedDate.includes("T") ? data.joinedDate : new Date(data.joinedDate).toISOString())
@@ -209,7 +209,7 @@ export const clientsApi = {
       instagramUrl: (data.instagramUrl || "").trim(),
       dateOfBirth: data.dateOfBirth
         ? (data.dateOfBirth.includes("T") ? data.dateOfBirth : new Date(data.dateOfBirth).toISOString())
-        : null,
+        : new Date().toISOString(),
       billingAddress: {
         street1: (data.billingAddress?.street1 || "").trim(),
         street2: (data.billingAddress?.street2 || "").trim(),
@@ -267,7 +267,7 @@ export const clientsApi = {
       phone: (data.phone || "").trim(),
       status: data.status || "Active",
       clientType: data.clientType || "Clinic",
-      hasBranches: Boolean(data.hasBranches),
+      hasBranches: (data.branches && data.branches.length > 0) || Boolean(data.hasBranches),
       gstin: (data.gstin || "").trim(),
       joinedDate: data.joinedDate
         ? (data.joinedDate.includes("T") ? data.joinedDate : new Date(data.joinedDate).toISOString())
@@ -275,7 +275,7 @@ export const clientsApi = {
       instagramUrl: (data.instagramUrl || "").trim(),
       dateOfBirth: data.dateOfBirth
         ? (data.dateOfBirth.includes("T") ? data.dateOfBirth : new Date(data.dateOfBirth).toISOString())
-        : null,
+        : new Date().toISOString(),
       billingAddress: {
         street1: (data.billingAddress?.street1 || "").trim(),
         street2: (data.billingAddress?.street2 || "").trim(),
@@ -322,8 +322,8 @@ export const clientsApi = {
     return apiClient.put<any>(`/api/Client/Update/${id}`, payload)
   },
 
-  /** DELETE /api/Clients/{id} — delete a client */
-  remove: (id: string) => apiClient.delete<void>(`/api/Client/${id}`),
+  /** DELETE /api/Client/Delete/{id} — delete a client */
+  remove: (id: string | number) => apiClient.delete<void>(`/api/Client/Delete/${id}`),
 }
 
 export interface ApiVendor {
@@ -643,6 +643,17 @@ export const proformaApi = {
 
   /** DELETE /api/ProformaInvoice/Delete/{id} */
   remove: (id: string) => apiClient.delete<void>(`/api/ProformaInvoice/Delete/${id}`),
+
+  /** POST /api/ProformaInvoice/{id}/ConvertToSalesOrder */
+  convertToSalesOrder: (id: string | number, data: {
+    clientId: number
+    salesPersonId: number
+    targetDeliveryDate: string
+    orderNotes: string
+  }) => apiClient.post<any>(`/api/ProformaInvoice/${id}/ConvertToSalesOrder`, data),
+
+  /** POST /api/ProformaInvoice/{id}/SendEmail */
+  sendEmail: (id: string | number) => apiClient.post<any>(`/api/ProformaInvoice/${id}/SendEmail`),
 }
 
 // ---------------------------------------------------------------------------

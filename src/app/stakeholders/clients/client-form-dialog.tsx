@@ -381,7 +381,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       phone: (form.phone || "").trim(),
       status: form.status || "Active",
       clientType: form.clientType || "Clinic",
-      hasBranches: Boolean(form.hasBranches),
+      hasBranches: (form.branches && form.branches.length > 0) || Boolean(form.hasBranches),
       gstin: (form.gstin || "").trim(),
       joinedDate: form.joinedDate
         ? (form.joinedDate.includes("T") ? form.joinedDate : new Date(form.joinedDate).toISOString())
@@ -389,7 +389,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       instagramUrl: (form.instagramUrl || "").trim(),
       dateOfBirth: form.dateOfBirth
         ? (form.dateOfBirth.includes("T") ? form.dateOfBirth : new Date(form.dateOfBirth).toISOString())
-        : null,
+        : new Date().toISOString(),
       billingAddress: {
         street1: (form.billingAddress?.street1 || "").trim(),
         street2: (form.billingAddress?.street2 || "").trim(),

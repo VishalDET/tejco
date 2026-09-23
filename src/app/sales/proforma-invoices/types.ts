@@ -1,11 +1,12 @@
 import { SalesDocument, SalesDocumentItem } from "../types"
 
 export interface ApiProformaItem {
-  proformaItemId?: number
   proformaInvoiceItemId?: number
-  proformaId?: number
+  proformaItemId?: number
   proformaInvoiceId?: number
+  proformaId?: number
   productId: number
+  variantId?: number
   productName: string
   itemName?: string
   imageUrl?: string
@@ -19,40 +20,43 @@ export interface ApiProformaItem {
 }
 
 export interface ApiProforma {
-  proformaId?: number
   proformaInvoiceId?: number
-  proformaNumber?: string
+  proformaId?: number
   piNo?: string
-  proformaDate?: string
+  proformaNumber?: string
   piDate?: string
+  proformaDate?: string
   clientId?: number
-  clientName?: string
   billingName?: string
-  clientAddress?: string
+  clientName?: string
   billingAddress?: string
+  clientAddress?: string
   clientMobileNo?: string
   subject?: string
   gstinNo?: string
+  clientGSTIN?: string
+  doctorSpeciality?: string
   validityDays?: number
   deliveryTime?: string
   deliveryTerms?: string
   paymentTerms?: string
   salesPersonName: string
   salesPersonCell: string
-  salesPersonId?: string
+  salesPersonId?: number | string
   sourceQuotationId?: string
   linkedQuotationId?: number
   freight?: number
   totalAmount?: number
   status?: string
-  createdAt: string
-  updatedAt: string | null
+  createdAt?: string
+  updatedAt?: string | null
   items: ApiProformaItem[]
   paymentType?: string
   currencyType?: string
 }
 
 export interface ProformaInvoiceItem extends SalesDocumentItem {
+  variantId?: number
   discountPercentage?: number
   discountAmount?: number
   discountedUnitPrice?: number
@@ -72,6 +76,8 @@ export interface ProformaInvoice extends Omit<SalesDocument, 'items'> {
   salesPersonCell: string
   salesPersonId?: string
   gstinNo?: string
+  clientGSTIN?: string
+  doctorSpeciality?: string
   sourceQuotationId?: string
   freight?: number
   items: ProformaInvoiceItem[]
@@ -95,6 +101,7 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     return {
       id: String(itemId),
       productId: String(item.productId || itemId),
+      variantId: item.variantId || 0,
       productName: item.productName || "",
       name: item.itemName || item.productName || "",
       sku: item.itemName || item.productName || "",
@@ -159,7 +166,9 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     salesPersonName: raw.salesPersonName || "",
     salesPersonCell: raw.salesPersonCell || "",
     salesPersonId: raw.salesPersonId ? String(raw.salesPersonId) : "",
-    gstinNo: raw.gstinNo || "",
+    gstinNo: raw.clientGSTIN || raw.gstinNo || "",
+    clientGSTIN: raw.clientGSTIN || raw.gstinNo || "",
+    doctorSpeciality: (raw as any).doctorSpeciality || "",
     sourceQuotationId: raw.sourceQuotationId
       || (raw.linkedQuotationId ? String(raw.linkedQuotationId) : undefined),
     freight: raw.freight ?? 0,

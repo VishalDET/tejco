@@ -91,6 +91,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         date: proforma.date ? proforma.date.split("T")[0] : new Date().toISOString().split("T")[0],
         paymentType: (proforma as any).paymentType || "Domestic",
         currencyType: (proforma as any).currencyType || "INR",
+        doctorSpeciality: (proforma as any).doctorSpeciality || "",
+        clientGSTIN: (proforma as any).clientGSTIN || proforma.gstinNo || "",
       })
     } else {
       const year = new Date().getFullYear()
@@ -112,6 +114,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         subject: "",
         paymentType: "Domestic",
         currencyType: "INR",
+        doctorSpeciality: "",
+        clientGSTIN: "",
       })
     }
   }, [proforma, open])
@@ -203,6 +207,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
       gstRate: isForeign ? 0 : (variant.gstPercentage ?? product.gstPercentage ?? 18),
       imageUrl: variant.variantImage || product.imageUrl || "",
     }
+    ;(newItem as any).variantId = variant.variantId || variant.id || 0
     ;(newItem as any).discountPercentage = 0
     ;(newItem as any).discountAmount = 0
     ;(newItem as any).stock = variant.currentQuantity ?? 0
@@ -284,38 +289,49 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
 
       const payload = {
         proformaInvoiceId: existingId,
-        piNo: form.number || "",
-        piDate: new Date(form.date || new Date()).toISOString(),
-        clientId: form.clientId && !isNaN(parseInt(String(form.clientId))) ? parseInt(String(form.clientId)) : 0,
+        piNo: form.number || form.proformaNumber || "",
+        piDate: form.date ? (form.date.includes("T") ? form.date : new Date(form.date).toISOString()) : new Date().toISOString(),
+        clientId: form.clientId && !isNaN(Number(form.clientId)) ? Number(form.clientId) : 0,
         billingName: form.clientName || "",
         billingAddress: form.billingAddress || "",
         freight: form.freight || 0,
         totalAmount: form.totalAmount || 0,
         deliveryTerms: form.deliveryTerms || form.deliveryTime || "10-15 Working Days",
         paymentTerms: form.paymentTerms || form.notes || "",
-        salesPersonName: form.salesPersonName || "",
-        salesPersonCell: form.salesPersonCell || "",
-        salesPersonId: form.salesPersonId ? String(form.salesPersonId) : "",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        status: form.status || "Draft",
         paymentType: form.paymentType || "Domestic",
         currencyType: form.currencyType || "INR",
-        linkedQuotationId: form.sourceQuotationId && !isNaN(parseInt(String(form.sourceQuotationId)))
-          ? parseInt(String(form.sourceQuotationId))
+        salesPersonId: form.salesPersonId && !isNaN(Number(form.salesPersonId)) ? Number(form.salesPersonId) : 0,
+        salesPersonName: form.salesPersonName || "",
+        salesPersonCell: form.salesPersonCell || "",
+        status: form.status || "Draft",
+        linkedQuotationId: form.sourceQuotationId && !isNaN(Number(form.sourceQuotationId))
+          ? Number(form.sourceQuotationId)
           : 0,
-        items: (form.items || []).map(item => ({
-          proformaInvoiceItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
-          proformaInvoiceId: existingId,
-          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
-          productName: item.productName || "",
-          imageUrl: (item as any).imageUrl || "",
-          quantity: item.quantity || 0,
-          rate: item.unitPrice || 0,
-          discountPercentage: (item as any).discountPercentage || 0,
-          discountAmount: (item as any).discountAmount || 0,
-          total: (item.unitPrice - ((item as any).discountAmount || 0)) * item.quantity,
-        })),
+        createdAt: proforma?.date && proforma.date.includes("T") ? proforma.date : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        doctorSpeciality: form.doctorSpeciality || (proforma as any)?.doctorSpeciality || "",
+        clientGSTIN: form.clientGSTIN || form.gstinNo || (proforma as any)?.clientGSTIN || (proforma as any)?.gstinNo || "",
+        items: (form.items || []).map(item => {
+          const unitPrice = item.unitPrice || 0
+          const discPct = (item as any).discountPercentage || 0
+          const discAmt = (item as any).discountAmount !== undefined ? (item as any).discountAmount : (unitPrice * discPct / 100)
+          const qty = item.quantity || 0
+          const total = (unitPrice - discAmt) * qty
+
+          return {
+            proformaInvoiceItemId: isNaN(Number(item.id)) ? 0 : Number(item.id),
+            proformaInvoiceId: existingId,
+            productId: isNaN(Number(item.productId)) ? 0 : Number(item.productId),
+            variantId: (item as any).variantId && !isNaN(Number((item as any).variantId)) ? Number((item as any).variantId) : 0,
+            productName: item.productName || item.name || "",
+            imageUrl: (item as any).imageUrl || "",
+            quantity: qty,
+            rate: unitPrice,
+            discountPercentage: discPct,
+            discountAmount: discAmt,
+            total: total,
+          }
+        }),
       }
 
       if (existingId > 0) {
@@ -378,7 +394,9 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                     set("clientMobileNo", c.phone || "")
                     set("billingAddress", serializeAddress(c.billingAddress))
                     set("shippingAddress", serializeAddress(c.shippingAddress))
-                    set("gstinNo", c.gstin)
+                    set("gstinNo", c.gstin || "")
+                    set("clientGSTIN", c.gstin || "")
+                    set("doctorSpeciality", (c as any).doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || "")
                   }}
                 />
                 {form.clientName && <p className="text-xs text-muted-foreground">Selected: <strong>{form.clientName}</strong></p>}
@@ -468,14 +486,35 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
               </div>
             </div>
 
-            {/* Subject */}
-            <div className="space-y-2">
-              <Label>Subject *</Label>
-              <Input
-                value={form.subject || ""}
-                onChange={(e) => set("subject", e.target.value)}
-                placeholder="e.g. Proforma for Surgical Equipment"
-              />
+            {/* Subject, Doctor Speciality & Client GSTIN */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <Label>Subject *</Label>
+                <Input
+                  value={form.subject || ""}
+                  onChange={(e) => set("subject", e.target.value)}
+                  placeholder="e.g. Proforma for Surgical Equipment"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Doctor Speciality</Label>
+                <Input
+                  value={form.doctorSpeciality || ""}
+                  onChange={(e) => set("doctorSpeciality", e.target.value)}
+                  placeholder="e.g. Dermatologist, Trichologist"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Client GSTIN</Label>
+                <Input
+                  value={form.clientGSTIN || form.gstinNo || ""}
+                  onChange={(e) => {
+                    set("clientGSTIN", e.target.value)
+                    set("gstinNo", e.target.value)
+                  }}
+                  placeholder="GSTIN Number"
+                />
+              </div>
             </div>
 
             <Separator />

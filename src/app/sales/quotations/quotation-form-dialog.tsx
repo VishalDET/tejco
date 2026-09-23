@@ -89,14 +89,20 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     if (quotation) {
       setForm({
         ...quotation,
+        quotationId: quotation.quotationId || (quotation.id && !isNaN(Number(quotation.id)) ? Number(quotation.id) : 0),
+        doctorSpeciality: (quotation as any).doctorSpeciality || "",
         paymentType: (quotation as any).paymentType || "Domestic",
         currencyType: (quotation as any).currencyType || "INR",
+        validityDays: quotation.validityDays || 7,
+        deliveryTime: quotation.deliveryTime || "10-15 Working Days",
       })
     } else {
       const year = new Date().getFullYear()
       const random = Math.floor(1000 + Math.random() * 9000)
       setForm({
+        quotationId: 0,
         number: `QUO-${year}-${random}`,
+        quotationNumber: `QUO-${year}-${random}`,
         date: new Date().toISOString().split('T')[0],
         validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         status: "Draft",
@@ -110,6 +116,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         salesPersonCell: "+91-8888888888",
         paymentType: "Domestic",
         currencyType: "INR",
+        doctorSpeciality: "",
       })
     }
   }, [quotation, open])
@@ -179,8 +186,8 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
   }
 
   const onProductSelect = (product: any, variant: any) => {
-    const sku = `${product.baseSKU}${variant.skuSuffix}`
-    const exists = (form.items || []).some(item => item.sku === sku)
+    const sku = `${product.baseSKU || ""}${variant.skuSuffix || ""}` || variant.variantName || product.productName
+    const exists = (form.items || []).some(item => item.sku === sku && (item as any).variantId === (variant.variantId || variant.id))
     if (exists) {
       toast.error(`"${product.productName} - ${variant.variantName}" is already included in this quotation.`)
       return
@@ -191,7 +198,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
 
     const newItem: SalesDocumentItem = {
       id: Math.random().toString(36).substring(2, 9).slice(0, 8),
-      productId: product.productId.toString(),
+      productId: product.productId ? String(product.productId) : "0",
       productName: product.productName,
       name: variant.variantName,
       sku: sku,
@@ -201,7 +208,9 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
       gstRate: isForeign ? 0 : (variant.gstPercentage ?? product.gstPercentage ?? 18),
       imageUrl: variant.variantImage || product.imageUrl || "" 
     }
-    // Initialize discount fields
+    // Initialize discount & relation fields
+    ;(newItem as any).quotationItemId = 0
+    ;(newItem as any).variantId = variant.variantId || variant.id || 0
     ;(newItem as any).discountPercentage = 0
     ;(newItem as any).discountAmount = 0
     ;(newItem as any).stock = variant.currentQuantity ?? 0
@@ -282,38 +291,47 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     setIsSaving(true)
     
     try {
-      // Map frontend state to API payload
+      const quotationIdNum = quotation?.id && !isNaN(parseInt(quotation.id))
+        ? parseInt(quotation.id)
+        : (form.quotationId && !isNaN(Number(form.quotationId)) ? Number(form.quotationId) : 0)
+
+      // Map frontend state to exact backend API payload
       const payload = {
-        quotationId: quotation?.id && !isNaN(parseInt(quotation.id)) ? parseInt(quotation.id) : 0,
-        quotationNumber: form.number || "",
-        quotationDate: new Date(form.date || new Date()).toISOString(),
+        quotationId: quotationIdNum,
+        quotationNumber: form.number || form.quotationNumber || "",
+        quotationDate: new Date(form.date || form.quotationDate || new Date()).toISOString(),
         clientName: form.clientName || "",
-        clientAddress: form.billingAddress || "",
-        clientMobileNo: form.clientMobileNo || quotation?.clientMobileNo || "", 
-        subject: form.subject || form.notes || "Quotation", 
+        clientAddress: form.billingAddress || form.clientAddress || "",
+        clientMobileNo: form.clientMobileNo || quotation?.clientMobileNo || "",
+        subject: form.subject || form.notes || "Quotation",
         gstinNo: form.gstinNo || "",
-        validityDays: form.validityDays || 7,
-        deliveryTime: form.deliveryTime || "7-10 Days",
+        validityDays: Number(form.validityDays) || 7,
+        deliveryTime: form.deliveryTime || "10-15 Working Days",
+        salesPersonId: form.salesPersonId && !isNaN(Number(form.salesPersonId)) ? Number(form.salesPersonId) : 0,
         salesPersonName: form.salesPersonName || "Admin",
-        salesPersonCell: form.salesPersonCell || "",
-        salesPersonId: form.salesPersonId ? String(form.salesPersonId) : "",
-        createdAt: new Date().toISOString(),
-        updatedAt: null,
         status: form.status || "Draft",
+        salesPersonCell: form.salesPersonCell || "",
+        createdAt: form.createdAt ? new Date(form.createdAt).toISOString() : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        totalAmount: Number(form.totalAmount) || 0,
         paymentType: form.paymentType || "Domestic",
-        currencyType: form.currencyType || "INR",
+        currencyType: form.currencyType || (form.paymentType === "Foreign" ? "USD" : "INR"),
+        doctorSpeciality: form.doctorSpeciality || (quotation as any)?.doctorSpeciality || "",
         items: (form.items || []).map(item => ({
-          quotationItemId: isNaN(parseInt(item.id)) ? 0 : parseInt(item.id),
-          quotationId: quotation?.id && !isNaN(parseInt(quotation.id)) ? parseInt(quotation.id) : 0,
-          productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
+          quotationItemId: (item as any).quotationItemId && !isNaN(Number((item as any).quotationItemId))
+            ? Number((item as any).quotationItemId)
+            : (!isNaN(parseInt(item.id)) ? parseInt(item.id) : 0),
+          quotationId: quotationIdNum,
+          productId: !isNaN(parseInt(item.productId)) ? parseInt(item.productId) : 0,
+          variantId: (item as any).variantId && !isNaN(Number((item as any).variantId)) ? Number((item as any).variantId) : 0,
           productName: item.productName || "",
-          itemName: item.name || "",
+          itemName: item.name || (item as any).itemName || "",
           imageUrl: (item as any).imageUrl || "",
-          price: item.unitPrice || 0,
-          gstPercentage: item.gstRate || 0,
-          quantity: item.quantity || 0,
-          discountPercentage: (item as any).discountPercentage || 0,
-          discountAmount: (item as any).discountAmount || 0
+          price: Number(item.unitPrice ?? (item as any).price) || 0,
+          gstPercentage: Number(item.gstRate ?? (item as any).gstPercentage) || 0,
+          quantity: Number(item.quantity) || 0,
+          discountPercentage: Number((item as any).discountPercentage) || 0,
+          discountAmount: Number((item as any).discountAmount) || 0
         }))
       }
 
@@ -401,6 +419,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                     set("billingAddress", serializeAddress(c.billingAddress))
                     set("shippingAddress", serializeAddress(c.shippingAddress))
                     set("gstinNo", c.gstin)
+                    set("doctorSpeciality", (c as any).doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || "")
                   }} 
                 />
               </div>
@@ -454,13 +473,42 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Subject *</Label>
-              <Input 
-                placeholder="e.g. Surgical Blade L4, Testing Item Discounts, etc." 
-                value={form.subject || ""} 
-                onChange={(e) => set("subject", e.target.value)} 
-              />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <Label>Subject *</Label>
+                <Input 
+                  placeholder="e.g. Surgical Blade L4, Testing Item Discounts, etc." 
+                  value={form.subject || ""} 
+                  onChange={(e) => set("subject", e.target.value)} 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Doctor Speciality</Label>
+                <Input 
+                  placeholder="e.g. Dermatologist, Trichologist, Surgeon" 
+                  value={form.doctorSpeciality || ""} 
+                  onChange={(e) => set("doctorSpeciality", e.target.value)} 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Validity (Days)</Label>
+                  <Input 
+                    type="number"
+                    min={1}
+                    value={form.validityDays ?? 7} 
+                    onChange={(e) => set("validityDays", parseInt(e.target.value) || 7)} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Delivery Time</Label>
+                  <Input 
+                    placeholder="e.g. 10-15 Working Days" 
+                    value={form.deliveryTime || ""} 
+                    onChange={(e) => set("deliveryTime", e.target.value)} 
+                  />
+                </div>
+              </div>
             </div>
 
             <Separator />
