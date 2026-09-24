@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { useCallback, useRef } from "react"
+import * as XLSX from "xlsx"
 import {
     ColumnDef,
     ColumnFiltersState,
@@ -112,6 +113,7 @@ interface ApiVariant {
     productId: number
     variantName: string
     skuSuffix: string
+    size?: string
     purchasePrice: number
     sellingPrice: number
     initialQuantity: number
@@ -125,12 +127,17 @@ interface ApiVariant {
     rackLocation?: string
     variantImage?: string
     barcodeNumber?: string
+    [key: string]: any
 }
 
 interface ApiProduct {
     productId: number
     productName: string
     baseSKU: string
+    vendorName?: string
+    VendorName?: string
+    hsnCode?: string
+    HSNCode?: string
     productTaggingNo: string
     barcodeNumber: string
     categoryId: number
@@ -144,6 +151,7 @@ interface ApiProduct {
     hasVariants: boolean
     status: boolean
     variants: ApiVariant[]
+    [key: string]: any
 }
 
 interface ApiResponse {
@@ -159,6 +167,8 @@ export type Product = {
     id: string
     name: string
     sku: string
+    hsnCode?: string
+    vendorName?: string
     category: string
     categoryId?: number
     variants: number
@@ -364,7 +374,14 @@ function ProductVariantsExpandedRow({
                             </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                            Base HSN: <span className="font-semibold text-foreground">{product.sku}</span> • Total Stock: <span className="font-semibold text-foreground">{totalStock} units</span>
+                            Base SKU: <span className="font-semibold text-foreground">{product.sku || "—"}</span>
+                            {product.hsnCode && (
+                                <> • HSN: <span className="font-semibold text-foreground font-mono">{product.hsnCode}</span></>
+                            )}
+                            {product.vendorName && (
+                                <> • Vendor: <span className="font-semibold text-foreground">{product.vendorName}</span></>
+                            )}
+                            {" "}• Total Stock: <span className="font-semibold text-foreground">{totalStock} units</span>
                         </p>
                     </div>
                 </div>
@@ -466,7 +483,7 @@ function ProductVariantsExpandedRow({
                                             </div>
                                             <div className="min-w-0">
                                                 <h5 className="font-bold text-sm text-foreground truncate">{v.variantName}</h5>
-                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                                     <span className="text-xs text-muted-foreground font-semibold truncate">{fullSku}</span>
                                                     <button
                                                         type="button"
@@ -480,6 +497,11 @@ function ProductVariantsExpandedRow({
                                                             <Copy className="h-3 w-3" />
                                                         )}
                                                     </button>
+                                                    {(v.size || v.Size) && (
+                                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-muted/60 text-foreground font-medium border-border/80">
+                                                            Size: {v.size || v.Size}
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -582,6 +604,7 @@ function ProductVariantsExpandedRow({
                                 <TableRow className="hover:bg-transparent">
                                     <TableHead className="w-[60px] text-center text-xs font-semibold">Image</TableHead>
                                     <TableHead className="min-w-[220px] text-xs font-semibold">Variation</TableHead>
+                                    <TableHead className="min-w-[100px] text-xs font-semibold">Size</TableHead>
                                     <TableHead className="min-w-[160px] text-xs font-semibold">Stock</TableHead>
                                     <TableHead className="min-w-[150px] text-xs font-semibold">Threshold</TableHead>
                                     <TableHead className="min-w-[180px] text-xs font-semibold">Racks</TableHead>
@@ -652,6 +675,17 @@ function ProductVariantsExpandedRow({
                                                         </button>
                                                     </div>
                                                 </div>
+                                            </TableCell>
+
+                                            {/* Size */}
+                                            <TableCell className="py-3">
+                                                {(v.size || v.Size) ? (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-semibold text-foreground">
+                                                        {v.size || v.Size}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground text-xs">—</span>
+                                                )}
                                             </TableCell>
 
                                             {/* Stock */}
@@ -929,6 +963,8 @@ export default function ProductListPage() {
                             id: p.productId.toString(),
                             name: p.productName,
                             sku: p.baseSKU,
+                            hsnCode: p.hsnCode || (p as any).HSNCode || "",
+                            vendorName: p.vendorName || (p as any).VendorName || "",
                             category: categoriesMap[p.categoryId] || p.brand || "General",
                             categoryId: p.categoryId,
                             variants: p.variants.length,
@@ -1051,8 +1087,22 @@ export default function ProductListPage() {
         },
         {
             accessorKey: "sku",
+            header: "Base SKU",
+            cell: ({ row }) => <div className="text-xs font-semibold">{row.getValue("sku") || "—"}</div>,
+        },
+        {
+            accessorKey: "hsnCode",
             header: "HSN Code",
-            cell: ({ row }) => <div className="text-xs font-semibold">{row.getValue("sku")}</div>,
+            cell: ({ row }) => <div className="text-xs font-mono text-muted-foreground">{row.original.hsnCode || "—"}</div>,
+        },
+        {
+            accessorKey: "vendorName",
+            header: "Vendor",
+            cell: ({ row }) => (
+                <div className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate max-w-[130px]" title={row.original.vendorName || ""}>
+                    {row.original.vendorName || "—"}
+                </div>
+            ),
         },
         {
             accessorKey: "variants",
@@ -1178,6 +1228,44 @@ export default function ProductListPage() {
         },
     })
 
+    const handleExport = () => {
+        if (!products || products.length === 0) {
+            toast.error("No products available to export.")
+            return
+        }
+
+        const rows: any[] = []
+        products.forEach(p => {
+            const rawVars = p.rawVariants && p.rawVariants.length > 0 ? p.rawVariants : [null]
+            rawVars.forEach(v => {
+                rows.push({
+                    "Product ID": p.id,
+                    "Product Name": p.name,
+                    "Base SKU": p.sku || "",
+                    "HSN Code": p.hsnCode || "",
+                    "Vendor Name": p.vendorName || "",
+                    "Category": p.category || "",
+                    "Variant Name": v?.variantName || "Default",
+                    "Size": v?.size || (v as any)?.Size || "",
+                    "SKU Suffix": v?.skuSuffix || "",
+                    "Full SKU": `${p.sku || ""}${v?.skuSuffix || ""}`,
+                    "Cost Price (₹)": v ? Number(v.purchasePrice) || 0 : p.costPrice,
+                    "Selling Price (₹)": v ? Number(v.sellingPrice) || 0 : p.sellingPrice,
+                    "Stock Quantity": v ? Number(v.currentQuantity) || 0 : p.stock,
+                    "Reorder Level": v ? Number(v.reorderLevel) || 0 : "",
+                    "Rack Location": v?.rackLocation || "",
+                    "Status": p.status,
+                })
+            })
+        })
+
+        const ws = XLSX.utils.json_to_sheet(rows)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Products")
+        XLSX.writeFile(wb, `Tejco_Products_${new Date().toISOString().split("T")[0]}.xlsx`)
+        toast.success("Products exported successfully")
+    }
+
     return (
         <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-10">
             {/* Top Page Header */}
@@ -1187,7 +1275,7 @@ export default function ProductListPage() {
                     <p className="text-muted-foreground text-sm mt-0.5">Manage your product catalog, warehouses, and linked variations.</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline">
+                    <Button variant="outline" onClick={handleExport}>
                         <Download className="mr-2 h-4 w-4" />
                         Export
                     </Button>

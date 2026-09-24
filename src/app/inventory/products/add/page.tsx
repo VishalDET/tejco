@@ -26,8 +26,9 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
-import { warehousesApi, productsApi, categoriesApi } from "@/lib/api"
+import { warehousesApi, productsApi, categoriesApi, vendorsApi } from "@/lib/api"
 import type { Warehouse } from "@/app/supply-chain/warehouse/types"
+import type { Vendor } from "@/app/supply-chain/vendors/types"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 
 interface Subcategory {
@@ -53,6 +54,9 @@ export default function AddProductPage() {
     const [isLoading, setIsLoading] = React.useState(false)
     const [name, setName] = React.useState("")
     const [baseSKU, setBaseSKU] = React.useState("")
+    const [hsnCode, setHsnCode] = React.useState("")
+    const [vendorName, setVendorName] = React.useState("")
+    const [vendors, setVendors] = React.useState<Vendor[]>([])
     const [description, setDescription] = React.useState("")
     const [brand, setBrand] = React.useState("")
     const [unit, setUnit] = React.useState("PCS")
@@ -94,13 +98,16 @@ export default function AddProductPage() {
     const downloadTemplate = () => {
         const headers = [
             "Product Name",
+            "Base SKU",
             "HSN Code",
+            "Vendor Name",
             "Brand",
             "Unit",
             "Description",
             "Tagging No",
             "Category Path",
             "Variant Name",
+            "Size",
             "SKU Suffix",
             "Cost Price (INR)",
             "Sale Price IND (INR)",
@@ -116,12 +123,15 @@ export default function AddProductPage() {
         const sampleRow = [
             "Analyser-ASL (3 Lense)",
             "ASL-3",
+            "901890",
+            "Aram Huvis Co.",
             "Aram Huvis",
             "PCS",
             "Premium skin and hair analyser system",
             "TAG-8080",
             "Hair & Skin > Consultation Tools",
             "Default",
+            "Standard",
             "-DEF",
             "59289",
             "147500",
@@ -196,7 +206,9 @@ export default function AddProductPage() {
                 // Extract product info from the first row
                 const firstRow = rows[0]
                 const productName = firstRow["Product Name"] || firstRow["Name"] || ""
-                const baseSKU = firstRow["HSN Code"] || firstRow["Base SKU"] || firstRow["SKU"] || ""
+                const baseSKU = firstRow["Base SKU"] || firstRow["SKU"] || firstRow["HSN Code"] || ""
+                const hsnCode = firstRow["HSN Code"] || firstRow["HSN"] || ""
+                const vendorName = firstRow["Vendor Name"] || firstRow["Vendor"] || ""
                 const brand = firstRow["Brand"] || ""
                 const unit = firstRow["Unit"] || "PCS"
                 const description = firstRow["Description"] || ""
@@ -208,8 +220,9 @@ export default function AddProductPage() {
                     return {
                         id: index + 1,
                         name: row["Variant Name"] || row["Variant"] || `Variant ${index + 1}`,
+                        size: row["Size"] || row["Variant Size"] || "",
                         sku_suffix: row["SKU Suffix"] || row["Suffix"] || "",
-                        hsnCode: row["HSN Code"] || row["HSN"] || "",
+                        hsnCode: row["HSN Code"] || row["HSN"] || hsnCode || "",
                         salesPrice: String(row["Sale Price IND (INR)"] || row["Sale Price IND"] || row["Sale Price"] || row["Selling Price"] || ""),
                         exportSalesPrice: String(row["Sale Price INTL (USD)"] || row["Sale Price INTL"] || row["Export Price"] || row["USD Amount"] || ""),
                         gstPercentage: String(row["GST %"] || row["GST Percentage"] || row["GST"] || "18"),
@@ -224,7 +237,7 @@ export default function AddProductPage() {
                 })
 
                 setPreviewData({
-                    product: { productName, baseSKU, brand, unit, description, taggingNo, categoryPath },
+                    product: { productName, baseSKU, hsnCode, vendorName, brand, unit, description, taggingNo, categoryPath },
                     variants: parsedVariants
                 })
                 toast.success("Excel file parsed successfully. Preview loaded.")
@@ -240,6 +253,8 @@ export default function AddProductPage() {
         if (!previewData) return
         setName(previewData.product.productName)
         setBaseSKU(previewData.product.baseSKU)
+        setHsnCode(previewData.product.hsnCode || "")
+        setVendorName(previewData.product.vendorName || "")
         setBrand(previewData.product.brand)
         setUnit(previewData.product.unit)
         setDescription(previewData.product.description)
@@ -259,8 +274,9 @@ export default function AddProductPage() {
             return {
                 id: v.id,
                 name: v.name,
+                size: v.size || "",
                 sku_suffix: v.sku_suffix,
-                hsnCode: v.hsnCode || previewData.product.baseSKU || "",
+                hsnCode: v.hsnCode || previewData.product.hsnCode || previewData.product.baseSKU || "",
                 salesPrice: v.salesPrice,
                 exportSalesPrice: v.exportSalesPrice,
                 gstPercentage: v.gstPercentage,
@@ -291,11 +307,13 @@ export default function AddProductPage() {
     React.useEffect(() => {
         const fetchData = async () => {
             try {
-                const [wData, cData] = await Promise.all([
-                    warehousesApi.getAll(),
-                    categoriesApi.getAll()
+                const [wData, cData, vData] = await Promise.all([
+                    warehousesApi.getAll().catch(() => []),
+                    categoriesApi.getAll().catch(() => []),
+                    vendorsApi.getAll().catch(() => [])
                 ])
                 setWarehouses(wData)
+                setVendors(vData)
                 // The API might return { data: [...] } or just [...]
                 const categoryList = (cData as any).data || cData
                 setCategories(Array.isArray(categoryList) ? categoryList : [])
@@ -311,6 +329,7 @@ export default function AddProductPage() {
         {
             id: 1,
             name: "Default",
+            size: "",
             sku_suffix: "-DEF",
             hsnCode: "",
             salesPrice: "",
@@ -356,6 +375,7 @@ export default function AddProductPage() {
         setVariants([...variants, {
             id: Date.now(),
             name: "",
+            size: "",
             sku_suffix: "",
             hsnCode: "",
             salesPrice: "",
@@ -412,6 +432,10 @@ export default function AddProductPage() {
             productId: 0,
             productName: name,
             baseSKU: baseSKU,
+            vendorName: vendorName,
+            VendorName: vendorName,
+            hsnCode: hsnCode,
+            HSNCode: hsnCode,
             productTaggingNo: taggingNo,
             barcodeNumber: tempProdId,
             categoryId: selectedCategoryIds[0] || 0,
@@ -429,7 +453,10 @@ export default function AddProductPage() {
                 productId: 0,
                 variantName: v.name,
                 skuSuffix: v.sku_suffix,
-                hsnCode: v.hsnCode || baseSKU || "",
+                size: v.size || "",
+                Size: v.size || "",
+                hsnCode: v.hsnCode || hsnCode || baseSKU || "",
+                HSNCode: v.hsnCode || hsnCode || baseSKU || "",
                 purchasePrice: parseFloat(v.costPrice) || 0,
                 sellingPrice: parseFloat(v.salesPrice) || 0,
                 initialQuantity: parseInt(v.stock) || 0,
@@ -501,7 +528,7 @@ export default function AddProductPage() {
                                         />
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="sku">HSN Code</Label>
+                                        <Label htmlFor="sku">Base SKU</Label>
                                         <Input
                                             id="sku"
                                             placeholder="e.g., SB-010"
@@ -509,6 +536,32 @@ export default function AddProductPage() {
                                             value={baseSKU}
                                             onChange={(e) => setBaseSKU(e.target.value)}
                                         />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="hsnCode">HSN Code</Label>
+                                        <Input
+                                            id="hsnCode"
+                                            placeholder="e.g., 901890"
+                                            value={hsnCode}
+                                            onChange={(e) => setHsnCode(e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="vendorName">Vendor Name</Label>
+                                        <Input
+                                            id="vendorName"
+                                            list="vendor-suggestions"
+                                            placeholder="Select or enter vendor name"
+                                            value={vendorName}
+                                            onChange={(e) => setVendorName(e.target.value)}
+                                        />
+                                        <datalist id="vendor-suggestions">
+                                            {vendors.map((v, i) => (
+                                                <option key={(v as any).id || (v as any).vendorId || i} value={(v as any).vendorName || (v as any).name} />
+                                            ))}
+                                        </datalist>
                                     </div>
                                 </div>
                                 <div className="grid gap-2">
@@ -665,18 +718,28 @@ export default function AddProductPage() {
                                                     required
                                                 />
                                             </div>
-                                            <div className="grid gap-2">
-                                                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SKU Suffix</Label>
-                                                <Input
-                                                    placeholder="-LG"
-                                                    value={v.sku_suffix}
-                                                    onChange={(e) => handleVariantChange(v.id, "sku_suffix", e.target.value)}
-                                                />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div className="grid gap-2">
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Size</Label>
+                                                    <Input
+                                                        placeholder="e.g., XL / 100ml"
+                                                        value={v.size || ""}
+                                                        onChange={(e) => handleVariantChange(v.id, "size", e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SKU Suffix</Label>
+                                                    <Input
+                                                        placeholder="-LG"
+                                                        value={v.sku_suffix}
+                                                        onChange={(e) => handleVariantChange(v.id, "sku_suffix", e.target.value)}
+                                                    />
+                                                </div>
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">HSN Code</Label>
                                                 <Input
-                                                    placeholder={baseSKU || "HSN Code"}
+                                                    placeholder={hsnCode || baseSKU || "HSN Code"}
                                                     value={v.hsnCode}
                                                     onChange={(e) => handleVariantChange(v.id, "hsnCode", e.target.value)}
                                                 />
@@ -928,22 +991,26 @@ export default function AddProductPage() {
                                     <span className="text-xs font-semibold text-primary">{previewData.variants.length} Variants Found</span>
                                 </div>
 
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
                                     <div>
                                         <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Product Name</p>
-                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.productName || "-"}</p>
+                                        <p className="font-medium text-slate-700 mt-0.5 truncate">{previewData.product.productName || "-"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Base SKU</p>
+                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.baseSKU || "-"}</p>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">HSN Code</p>
-                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.baseSKU || "-"}</p>
+                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.hsnCode || "-"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Vendor Name</p>
+                                        <p className="font-medium text-slate-700 mt-0.5 truncate">{previewData.product.vendorName || "-"}</p>
                                     </div>
                                     <div>
                                         <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Brand / Unit</p>
                                         <p className="font-medium text-slate-700 mt-0.5">{previewData.product.brand || "-"} / {previewData.product.unit || "PCS"}</p>
-                                    </div>
-                                    <div>
-                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Category Path</p>
-                                        <p className="font-medium text-slate-700 mt-0.5">{previewData.product.categoryPath || "-"}</p>
                                     </div>
                                 </div>
 
@@ -952,6 +1019,7 @@ export default function AddProductPage() {
                                         <thead className="bg-slate-50 sticky top-0 border-b">
                                             <tr>
                                                 <th className="p-2 font-semibold text-slate-600">Variant Name</th>
+                                                <th className="p-2 font-semibold text-slate-600">Size</th>
                                                 <th className="p-2 font-semibold text-slate-600">SKU Suffix</th>
                                                 <th className="p-2 font-semibold text-slate-600 text-right">Cost Price</th>
                                                 <th className="p-2 font-semibold text-slate-600 text-right">Sale Price IND</th>
@@ -965,6 +1033,7 @@ export default function AddProductPage() {
                                             {previewData.variants.map((v: any) => (
                                                 <tr key={v.id} className="border-b last:border-0 hover:bg-slate-50/50">
                                                     <td className="p-2 text-slate-700 font-medium">{v.name}</td>
+                                                    <td className="p-2 text-slate-600">{v.size || "-"}</td>
                                                     <td className="p-2 text-slate-500 font-mono">{v.sku_suffix || "-"}</td>
                                                     <td className="p-2 text-slate-700 text-right font-mono">₹{v.costPrice || "0"}</td>
                                                     <td className="p-2 text-slate-700 text-right font-mono">₹{v.salesPrice || "0"}</td>

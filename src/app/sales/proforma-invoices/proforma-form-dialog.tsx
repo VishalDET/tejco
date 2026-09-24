@@ -383,7 +383,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
 
             {/* Client + Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Client / Doctor *</Label>
                 <ClientSelector
                   selectedClientId={form.clientId}
@@ -399,12 +399,12 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                     set("doctorSpeciality", (c as any).doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || "")
                   }}
                 />
-                {form.clientName && <p className="text-xs text-muted-foreground">Selected: <strong>{form.clientName}</strong></p>}
+                {form.clientName && <p className="text-xs text-muted-foreground truncate">Selected: <strong>{form.clientName}</strong></p>}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(v) => set("status", v as SalesDocumentStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Draft">Draft</SelectItem>
                     <SelectItem value="Issued">Issued</SelectItem>

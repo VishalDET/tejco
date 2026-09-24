@@ -120,6 +120,8 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
           ...order,
           paymentType: (order as any).paymentType || "Domestic",
           currencyType: (order as any).currencyType || "INR",
+          doctorSpeciality: (order as any).doctorSpeciality || "",
+          clientGSTIN: (order as any).clientGSTIN || (order as any).gstinNo || "",
         }
 
         setForm(initialForm)
@@ -184,6 +186,8 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
           paymentStatus: "Unpaid",
           paymentType: "Domestic",
           currencyType: "INR",
+          doctorSpeciality: "",
+          clientGSTIN: "",
           items: [],
           subtotal: 0,
           taxAmount: 0,
@@ -242,6 +246,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
       gstRate: isForeign ? 0 : (variant.gstPercentage ?? product.gstPercentage ?? 18),
       imageUrl: variant.variantImage || product.imageUrl || "",
     }
+    ;(newItem as any).variantId = variant.variantId || variant.id || 0
     ;(newItem as any).discountPercentage = 0
     ;(newItem as any).discountAmount = 0
     ;(newItem as any).stock = variant.currentQuantity ?? 0
@@ -318,31 +323,36 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
     setIsSaving(true)
     
     try {
+      const existingOrderId = order?.orderId && !isNaN(Number(order.orderId)) ? Number(order.orderId) : (order?.id && !isNaN(Number(order.id)) ? Number(order.id) : 0)
+
       const payload = {
-        orderId: order?.orderId && !isNaN(Number(order.orderId)) ? Number(order.orderId) : 0,
+        orderId: existingOrderId,
         orderNumber: form.orderNumber || "",
-        orderDate: new Date(form.date || new Date()).toISOString(),
-        targetDeliveryDate: form.deliveryDate ? new Date(form.deliveryDate).toISOString() : new Date().toISOString(),
+        orderDate: form.date ? (form.date.includes("T") ? form.date : new Date(form.date).toISOString()) : new Date().toISOString(),
+        targetDeliveryDate: form.deliveryDate ? (form.deliveryDate.includes("T") ? form.deliveryDate : new Date(form.deliveryDate).toISOString()) : new Date().toISOString(),
         clientId: isNaN(parseInt(String(form.clientId || ""))) ? 0 : parseInt(String(form.clientId || "")),
         orderStatus: form.status || "Pending",
         paymentStatus: form.paymentStatus || "Unpaid",
-        salesPersonId: isNaN(parseInt(String(form.salesPersonId || ""))) ? 4 : parseInt(String(form.salesPersonId || "")),
+        salesPersonId: isNaN(parseInt(String(form.salesPersonId || ""))) ? 0 : parseInt(String(form.salesPersonId || "")),
         billingAddress: form.billingAddress || "",
         status: form.status || "Pending",
         shippingAddress: form.shippingAddress || form.billingAddress || "",
         subtotal: form.subtotal || 0,
         gstAmount: form.taxAmount || 0,
         totalAmount: form.totalAmount || 0,
+        paymentType: form.paymentType || "Domestic",
+        currencyType: form.currencyType || "INR",
         orderNotes: form.notes || "",
         linkedProformaInvoiceId: form.proformaId && !isNaN(parseInt(String(form.proformaId))) ? parseInt(String(form.proformaId)) : 0,
         linkedQuotationId: form.quotationId && !isNaN(parseInt(String(form.quotationId))) ? parseInt(String(form.quotationId)) : 0,
         parentOrderId: 0,
-        paymentType: form.paymentType || "Domestic",
-        currencyType: form.currencyType || "INR",
+        doctorSpeciality: form.doctorSpeciality || (order as any)?.doctorSpeciality || "",
+        clientGSTIN: form.clientGSTIN || (order as any)?.clientGSTIN || (order as any)?.gstinNo || "",
         lineItems: (form.items || []).map(item => ({
-          orderItemId: item.orderItemId && !isNaN(Number(item.orderItemId)) ? Number(item.orderItemId) : 0,
-          orderId: order?.orderId && !isNaN(Number(order.orderId)) ? Number(order.orderId) : 0,
+          orderItemId: item.orderItemId && !isNaN(Number(item.orderItemId)) ? Number(item.orderItemId) : (isNaN(Number(item.id)) ? 0 : Number(item.id)),
+          orderId: existingOrderId,
           productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
+          variantId: (item as any).variantId && !isNaN(Number((item as any).variantId)) ? Number((item as any).variantId) : 0,
           sku: item.sku || "",
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,
@@ -352,8 +362,8 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
         }))
       }
 
-      if (order?.id && !isNaN(parseInt(order.id))) {
-        await salesOrderApi.update(order.id, payload)
+      if (existingOrderId > 0) {
+        await salesOrderApi.update(String(existingOrderId), payload)
         toast.success("Sales Order updated successfully")
       } else {
         await salesOrderApi.create(payload)
@@ -482,7 +492,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Client / Doctor *</Label>
                 <ClientSelector 
                     selectedClientId={form.clientId} 
@@ -494,15 +504,18 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                           clientName: c.name,
                           billingAddress: serializeAddress(c.billingAddress),
                           shippingAddress: serializeAddress(c.shippingAddress),
+                          gstinNo: c.gstin || "",
+                          clientGSTIN: c.gstin || "",
+                          doctorSpeciality: (c as any).doctorSpeciality || (c as any).speciality || (c as any).clientType || prev.doctorSpeciality || "",
                         }))
                     }} 
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-4 min-w-0">
+                <div className="space-y-2 min-w-0">
                   <Label>Status</Label>
                   <Select value={form.status} onValueChange={(v) => set("status", v as OrderStatus)}>
-                    <SelectTrigger className="border-slate-200"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="border-slate-200 w-full min-w-0"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Pending">Pending</SelectItem>
                       <SelectItem value="Approved">Approved</SelectItem>
@@ -513,10 +526,10 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <Label>Payment</Label>
                   <Select value={form.paymentStatus} onValueChange={(v) => set("paymentStatus", v as PaymentStatus)}>
-                    <SelectTrigger className="border-slate-200"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="border-slate-200 w-full min-w-0"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Unpaid">Unpaid</SelectItem>
                       <SelectItem value="Partial">Partial</SelectItem>
@@ -524,6 +537,31 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+            </div>
+
+            {/* Doctor Speciality & Client GSTIN */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Doctor Speciality</Label>
+                <Input
+                  value={form.doctorSpeciality || ""}
+                  onChange={(e) => set("doctorSpeciality", e.target.value)}
+                  placeholder="e.g. Dermatologist, Trichologist"
+                  className="border-slate-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Client GSTIN</Label>
+                <Input
+                  value={form.clientGSTIN || (form as any).gstinNo || ""}
+                  onChange={(e) => {
+                    set("clientGSTIN", e.target.value)
+                    set("gstinNo" as any, e.target.value)
+                  }}
+                  placeholder="GSTIN Number"
+                  className="border-slate-200"
+                />
               </div>
             </div>
 

@@ -387,7 +387,7 @@ export default function ViewProductPage() {
                                         <p className="text-base font-medium mt-1">{product.productName}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base SKU / HSN</p>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base SKU</p>
                                         <div className="flex items-center gap-1.5 mt-1">
                                             <span className="text-sm font-semibold">{product.baseSKU || "-"}</span>
                                             {product.baseSKU && (
@@ -400,6 +400,29 @@ export default function ViewProductPage() {
                                                 </button>
                                             )}
                                         </div>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">HSN Code</p>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <span className="text-sm font-semibold font-mono">{product.hsnCode || product.HSNCode || "-"}</span>
+                                            {(product.hsnCode || product.HSNCode) && (
+                                                <button
+                                                    onClick={() => handleCopy(product.hsnCode || product.HSNCode, "hsn-code", "HSN Code")}
+                                                    className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                                                    title="Copy HSN Code"
+                                                >
+                                                    {copiedKey === "hsn-code" ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Vendor Name</p>
+                                        <p className="text-sm font-medium mt-1 text-slate-800 dark:text-slate-200">
+                                            {product.vendorName || product.VendorName || "—"}
+                                        </p>
                                     </div>
                                 </div>
                                 <div>
@@ -689,6 +712,11 @@ export default function ViewProductPage() {
                                                             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                                                 Variation #{index + 1}
                                                             </span>
+                                                            {(v.size || v.Size) && (
+                                                                <Badge variant="outline" className="text-[10px] h-5 px-2 font-semibold bg-indigo-50/60 text-indigo-700 border-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
+                                                                    Size: {v.size || v.Size}
+                                                                </Badge>
+                                                            )}
                                                             <Badge
                                                                 variant={v.status ? "default" : "secondary"}
                                                                 className={`text-[10px] h-5 px-2 font-semibold ${v.status ? "bg-emerald-600 hover:bg-emerald-600 text-white" : ""}`}
@@ -881,6 +909,7 @@ export default function ViewProductPage() {
                                             <TableRow>
                                                 <TableHead className="w-[60px]">Image</TableHead>
                                                 <TableHead>Variation & SKU</TableHead>
+                                                <TableHead>Size</TableHead>
                                                 <TableHead>Stock Level</TableHead>
                                                 <TableHead className="text-right">Cost</TableHead>
                                                 <TableHead className="text-right">Sale (IND)</TableHead>
@@ -938,6 +967,17 @@ export default function ViewProductPage() {
                                                                     </button>
                                                                 </div>
                                                             </div>
+                                                        </TableCell>
+
+                                                        {/* Size */}
+                                                        <TableCell>
+                                                            {(v.size || v.Size) ? (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-semibold text-foreground">
+                                                                    {v.size || v.Size}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-muted-foreground text-xs">—</span>
+                                                            )}
                                                         </TableCell>
 
                                                         {/* Stock Level */}

@@ -5,6 +5,7 @@ export interface OrderItem {
   id: string
   orderItemId?: number
   productId: string
+  variantId?: number
   productName: string
   name?: string
   sku: string
@@ -35,6 +36,8 @@ export interface Order {
   billingAddress: string
   shippingAddress: string
   notes?: string
+  doctorSpeciality?: string
+  clientGSTIN?: string
   quotationId?: string | number
   proformaId?: string | number
   paymentType?: string
@@ -45,14 +48,19 @@ export interface ApiSalesOrderItem {
   orderItemId: number
   orderId: number
   productId: number
-  productName: string
-  itemName: string
+  variantId?: number
+  productName?: string
+  itemName?: string
+  sku: string
   imageUrl?: string
-  price: number
-  gstPercentage: number
+  price?: number
+  unitPrice?: number
+  gstPercentage?: number
   quantity: number
   discountPercentage?: number
   discountAmount?: number
+  totalPrice?: number
+  total?: number
 }
 
 export interface ApiSalesOrder {
@@ -68,6 +76,8 @@ export interface ApiSalesOrder {
   clientAddress?: string
   clientMobileNo?: string
   gstinNo?: string
+  clientGSTIN?: string
+  doctorSpeciality?: string
   salesPersonId?: number | string
   salesPersonName?: string
   salesPersonCell?: string
@@ -112,6 +122,7 @@ export function mapApiSalesOrder(raw: any): Order {
       id: String(item.orderItemId || item.id || Math.random().toString(36).substring(2, 9)),
       orderItemId: item.orderItemId,
       productId: String(item.productId),
+      variantId: item.variantId || 0,
       productName: item.productName || item.sku || "",
       name: item.itemName || item.name || item.sku || "",
       sku: item.sku || item.itemName || item.name || "",
@@ -175,6 +186,8 @@ export function mapApiSalesOrder(raw: any): Order {
     billingAddress: raw.billingAddress || raw.clientAddress || "",
     shippingAddress: raw.shippingAddress || raw.clientAddress || "",
     notes: raw.orderNotes || raw.notes || raw.subject || "",
+    doctorSpeciality: raw.doctorSpeciality || "",
+    clientGSTIN: raw.clientGSTIN || raw.gstinNo || "",
     quotationId: raw.linkedQuotationId || raw.quotationId || undefined,
     proformaId: raw.linkedProformaInvoiceId || raw.proformaId || undefined,
     paymentType: raw.paymentType || "Domestic",

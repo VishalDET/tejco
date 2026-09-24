@@ -258,6 +258,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       contacts: [], 
       branches: [], 
       clientType: "Clinic",
+      doctorSpeciality: "",
       hasBranches: false,
       status: "Lead",
       billingAddress: { ...emptyAddress },
@@ -381,6 +382,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       phone: (form.phone || "").trim(),
       status: form.status || "Active",
       clientType: form.clientType || "Clinic",
+      doctorSpeciality: (form.doctorSpeciality || "").trim(),
       hasBranches: (form.branches && form.branches.length > 0) || Boolean(form.hasBranches),
       gstin: (form.gstin || "").trim(),
       joinedDate: form.joinedDate
@@ -437,15 +439,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
     try {
       if (!client) {
         // ── CREATE ──
-        await clientsApi.create(payload)
+        const res = await clientsApi.create(payload)
         toast.success("Client created successfully")
+        const newClientId = res?.data?.clientId || res?.clientId || res?.data?.id || res?.id || 0
+        onSave({ ...form, ...payload, id: String(newClientId || "") } as Partial<Client>)
       } else {
         // ── UPDATE ──
         await clientsApi.update(client.id, payload)
         toast.success("Client profile updated successfully")
+        onSave({ ...form, ...payload, id: String(client.id) } as Partial<Client>)
       }
-
-      onSave({ ...form, ...payload } as Partial<Client>)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save client. Please try again.")
     } finally {
@@ -521,12 +524,21 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="contactPerson">Primary Contact Person</Label>
-                  <Input id="contactPerson" placeholder="Dr. John Doe" value={form.contactPerson ?? ""} onChange={(e) => set("contactPerson", e.target.value)} />
+                  <Label htmlFor="doctorSpeciality">Doctor Speciality</Label>
+                  <Input 
+                    id="doctorSpeciality" 
+                    placeholder="e.g. Dermatologist, Trichologist, Surgeon" 
+                    value={form.doctorSpeciality ?? ""} 
+                    onChange={(e) => set("doctorSpeciality", e.target.value)} 
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="contactPerson">Primary Contact Person</Label>
+                  <Input id="contactPerson" placeholder="Dr. John Doe" value={form.contactPerson ?? ""} onChange={(e) => set("contactPerson", e.target.value)} />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <div className="relative">
@@ -534,12 +546,13 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                     <Input id="email" className="pl-9" type="email" placeholder="john@example.com" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <div className="relative">
-                    <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input id="phone" className="pl-9" placeholder="+91 99999 99999" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
-                  </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <div className="relative">
+                  <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input id="phone" className="pl-9" placeholder="+91 99999 99999" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
                 </div>
               </div>
 

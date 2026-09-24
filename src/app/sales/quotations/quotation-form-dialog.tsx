@@ -133,6 +133,9 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
               clientId: match.id,
               billingAddress: prev.billingAddress || serializeAddress(match.billingAddress),
               shippingAddress: prev.shippingAddress || serializeAddress(match.shippingAddress),
+              clientMobileNo: prev.clientMobileNo || match.phone || "",
+              gstinNo: prev.gstinNo || match.gstin || "",
+              doctorSpeciality: prev.doctorSpeciality || match.doctorSpeciality || (match as any).speciality || "",
             }))
           }
         } catch (err) {
@@ -300,6 +303,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         quotationId: quotationIdNum,
         quotationNumber: form.number || form.quotationNumber || "",
         quotationDate: new Date(form.date || form.quotationDate || new Date()).toISOString(),
+        clientId: form.clientId && !isNaN(Number(form.clientId)) ? Number(form.clientId) : 0,
         clientName: form.clientName || "",
         clientAddress: form.billingAddress || form.clientAddress || "",
         clientMobileNo: form.clientMobileNo || quotation?.clientMobileNo || "",
@@ -407,7 +411,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Client / Doctor *</Label>
                 <ClientSelector 
                   selectedClientId={form.clientId} 
@@ -419,11 +423,11 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                     set("billingAddress", serializeAddress(c.billingAddress))
                     set("shippingAddress", serializeAddress(c.shippingAddress))
                     set("gstinNo", c.gstin)
-                    set("doctorSpeciality", (c as any).doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || "")
+                    set("doctorSpeciality", c.doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || "")
                   }} 
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Sales Representative *</Label>
                 <Select 
                   value={form.salesPersonName || ""}
@@ -445,8 +449,8 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                     }
                   }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder={loadingUsers ? "Loading..." : "Select Sales Person"} />
+                  <SelectTrigger className="w-full min-w-0 overflow-hidden">
+                    <SelectValue placeholder={loadingUsers ? "Loading..." : "Select Sales Person"} className="truncate" />
                   </SelectTrigger>
                   <SelectContent>
                     {users.map(u => {
@@ -460,10 +464,10 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Status</Label>
                 <Select value={form.status} onValueChange={(v) => set("status", v as SalesDocumentStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Draft">Draft</SelectItem>
                     <SelectItem value="Issued">Issued</SelectItem>
@@ -474,7 +478,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Subject *</Label>
                 <Input 
                   placeholder="e.g. Surgical Blade L4, Testing Item Discounts, etc." 
@@ -482,7 +486,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   onChange={(e) => set("subject", e.target.value)} 
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label>Doctor Speciality</Label>
                 <Input 
                   placeholder="e.g. Dermatologist, Trichologist, Surgeon" 
@@ -490,8 +494,8 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                   onChange={(e) => set("doctorSpeciality", e.target.value)} 
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3 min-w-0">
+                <div className="space-y-2 min-w-0">
                   <Label>Validity (Days)</Label>
                   <Input 
                     type="number"
@@ -500,7 +504,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                     onChange={(e) => set("validityDays", parseInt(e.target.value) || 7)} 
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <Label>Delivery Time</Label>
                   <Input 
                     placeholder="e.g. 10-15 Working Days" 

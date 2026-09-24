@@ -13,6 +13,7 @@ interface ProductVariant {
   productId: number
   variantName: string
   skuSuffix: string
+  size?: string
   purchasePrice: number
   sellingPrice: number
   usdAmount?: number
@@ -24,6 +25,8 @@ interface Product {
   productId: number
   productName: string
   baseSKU: string
+  vendorName?: string
+  hsnCode?: string
   variants: ProductVariant[]
 }
 
@@ -54,7 +57,7 @@ export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps)
   const flattenedResults: { product: Product, variant: ProductVariant }[] = []
   products.forEach(p => {
     p.variants.forEach(v => {
-      const fullName = `${p.productName} ${v.variantName}`.toLowerCase()
+      const fullName = `${p.productName} ${v.variantName} ${(v as any).size || ""} ${(p as any).vendorName || ""} ${(p as any).hsnCode || ""}`.toLowerCase()
       const search = searchQuery.toLowerCase()
       if (fullName.includes(search) || p.baseSKU.toLowerCase().includes(search) || (p.baseSKU + v.skuSuffix).toLowerCase().includes(search)) {
         flattenedResults.push({ product: p, variant: v })
@@ -110,8 +113,14 @@ export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps)
                   >
                     <div className="flex flex-col">
                       <div className="font-medium text-primary">{item.product.productName}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {item.variant.variantName} | SKU: {item.product.baseSKU}{item.variant.skuSuffix}
+                      <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                        <span>{item.variant.variantName}</span>
+                        {item.variant.size && (
+                          <span className="font-semibold text-foreground/80 px-1 py-0.2 rounded bg-muted/60 text-[10px]">
+                            {item.variant.size}
+                          </span>
+                        )}
+                        <span>| SKU: {item.product.baseSKU}{item.variant.skuSuffix}</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end">

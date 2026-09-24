@@ -26,7 +26,8 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
-import { categoriesApi, warehousesApi } from "@/lib/api"
+import { categoriesApi, warehousesApi, vendorsApi } from "@/lib/api"
+import type { Vendor } from "@/app/supply-chain/vendors/types"
 
 interface Subcategory {
     subcategoryId: number
@@ -57,6 +58,9 @@ export default function EditProductPage() {
     // Form state
     const [name, setName] = React.useState("")
     const [sku, setSku] = React.useState("")
+    const [hsnCode, setHsnCode] = React.useState("")
+    const [vendorName, setVendorName] = React.useState("")
+    const [vendors, setVendors] = React.useState<Vendor[]>([])
     const [desc, setDesc] = React.useState("")
     const [taggingNo, setTaggingNo] = React.useState("")
     const [brand, setBrand] = React.useState("")
@@ -82,14 +86,16 @@ export default function EditProductPage() {
             try {
                 setIsLoading(true)
 
-                // Fetch Categories & Warehouses
-                const [catRes, wRes] = await Promise.all([
-                    categoriesApi.getAll(),
-                    warehousesApi.getAll().catch(() => [])
+                // Fetch Categories, Warehouses & Vendors
+                const [catRes, wRes, vRes] = await Promise.all([
+                    categoriesApi.getAll().catch(() => []),
+                    warehousesApi.getAll().catch(() => []),
+                    vendorsApi.getAll().catch(() => [])
                 ])
                 const cats = Array.isArray(catRes) ? catRes : (catRes as any).data || []
                 setCategories(cats)
                 setWarehouses(wRes)
+                setVendors(vRes)
 
                 if (!params.id) return
 
@@ -99,6 +105,8 @@ export default function EditProductPage() {
                     const p = response.data
                     setName(p.productName || "")
                     setSku(p.baseSKU || "")
+                    setHsnCode(p.hsnCode || p.HSNCode || "")
+                    setVendorName(p.vendorName || p.VendorName || "")
                     setDesc(p.description || "")
                     setBrand(p.brand || "")
                     setUnit(p.unit || "")
@@ -119,6 +127,7 @@ export default function EditProductPage() {
                             id: v.variantId,
                             productId: v.productId,
                             name: v.variantName,
+                            size: v.size || v.Size || "",
                             sku_suffix: v.skuSuffix,
                             purchasePrice: v.purchasePrice?.toString() || "0",
                             price: v.sellingPrice?.toString() || "0",
@@ -133,7 +142,7 @@ export default function EditProductPage() {
                             image: getGoogleDrivePreviewUrl(v.variantImage) || null
                         })))
                     } else {
-                        setVariants([{ id: 1, name: "Default", sku_suffix: "-DEF", purchasePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
+                        setVariants([{ id: 1, name: "Default", size: "", sku_suffix: "-DEF", purchasePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
                     }
                 } else {
                     setError(response.message || "Product not found")
@@ -150,7 +159,7 @@ export default function EditProductPage() {
     }, [params.id])
 
     const addVariant = () => {
-        setVariants([...variants, { id: Date.now(), name: "", sku_suffix: "", purchasePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
+        setVariants([...variants, { id: Date.now(), name: "", size: "", sku_suffix: "", purchasePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
     }
 
     const handleImageChange = (id: number, file: File) => {
@@ -192,6 +201,10 @@ export default function EditProductPage() {
             productId: parseInt(params.id as string),
             productName: name,
             baseSKU: sku,
+            vendorName: vendorName,
+            VendorName: vendorName,
+            hsnCode: hsnCode,
+            HSNCode: hsnCode,
             productTaggingNo: taggingNo,
             barcodeNumber: "",
             categoryId: selectedCategoryIds[0] || 0,
@@ -209,6 +222,8 @@ export default function EditProductPage() {
                 productId: v.productId || parseInt(params.id as string),
                 variantName: v.name,
                 skuSuffix: v.sku_suffix,
+                size: v.size || "",
+                Size: v.size || "",
                 purchasePrice: parseFloat(v.purchasePrice) || 0,
                 sellingPrice: parseFloat(v.price) || 0,
                 initialQuantity: parseInt(v.initialQuantity) || 0,
@@ -296,13 +311,39 @@ export default function EditProductPage() {
                                             />
                                         </div>
                                         <div className="grid gap-2">
-                                            <Label htmlFor="sku">HSN Code</Label>
+                                            <Label htmlFor="sku">Base SKU</Label>
                                             <Input
                                                 id="sku"
                                                 value={sku}
                                                 onChange={(e) => setSku(e.target.value)}
                                                 required
                                             />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="hsnCode">HSN Code</Label>
+                                            <Input
+                                                id="hsnCode"
+                                                placeholder="e.g., 901890"
+                                                value={hsnCode}
+                                                onChange={(e) => setHsnCode(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="vendorName">Vendor Name</Label>
+                                            <Input
+                                                id="vendorName"
+                                                list="edit-vendor-suggestions"
+                                                placeholder="Select or enter vendor name"
+                                                value={vendorName}
+                                                onChange={(e) => setVendorName(e.target.value)}
+                                            />
+                                            <datalist id="edit-vendor-suggestions">
+                                                {vendors.map((v, i) => (
+                                                    <option key={(v as any).id || (v as any).vendorId || i} value={(v as any).vendorName || (v as any).name} />
+                                                ))}
+                                            </datalist>
                                         </div>
                                     </div>
                                     <div className="grid gap-2">
@@ -469,13 +510,23 @@ export default function EditProductPage() {
                                                         required
                                                     />
                                                 </div>
-                                                <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SKU Suffix</Label>
-                                                    <Input
-                                                        placeholder="-LG"
-                                                        value={v.sku_suffix}
-                                                        onChange={(e) => handleVariantChange(v.id, "sku_suffix", e.target.value)}
-                                                    />
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="grid gap-2">
+                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Size</Label>
+                                                        <Input
+                                                            placeholder="e.g., XL / 100ml"
+                                                            value={v.size || ""}
+                                                            onChange={(e) => handleVariantChange(v.id, "size", e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <div className="grid gap-2">
+                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SKU Suffix</Label>
+                                                        <Input
+                                                            placeholder="-LG"
+                                                            value={v.sku_suffix}
+                                                            onChange={(e) => handleVariantChange(v.id, "sku_suffix", e.target.value)}
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
 

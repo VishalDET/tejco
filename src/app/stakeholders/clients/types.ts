@@ -31,6 +31,7 @@ export interface CreateClientPayload {
   phone: string
   status: string
   clientType: string
+  doctorSpeciality: string
   hasBranches: boolean
   gstin: string
   joinedDate: string
@@ -53,6 +54,7 @@ export interface Client {
   phone: string
   status: "Active" | "Inactive" | "Lead"
   clientType: ClientType
+  doctorSpeciality?: string
   hasBranches: boolean
   branches: ClientBranch[]
   joinedDate: string

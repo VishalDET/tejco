@@ -110,6 +110,7 @@ export function mapApiClient(raw: ApiClient): Client {
     phone: String(raw.phone || ""),
     status: (r.status || extra.status || "Active") as Client["status"],
     clientType: (r.clientType || extra.clientType || "") as Client["clientType"],
+    doctorSpeciality: String(r.doctorSpeciality || extra.doctorSpeciality || ""),
     hasBranches: Boolean(r.hasBranches || extra.hasBranches || false),
     branches: Array.isArray(r.branches) ? r.branches : Array.isArray(extra.branches) ? extra.branches : [],
     joinedDate: String(r.joinedDate || extra.joinedDate || ""),
@@ -201,6 +202,7 @@ export const clientsApi = {
       phone: (data.phone || "").trim(),
       status: data.status || "Active",
       clientType: data.clientType || "Clinic",
+      doctorSpeciality: (data.doctorSpeciality || "").trim(),
       hasBranches: (data.branches && data.branches.length > 0) || Boolean(data.hasBranches),
       gstin: (data.gstin || "").trim(),
       joinedDate: data.joinedDate
@@ -267,6 +269,7 @@ export const clientsApi = {
       phone: (data.phone || "").trim(),
       status: data.status || "Active",
       clientType: data.clientType || "Clinic",
+      doctorSpeciality: (data.doctorSpeciality || "").trim(),
       hasBranches: (data.branches && data.branches.length > 0) || Boolean(data.hasBranches),
       gstin: (data.gstin || "").trim(),
       joinedDate: data.joinedDate
@@ -727,8 +730,15 @@ export const systemMastersApi = {
 }
 
 // ---------------------------------------------------------------------------
-// Sales Orders  →  /api/SalesOrder
-// ---------------------------------------------------------------------------
+export interface SalesOrderGetAllParams {
+  PageNumber?: number
+  PageSize?: number
+  SearchTerm?: string
+  ClientId?: number | string
+  Status?: string
+  StartDate?: string
+  EndDate?: string
+}
 
 export const salesOrderApi = {
   /** POST /api/SalesOrder/Create */
@@ -741,8 +751,30 @@ export const salesOrderApi = {
   updateStatus: (id: string | number, newStatus: string, remarks?: string) =>
     apiClient.put<any>(`/api/SalesOrder/${id}/Status`, { newStatus, remarks: remarks || "" }),
 
-  /** GET /api/SalesOrder/GetAll */
-  getAll: () => apiClient.get<any[]>("/api/SalesOrder/GetAll"),
+  /** GET /api/SalesOrder/GetAll — supports PageNumber, PageSize, SearchTerm, ClientId, Status, StartDate, EndDate */
+  getAll: (params?: SalesOrderGetAllParams) => {
+    const query = new URLSearchParams()
+    if (params?.PageNumber) query.append("PageNumber", String(params.PageNumber))
+    if (params?.PageSize) query.append("PageSize", String(params.PageSize))
+    if (params?.SearchTerm && params.SearchTerm.trim()) query.append("SearchTerm", params.SearchTerm.trim())
+    if (params?.ClientId && String(params.ClientId) !== "0" && String(params.ClientId) !== "all") {
+      query.append("ClientId", String(params.ClientId))
+    }
+    if (params?.Status && params.Status.toLowerCase() !== "all") {
+      query.append("Status", params.Status)
+    }
+    if (params?.StartDate) {
+      const startIso = params.StartDate.includes("T") ? params.StartDate : new Date(params.StartDate + "T00:00:00.000Z").toISOString()
+      query.append("StartDate", startIso)
+    }
+    if (params?.EndDate) {
+      const endIso = params.EndDate.includes("T") ? params.EndDate : new Date(params.EndDate + "T23:59:59.999Z").toISOString()
+      query.append("EndDate", endIso)
+    }
+
+    const queryString = query.toString() ? `?${query.toString()}` : ""
+    return apiClient.get<any>(`/api/SalesOrder/GetAll${queryString}`)
+  },
 
   /** GET /api/SalesOrder/GetById/{id} */
   getById: (id: string) => apiClient.get<any>(`/api/SalesOrder/GetById/${id}`),
