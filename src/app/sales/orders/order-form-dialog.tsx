@@ -131,8 +131,25 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
           let billingAddress = order.billingAddress || ""
           let shippingAddress = order.shippingAddress || ""
 
-          // 1. Resolve client by name if ID is missing
-          if (order.clientName && !clientId) {
+          // 1. Resolve client by ID or name
+          if (clientId && clientId !== "0") {
+            try {
+              const client = await clientsApi.getById(clientId)
+              if (client && client.name) {
+                setForm(prev => ({
+                  ...prev,
+                  clientId: client.id,
+                  clientName: client.name,
+                  doctorSpeciality: prev.doctorSpeciality || client.doctorSpeciality || "",
+                  clientGSTIN: prev.clientGSTIN || client.gstin || "",
+                  billingAddress: prev.billingAddress || serializeAddress(client.billingAddress),
+                  shippingAddress: prev.shippingAddress || serializeAddress(client.shippingAddress),
+                }))
+              }
+            } catch (err) {
+              console.error("Failed to resolve client by ID:", err)
+            }
+          } else if (order.clientName && !clientId) {
             const res = await clientsApi.getAll()
             const match = res.clients.find((c: any) => c.name?.toLowerCase().trim() === order.clientName?.toLowerCase().trim())
             if (match) {
@@ -140,6 +157,15 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
               // Always use client master's addresses when resolving client ID during conversion
               billingAddress = serializeAddress(match.billingAddress)
               shippingAddress = serializeAddress(match.shippingAddress)
+              setForm(prev => ({
+                ...prev,
+                clientId: match.id,
+                clientName: match.name,
+                doctorSpeciality: prev.doctorSpeciality || match.doctorSpeciality || "",
+                clientGSTIN: prev.clientGSTIN || match.gstin || "",
+                billingAddress,
+                shippingAddress,
+              }))
             }
           }
 
@@ -331,6 +357,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
         orderDate: form.date ? (form.date.includes("T") ? form.date : new Date(form.date).toISOString()) : new Date().toISOString(),
         targetDeliveryDate: form.deliveryDate ? (form.deliveryDate.includes("T") ? form.deliveryDate : new Date(form.deliveryDate).toISOString()) : new Date().toISOString(),
         clientId: isNaN(parseInt(String(form.clientId || ""))) ? 0 : parseInt(String(form.clientId || "")),
+        clientName: form.clientName || "",
         orderStatus: form.status || "Pending",
         paymentStatus: form.paymentStatus || "Unpaid",
         salesPersonId: isNaN(parseInt(String(form.salesPersonId || ""))) ? 0 : parseInt(String(form.salesPersonId || "")),

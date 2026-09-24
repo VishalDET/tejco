@@ -48,10 +48,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Order, OrderStatus, mapApiSalesOrder } from "./types"
+import { Order, OrderStatus, mapApiSalesOrder, salesOrderClientCache } from "./types"
 import { OrderFormDialog } from "./order-form-dialog"
 import { ClientSelector } from "@/components/sales/client-selector"
-import { salesOrderApi } from "@/lib/api"
+import { salesOrderApi, clientsApi } from "@/lib/api"
 import { toast } from "sonner"
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
@@ -157,9 +157,48 @@ export default function OrdersPage() {
         total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
       }
 
-      const data = list.map(mapApiSalesOrder)
+      const data = list.map(rawOrder => mapApiSalesOrder(rawOrder, salesOrderClientCache))
       setOrders(data)
       setTotalCount(total)
+
+      // Resolve accurate client names & doctorSpeciality from client master API for orders with clientId
+      const clientIdsToFetch = Array.from(
+        new Set(
+          list
+            .filter((o: any) => o.clientId && String(o.clientId) !== "0" && !salesOrderClientCache.has(String(o.clientId)))
+            .map((o: any) => String(o.clientId))
+        )
+      )
+
+      if (clientIdsToFetch.length > 0) {
+        Promise.allSettled(
+          clientIdsToFetch.map(async (cId) => {
+            try {
+              const client = await clientsApi.getById(cId)
+              if (client && client.name) {
+                salesOrderClientCache.set(cId, client)
+              }
+            } catch {
+              // Ignore errors (e.g. 404 for deleted test clients)
+            }
+          })
+        ).then(() => {
+          setOrders(prev =>
+            prev.map(order => {
+              const cached = salesOrderClientCache.get(String(order.clientId))
+              if (cached && cached.name) {
+                return {
+                  ...order,
+                  clientName: cached.name,
+                  doctorSpeciality: order.doctorSpeciality || cached.doctorSpeciality || "",
+                  clientGSTIN: order.clientGSTIN || cached.gstin || "",
+                }
+              }
+              return order
+            })
+          )
+        })
+      }
     } catch (error) {
       console.error("Failed to fetch sales orders:", error)
       toast.error("Failed to load sales orders. Please try again.")
@@ -473,9 +512,9 @@ export default function OrdersPage() {
                       {order.orderNumber}
                     </TableCell>
                     <TableCell className="font-medium text-xs">
-                      <div>{order.clientName}</div>
+                      <div className="font-semibold text-slate-900">{order.clientName}</div>
                       {(order as any).doctorSpeciality && (
-                        <div className="text-[11px] text-muted-foreground">{(order as any).doctorSpeciality}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{(order as any).doctorSpeciality}</div>
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">

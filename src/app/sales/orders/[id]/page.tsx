@@ -1,8 +1,8 @@
 import * as React from "react"
 import { useParams } from "react-router-dom"
 import { OrderDetailsView } from "@/app/sales/orders/[id]/order-details-view"
-import { Order, mapApiSalesOrder } from "@/app/sales/orders/types"
-import { salesOrderApi } from "@/lib/api"
+import { Order, mapApiSalesOrder, salesOrderClientCache } from "@/app/sales/orders/types"
+import { salesOrderApi, clientsApi } from "@/lib/api"
 import { Loader } from "@/components/ui/loader"
 
 export default function OrderDetailsPage() {
@@ -17,11 +17,23 @@ export default function OrderDetailsPage() {
     setLoading(true)
 
     salesOrderApi.getById(id)
-      .then((raw) => {
+      .then(async (raw) => {
         if (!active) return
         const data = raw?.data || raw
         if (data) {
-          setOrder(mapApiSalesOrder(data))
+          const mapped = mapApiSalesOrder(data, salesOrderClientCache)
+          if (mapped.clientId && mapped.clientId !== "0" && (!mapped.clientName || mapped.clientName.startsWith("Client #"))) {
+            try {
+              const client = salesOrderClientCache.get(mapped.clientId) || await clientsApi.getById(mapped.clientId)
+              if (client && client.name) {
+                salesOrderClientCache.set(mapped.clientId, client)
+                mapped.clientName = client.name
+                mapped.doctorSpeciality = mapped.doctorSpeciality || client.doctorSpeciality || ""
+                mapped.clientGSTIN = mapped.clientGSTIN || client.gstin || ""
+              }
+            } catch {}
+          }
+          setOrder(mapped)
         }
         setLoading(false)
       })

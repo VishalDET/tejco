@@ -103,7 +103,9 @@ export interface ApiSalesOrder {
   items?: ApiSalesOrderItem[]
 }
 
-export function mapApiSalesOrder(raw: any): Order {
+export const salesOrderClientCache = new Map<string, any>()
+
+export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order {
   const rawItems = raw.lineItems || raw.items || []
   const items = rawItems.map((item: any) => {
     const price = item.price || item.unitPrice || 0
@@ -162,15 +164,38 @@ export function mapApiSalesOrder(raw: any): Order {
     totalAmount = calcTotal
   }
 
-  // Resolve client name from billingAddress if not provided directly
-  const clientName = raw.clientName
-    || (raw.billingAddress ? raw.billingAddress.split("|")[0].split(",")[0] : "Client #" + raw.clientId)
+  const cId = String(raw.clientId || "")
+  const cachedClient = (cId && cId !== "0") ? (clientMap?.get(cId) || salesOrderClientCache.get(cId)) : null
+
+  // 1. Direct client name fields on the raw object
+  let clientName = raw.clientName || raw.customerName || raw.billingName || raw.client?.name || raw.client?.clientName
+
+  // 2. Client name from cache / master
+  if (!clientName && cachedClient?.name) {
+    clientName = cachedClient.name
+  }
+
+  // 3. Fallback: only if billing address has a doctor/person title, extract it
+  if (!clientName && raw.billingAddress) {
+    const firstPart = String(raw.billingAddress).split("|")[0].split(",")[0].trim()
+    if (/^(Dr\.|Dr |Mr\.|Mrs\.|Ms\.|M\/s|Prof\.)/i.test(firstPart)) {
+      clientName = firstPart
+    }
+  }
+
+  // 4. Default fallback
+  if (!clientName) {
+    clientName = (cId && cId !== "0") ? `Client #${cId}` : "—"
+  }
+
+  const doctorSpeciality = raw.doctorSpeciality || cachedClient?.doctorSpeciality || ""
+  const clientGSTIN = raw.clientGSTIN || raw.gstinNo || cachedClient?.gstin || ""
 
   return {
     id: String(raw.orderId || raw.id),
     orderId: raw.orderId,
     orderNumber: raw.orderNumber || raw.number || "",
-    clientId: String(raw.clientId || ""),
+    clientId: cId,
     clientName,
     salesPersonId: raw.salesPersonId ? String(raw.salesPersonId) : undefined,
     date: (raw.orderDate || raw.date || new Date().toISOString()).split("T")[0],
@@ -186,8 +211,8 @@ export function mapApiSalesOrder(raw: any): Order {
     billingAddress: raw.billingAddress || raw.clientAddress || "",
     shippingAddress: raw.shippingAddress || raw.clientAddress || "",
     notes: raw.orderNotes || raw.notes || raw.subject || "",
-    doctorSpeciality: raw.doctorSpeciality || "",
-    clientGSTIN: raw.clientGSTIN || raw.gstinNo || "",
+    doctorSpeciality,
+    clientGSTIN,
     quotationId: raw.linkedQuotationId || raw.quotationId || undefined,
     proformaId: raw.linkedProformaInvoiceId || raw.proformaId || undefined,
     paymentType: raw.paymentType || "Domestic",

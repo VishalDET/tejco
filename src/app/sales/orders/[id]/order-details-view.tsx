@@ -15,7 +15,8 @@ import {
   ChevronDown,
   FileSpreadsheet
 } from "lucide-react"
-import { Order, OrderStatus } from "@/app/sales/orders/types"
+import { Order, OrderStatus, salesOrderClientCache } from "@/app/sales/orders/types"
+import { clientsApi } from "@/lib/api"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -96,6 +97,31 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
 
   React.useEffect(() => {
     setOrder(initialOrder)
+    if (initialOrder.clientId && initialOrder.clientId !== "0" && (!initialOrder.clientName || initialOrder.clientName.startsWith("Client #"))) {
+      const cached = salesOrderClientCache.get(initialOrder.clientId)
+      if (cached && cached.name) {
+        setOrder(prev => ({
+          ...prev,
+          clientName: cached.name,
+          doctorSpeciality: prev.doctorSpeciality || cached.doctorSpeciality || "",
+          clientGSTIN: prev.clientGSTIN || cached.gstin || "",
+        }))
+      } else {
+        clientsApi.getById(initialOrder.clientId)
+          .then((c) => {
+            if (c && c.name) {
+              salesOrderClientCache.set(initialOrder.clientId, c)
+              setOrder(prev => ({
+                ...prev,
+                clientName: c.name,
+                doctorSpeciality: prev.doctorSpeciality || c.doctorSpeciality || "",
+                clientGSTIN: prev.clientGSTIN || c.gstin || "",
+              }))
+            }
+          })
+          .catch(() => {})
+      }
+    }
   }, [initialOrder])
 
   const originalSubtotal = (order.items || []).reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)

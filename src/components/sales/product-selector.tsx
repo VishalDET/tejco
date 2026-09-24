@@ -91,7 +91,7 @@ export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps)
         </DialogHeader>
         <div className="p-2">
           <Input
-            placeholder="Search by name, SKU..."
+            placeholder="Search by name, HSN..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-9"
@@ -120,7 +120,7 @@ export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps)
                             {item.variant.size}
                           </span>
                         )}
-                        <span>| SKU: {item.product.baseSKU}{item.variant.skuSuffix}</span>
+                        <span>| HSN: {item.product.hsnCode || (item.product as any).HSNCode || "—"}</span>
                       </div>
                     </div>
                     <div className="flex flex-col items-end">
