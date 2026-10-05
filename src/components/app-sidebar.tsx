@@ -10,6 +10,7 @@ import {
     BarChart3,
     Settings,
     ChevronRight,
+    RotateCcw,
 } from "lucide-react"
 
 import { useAuth } from "@/hooks/use-auth"
@@ -96,7 +97,16 @@ const data: { navMain: NavItem[] } = {
                 { title: "Quotations", url: "/sales/quotations", permission: "Quotations.View" },
                 { title: "Proforma Invoices", url: "/sales/proforma-invoices", permission: "ProformaInvoices.View" },
                 { title: "Sales Order", url: "/sales/orders", permission: "SalesOrders.View" },
-                { title: "Invoices", url: "/sales/invoices", permission: ["Invoices.View", "SalesOrders.View", "ProformaInvoices.View"] },
+                // { title: "Invoices", url: "/sales/invoices", permission: ["Invoices.View", "SalesOrders.View", "ProformaInvoices.View"] },
+            ],
+        },
+        {
+            title: "Goods Return",
+            url: "#",
+            icon: RotateCcw,
+            permission: "GoodsReturn.View",
+            items: [
+                { title: "Credit Notes", url: "/goods-return/credit-notes", permission: "GoodsReturn.View" },
             ],
         },
         {
@@ -112,8 +122,9 @@ const data: { navMain: NavItem[] } = {
             title: "Intelligence",
             url: "#",
             icon: BarChart3,
-            permission: "Reports.View",
+            permission: ["Reports.View", "SalesDashboard.View"],
             items: [
+                { title: "Analytics", url: "/intelligence/analytics", permission: ["Reports.View", "SalesDashboard.View"] },
                 { title: "Reports", url: "/intelligence/reports", permission: "Reports.View" },
             ],
         },
@@ -147,8 +158,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             return data.navMain
         }
 
-        const activePermissions = permissions && permissions.length > 0 
-            ? permissions 
+        const activePermissions = permissions && permissions.length > 0
+            ? permissions
             : (user?.permissions && user.permissions.length > 0 ? user.permissions : [])
 
         return data.navMain
@@ -197,18 +208,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <SidebarMenuButton
                         tooltip={item.title}
                         isActive={isActive}
-                        className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-200 ${
-                            isActive
-                                ? "bg-primary text-primary-foreground font-semibold shadow-xs"
-                                : "text-slate-700 dark:text-slate-200 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/70 font-medium"
-                        }`}
+                        className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                            ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                            : "text-slate-700 dark:text-slate-200 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/70 font-medium"
+                            }`}
                         render={<Link to={item.url} />}
                     >
                         {item.icon && (
                             <item.icon
-                                className={`h-5 w-5 shrink-0 transition-colors ${
-                                    isActive ? "text-primary-foreground" : "text-slate-500 dark:text-slate-400 group-hover:text-foreground"
-                                }`}
+                                className={`h-5 w-5 shrink-0 transition-colors ${isActive ? "text-primary-foreground" : "text-slate-500 dark:text-slate-400 group-hover:text-foreground"
+                                    }`}
                             />
                         )}
                         <span className="text-[14px] leading-snug flex-1">{item.title}</span>
@@ -230,17 +239,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     render={
                         <SidebarMenuButton
                             tooltip={item.title}
-                            className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-200 ${
-                                isActive
-                                    ? "bg-primary/10 text-primary dark:bg-primary/20 font-semibold"
-                                    : "text-slate-700 dark:text-slate-200 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/70 font-medium"
-                            }`}
+                            className={`w-full flex items-center gap-3.5 px-3.5 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                                ? "bg-primary/10 text-primary dark:bg-primary/20 font-semibold"
+                                : "text-slate-700 dark:text-slate-200 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/70 font-medium"
+                                }`}
                         >
                             {item.icon && (
                                 <item.icon
-                                    className={`h-5 w-5 shrink-0 transition-colors ${
-                                        isActive ? "text-primary" : "text-slate-500 dark:text-slate-400"
-                                    }`}
+                                    className={`h-5 w-5 shrink-0 transition-colors ${isActive ? "text-primary" : "text-slate-500 dark:text-slate-400"
+                                        }`}
                                 />
                             )}
                             <span className="text-[14px] leading-snug flex-1 text-left">{item.title}</span>
@@ -257,11 +264,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     <SidebarMenuSubButton
                                         size="md"
                                         isActive={isSubActive}
-                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13.5px] transition-all duration-200 ${
-                                            isSubActive
-                                                ? "bg-primary/15 text-primary dark:bg-primary/25 font-semibold"
-                                                : "text-slate-600 dark:text-slate-400 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium"
-                                        }`}
+                                        className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13.5px] transition-all duration-200 ${isSubActive
+                                            ? "bg-primary/15 text-primary dark:bg-primary/25 font-semibold"
+                                            : "text-slate-600 dark:text-slate-400 hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium"
+                                            }`}
                                         render={<Link to={subItem.url} />}
                                     >
                                         <span className="truncate">{subItem.title}</span>

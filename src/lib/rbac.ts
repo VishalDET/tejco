@@ -115,6 +115,12 @@ export const Permissions = {
   EMAIL_TEMPLATES_CREATE: "EmailTemplates.Create",
   EMAIL_TEMPLATES_EDIT: "EmailTemplates.Edit",
 
+  // Goods Return & Credit Notes
+  GOODS_RETURN_VIEW: "GoodsReturn.View",
+  GOODS_RETURN_CREATE: "GoodsReturn.Create",
+  GOODS_RETURN_EDIT: "GoodsReturn.Edit",
+  GOODS_RETURN_DELETE: "GoodsReturn.Delete",
+
   // Backward compatibility / UI convenience aliases
   SYSTEM_USERS_VIEW: "Users.View",
   SYSTEM_ROLES_VIEW: "Roles.View",
@@ -334,6 +340,18 @@ const PERMISSION_EQUIVALENTS: Record<string, string[]> = {
     "emailtemplates.view",
     "emailtemplates.create",
     "emailtemplates.edit",
+  ],
+  "goodsreturn.view": [
+    "goodsreturn.view",
+    "goodsreturn.create",
+    "goodsreturn.edit",
+    "goodsreturn.delete",
+    "creditnotes.view",
+  ],
+  "salesdashboard.view": [
+    "salesdashboard.view",
+    "salesorders.view",
+    "reports.view",
   ],
 }
 

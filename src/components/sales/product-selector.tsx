@@ -125,8 +125,8 @@ export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps)
                     </div>
                     <div className="flex flex-col items-end">
                       <div className="font-semibold">
-                        {paymentType === "Foreign" 
-                          ? `$${(item.variant.usdAmount ?? 0).toLocaleString()}` 
+                        {paymentType === "Foreign"
+                          ? `$${(item.variant.usdAmount ?? 0).toLocaleString()}`
                           : `₹${item.variant.sellingPrice.toLocaleString()}`}
                       </div>
                       <div className="text-[10px] text-muted-foreground">Stock: {item.variant.currentQuantity}</div>

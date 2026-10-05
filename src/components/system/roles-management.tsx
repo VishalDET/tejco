@@ -177,6 +177,12 @@ const DEFAULT_PERMISSIONS: RolePermission[] = [
   { permissionId: 70, permissionName: "EmailTemplates.View", name: "EmailTemplates.View", module: "EmailTemplates", description: "Allows viewing email templates" },
   { permissionId: 71, permissionName: "EmailTemplates.Create", name: "EmailTemplates.Create", module: "EmailTemplates", description: "Allows creating email templates" },
   { permissionId: 72, permissionName: "EmailTemplates.Edit", name: "EmailTemplates.Edit", module: "EmailTemplates", description: "Allows editing email templates" },
+
+  // Goods Return & Credit Notes
+  { permissionId: 73, permissionName: "GoodsReturn.View", name: "GoodsReturn.View", module: "GoodsReturn", description: "Allows viewing credit notes and goods return logs" },
+  { permissionId: 74, permissionName: "GoodsReturn.Create", name: "GoodsReturn.Create", module: "GoodsReturn", description: "Allows creating credit notes" },
+  { permissionId: 75, permissionName: "GoodsReturn.Edit", name: "GoodsReturn.Edit", module: "GoodsReturn", description: "Allows editing credit notes" },
+  { permissionId: 76, permissionName: "GoodsReturn.Delete", name: "GoodsReturn.Delete", module: "GoodsReturn", description: "Allows deleting credit notes" },
 ]
 
 export function RolesManagement() {

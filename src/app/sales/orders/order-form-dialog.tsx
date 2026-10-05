@@ -51,7 +51,8 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
     const fetchLinkedOptions = async () => {
       try {
         setLoadingLinked(true)
-        const pList = await proformaApi.getAll()
+        const res = await proformaApi.getAll()
+        const pList = Array.isArray(res) ? res : (res?.data || [])
         setProformas(pList)
       } catch (err) {
         console.error("Error fetching proformas:", err)

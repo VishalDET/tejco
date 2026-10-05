@@ -16,8 +16,10 @@ import {
   FileSpreadsheet
 } from "lucide-react"
 import { Order, OrderStatus, salesOrderClientCache } from "@/app/sales/orders/types"
-import { clientsApi } from "@/lib/api"
+import { clientsApi, productsApi } from "@/lib/api"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
+
+const productDetailsCache = new Map<string, any>()
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -32,6 +34,7 @@ import {
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import { OrderFormDialog } from "@/app/sales/orders/order-form-dialog"
+import { PrintLayout, executePrint } from "@/components/common/print"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 
@@ -61,6 +64,23 @@ const getCurrencySymbol = (currency?: string) => {
     case "GBP": return "£"
     case "INR": return "₹"
     default: return currency
+  }
+}
+
+const getPrintCurrencySymbol = (currency?: string) => {
+  if (!currency || currency.toUpperCase() === "INR") return "Rs"
+  return getCurrencySymbol(currency)
+}
+
+const formatDateWithDots = (dateStr: string) => {
+  try {
+    const d = new Date(dateStr)
+    const day = String(d.getDate()).padStart(2, "0")
+    const month = String(d.getMonth() + 1).padStart(2, "0")
+    const year = d.getFullYear()
+    return `${day}.${month}.${year}`
+  } catch (e) {
+    return dateStr
   }
 }
 
@@ -122,6 +142,72 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
           .catch(() => {})
       }
     }
+
+    // Fetch product details for items where variationId is null/missing/0
+    if (initialOrder.items && initialOrder.items.length > 0) {
+      const itemsToEnrich = initialOrder.items.filter(
+        item => (!item.variantId || item.variantId === 0) && item.productId && item.productId !== "0"
+      )
+
+      if (itemsToEnrich.length > 0) {
+        Promise.all(
+          initialOrder.items.map(async (item) => {
+            const hasVariant = !!item.variantId && item.variantId !== 0
+            if (hasVariant || !item.productId || item.productId === "0") {
+              // If item doesn't have a valid product or variant, check if productName is empty
+              if (!item.productName && !item.name && !item.sku) {
+                return { ...item, productName: "No product found" }
+              }
+              return item
+            }
+
+            try {
+              const cached = productDetailsCache.get(String(item.productId))
+              let prod = cached
+              if (!prod) {
+                const res = await productsApi.getById(item.productId)
+                prod = res?.data || res
+                if (prod && (prod.productId || prod.productName)) {
+                  productDetailsCache.set(String(item.productId), prod)
+                }
+              }
+
+              if (prod && (prod.productName || prod.name)) {
+                const prodName = prod.productName || prod.name || "No product found"
+                const defaultVariant = Array.isArray(prod.variants) && prod.variants.length > 0 ? prod.variants[0] : null
+                const variantName = defaultVariant?.variantName || prod.variantName || ""
+                const sku = item.sku || (defaultVariant ? `${prod.baseSKU || ""}${defaultVariant.skuSuffix || ""}` : prod.baseSKU) || ""
+                const imageUrl = item.imageUrl || defaultVariant?.variantImage || prod.imageUrl || prod.image || ""
+
+                return {
+                  ...item,
+                  productName: prodName,
+                  name: item.name || variantName || prodName,
+                  sku: sku,
+                  imageUrl: imageUrl || item.imageUrl,
+                }
+              } else {
+                return {
+                  ...item,
+                  productName: item.productName || "No product found",
+                }
+              }
+            } catch (err) {
+              console.error(`Failed to fetch product details for productId ${item.productId}:`, err)
+              return {
+                ...item,
+                productName: item.productName || "No product found",
+              }
+            }
+          })
+        ).then((enrichedItems) => {
+          setOrder(prev => ({
+            ...prev,
+            items: enrichedItems,
+          }))
+        })
+      }
+    }
   }, [initialOrder])
 
   const originalSubtotal = (order.items || []).reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
@@ -152,16 +238,13 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
     }
   }
 
+  const printRef = React.useRef<HTMLDivElement>(null)
+
   const handlePrint = () => {
-    const el = document.getElementById("order-print-area")
-    if (el) {
-      el.style.display = "flex"
-      el.style.flexDirection = "column"
-      window.onafterprint = () => {
-        el.style.display = "none"
-      }
-    }
-    window.print()
+    executePrint(printRef.current, {
+      documentTitle: `Sales Order - ${order.orderNumber}`,
+      pageOrientation: "portrait",
+    })
   }
 
   const handleExportExcel = () => {
@@ -293,43 +376,52 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {order.items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {(item as any).imageUrl && (
-                              <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
-                                <img
-                                  src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""}
-                                  alt={item.productName}
-                                  className="h-full w-full object-contain"
-                                  referrerPolicy="no-referrer"
-                                />
+                    {order.items.map((item) => {
+                      const isNoProduct = !item.productName || item.productName === "No product found"
+                      const displayName = isNoProduct ? "No product found" : item.productName
+
+                      return (
+                        <TableRow key={item.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              {(item as any).imageUrl && !isNoProduct && (
+                                <div className="h-10 w-10 rounded border border-slate-100 overflow-hidden bg-slate-50 flex-shrink-0 flex items-center justify-center">
+                                  <img
+                                    src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""}
+                                    alt={displayName}
+                                    className="h-full w-full object-contain"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                              )}
+                              <div>
+                                <div className={`font-medium ${isNoProduct ? "text-slate-400 italic font-normal" : "text-slate-900"}`}>
+                                  {displayName}
+                                </div>
+                                {!isNoProduct && (item as any).name && (item as any).name !== item.productName && (
+                                  <div className="text-xs text-slate-500">{(item as any).name}</div>
+                                )}
                               </div>
-                            )}
-                            <div>
-                              <div className="font-medium text-slate-900">{item.productName}</div>
-                              {(item as any).name && <div className="text-xs text-slate-500">{(item as any).name}</div>}
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs font-mono">{item.sku}</TableCell>
-                        <TableCell className="text-right">{item.quantity}</TableCell>
-                        <TableCell className="text-right">
-                          {getCurrencySymbol(order.currencyType)}{item.unitPrice.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-right text-slate-500">
-                          {(item as any).discountAmount && (item as any).discountAmount > 0 ? (
-                            <span className="text-rose-600 font-medium">
-                              -{getCurrencySymbol(order.currencyType)}{((item as any).discountAmount * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          ) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {getCurrencySymbol(order.currencyType)}{(item.unitPrice * item.quantity).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">{item.sku || "—"}</TableCell>
+                          <TableCell className="text-right">{item.quantity}</TableCell>
+                          <TableCell className="text-right">
+                            {getCurrencySymbol(order.currencyType)}{item.unitPrice.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right text-slate-500">
+                            {(item as any).discountAmount && (item as any).discountAmount > 0 ? (
+                              <span className="text-rose-600 font-medium">
+                                -{getCurrencySymbol(order.currencyType)}{((item as any).discountAmount * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            ) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {getCurrencySymbol(order.currencyType)}{(item.unitPrice * item.quantity).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
 
@@ -450,298 +542,340 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
         </div>
       </div>
 
-      {/* ── Hidden Print Area ── */}
-      <div
-        id="order-print-area"
-        className="hidden bg-white text-black"
-        style={{ width: "210mm", minHeight: "297mm", margin: "0 auto", fontFamily: "Arial, sans-serif", fontSize: "12px" }}
-      >
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          @media print {
-            body * { visibility: hidden; }
-            #order-print-area, #order-print-area * {
-              visibility: visible;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-            }
-            #order-print-area {
-              position: absolute;
-              left: 0; top: 0;
-              width: 210mm !important;
-              min-height: 297mm !important;
-              display: flex !important;
-              flex-direction: column !important;
-              background: white !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            @page { size: A4 portrait; margin: 0; }
-          }
-        `}} />
-
-        {/* ══ HEADER — Tejco standard branding ══ */}
-        <div style={{ position: "relative", width: "100%", height: "105px", overflow: "hidden", flexShrink: 0, background: "#505052" }}>
-          {/* White logo zone */}
-          <div style={{
-            position: "absolute", top: 0, left: 0,
-            width: "240px", height: "86px",
-            background: "white",
-            clipPath: "polygon(0 0, 82% 0, 100% 100%, 0 100%)",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center"
-          }}>
-            <img
-              src="/assets/images/tejco_sidebar_logo.png"
-              alt="Tejco"
-              style={{ height: "50px", width: "auto", objectFit: "contain", marginLeft: "-28px" }}
-            />
-            <div style={{ fontSize: "7px", letterSpacing: "0.22em", textTransform: "uppercase", color: "#505052", marginLeft: "-28px", marginTop: "3px", fontFamily: "Verdana, sans-serif" }}>
-              Hair &bull; Skin &bull; Optics
-            </div>
-          </div>
-
-          {/* Red diagonal slash */}
-          <div style={{
-            position: "absolute", top: 0, left: "195px",
-            width: "58px", height: "86px",
-            background: "#d9232a",
-            clipPath: "polygon(38% 0, 100% 0, 62% 100%, 0 100%)"
-          }} />
-
-          {/* Company name */}
-          <div style={{
-            position: "absolute", top: 0, right: 0, left: "230px", height: "86px",
-            display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "22px"
-          }}>
-            <span style={{ color: "white", fontSize: "21px", fontWeight: "bold", letterSpacing: "0.06em", fontFamily: "Calibri, Arial, sans-serif" }}>
-              TEJCO GLOBAL LLP
-            </span>
-          </div>
-
-          {/* Red stripe */}
-          <div style={{ position: "absolute", top: "86px", left: 0, right: 0, height: "10px", background: "#d9232a" }} />
-          {/* Light grey stripe */}
-          <div style={{ position: "absolute", top: "96px", left: 0, right: 0, height: "9px", background: "#e6e6e6" }} />
-        </div>
-
-        {/* ══ BODY ══ */}
-        <div style={{ flex: "1 1 auto", padding: "0 0 16px 0" }}>
-
-          {/* Title row */}
-          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-            <div style={{ textAlign: "center", padding: "6px", fontWeight: "bold", fontSize: "13px", background: "#F9FAFB", borderBottom: "1px solid #D1D5DB" }}>
-              SALES ORDER
-            </div>
-            <div style={{ textAlign: "center", padding: "4px", fontSize: "11px", color: "#374151" }}>
-              GST NO :- {COMPANY.gst}
-            </div>
-          </div>
-
-          {/* Order No + Date */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid #D1D5DB" }}>
-            <div style={{ padding: "8px 12px", borderRight: "1px solid #D1D5DB", display: "flex", gap: "8px", alignItems: "center" }}>
-              <strong>Order No:</strong>
-              <span style={{ marginLeft: "8px" }}>{order.orderNumber}</span>
-            </div>
-            <div style={{ padding: "8px 12px", display: "flex", gap: "8px", alignItems: "center" }}>
-              <strong>DATE:</strong>
-              <span style={{ marginLeft: "8px" }}>
-                {new Date(order.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}
-              </span>
-            </div>
-          </div>
-
-          {/* Target Delivery Date + Status */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid #D1D5DB" }}>
-            <div style={{ padding: "8px 12px", borderRight: "1px solid #D1D5DB", display: "flex", gap: "8px", alignItems: "center" }}>
-              <strong>Target Delivery:</strong>
-              <span style={{ marginLeft: "8px" }}>
-                {order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) : "N/A"}
-              </span>
-            </div>
-            <div style={{ padding: "8px 12px", display: "flex", gap: "8px", alignItems: "center" }}>
-              <strong>Status:</strong>
-              <span style={{ marginLeft: "8px" }}>{order.status}</span>
-            </div>
-          </div>
-
-          {/* Billing & Shipping Name & Address */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid #D1D5DB" }}>
-            {/* Billing Address */}
-            <div style={{ borderRight: "1px solid #D1D5DB" }}>
-              <div style={{ padding: "6px 12px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
-                <strong>Billing Name &amp; Address</strong>
+      {/* ── Hidden Print Area using Common PrintLayout ── */}
+      <div id="order-print-area" className="hidden">
+        <PrintLayout
+          containerRef={printRef}
+          documentTitle="SALES ORDER"
+          documentSubtitle={`REF: ${order.orderNumber}`}
+          footerProps={{
+            documentNumber: order.orderNumber,
+            showBankDetails: true,
+            showComputerGeneratedDisclaimer: true,
+            authorizedSignatoryLabel: `FOR ${COMPANY.name}`,
+            customSignatures: (
+              <div className="pt-3 border-t border-slate-300 mt-4 text-xs font-sans">
+                <div className="grid grid-cols-2 gap-6 items-end">
+                  <div>
+                    <div className="text-[11px] text-slate-500 mb-1">
+                      P.O. SHOULD BE IN THE NAME OF <strong>{COMPANY.name}</strong>
+                    </div>
+                    <div className="font-bold text-xs text-slate-900">{COMPANY.forLine}</div>
+                    {order.salesPersonName && (
+                      <div className="mt-1">
+                        <div className="text-xs font-semibold text-slate-800">
+                          {order.salesPersonName}
+                        </div>
+                        {order.salesPersonCell && (
+                          <div className="text-[11px] text-slate-600">
+                            Cell: {order.salesPersonCell}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="h-10 border-b border-slate-300 w-48 ml-auto mb-1" />
+                    <span className="text-[10px] text-slate-500 font-medium">Authorized Signature</span>
+                  </div>
+                </div>
               </div>
-              <div style={{ padding: "10px 16px", minHeight: "80px", lineHeight: 1.6, fontSize: "12px" }}>
-                <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "4px" }}>{order.clientName}</div>
-                {renderAddressLinesPrint(order.billingAddress)}
-                {((order as any).clientGSTIN || (order as any).gstinNo) && (
-                  <div style={{ marginTop: "4px", fontWeight: 600 }}>
-                    GSTIN: {(order as any).clientGSTIN || (order as any).gstinNo}
+            ),
+          }}
+        >
+          {/* Customer & Document Information Box */}
+          <div className="mb-4 text-xs font-sans border border-slate-300 rounded-md overflow-hidden">
+            <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white">
+              {/* Left Column: Customer Details */}
+              <div className="p-3 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Billing Name &amp; Address:
+                </div>
+                <div className="font-bold text-sm text-slate-900">{order.clientName}</div>
+                {order.doctorSpeciality && (
+                  <div className="text-xs text-slate-600 font-medium">{order.doctorSpeciality}</div>
+                )}
+                {order.billingAddress && (
+                  <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+                    {order.billingAddress.replace(/\|/g, ", ")}
                   </div>
                 )}
-                {(order as any).doctorSpeciality && (
-                  <div style={{ marginTop: "2px", color: "#6B7280" }}>
-                    Speciality: {(order as any).doctorSpeciality}
+                {order.shippingAddress && order.shippingAddress !== order.billingAddress && (
+                  <div className="pt-1.5 border-t border-slate-100 text-xs text-slate-600">
+                    <span className="font-semibold text-slate-700">Shipping: </span>
+                    {order.shippingAddress.replace(/\|/g, ", ")}
+                  </div>
+                )}
+                <div className="text-xs text-slate-800 pt-1">
+                  <span className="font-bold text-slate-900">Client GSTIN / UIN:</span>{" "}
+                  <span className="font-mono font-bold text-slate-950 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    {order.clientGSTIN?.trim() ? order.clientGSTIN : "URP / Unregistered"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Right Column: Order Metadata */}
+              <div className="p-3 space-y-1.5 bg-slate-50/60">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Order No:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {order.orderNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Date:</span>
+                  <span className="font-bold text-slate-900">{formatDateWithDots(order.date)}</span>
+                </div>
+                {order.deliveryDate && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Target Delivery:</span>
+                    <span className="font-bold text-slate-900">{formatDateWithDots(order.deliveryDate)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Order Status:</span>
+                  <span className="font-semibold text-slate-900">{order.status}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Payment Status:</span>
+                  <span className="font-semibold text-slate-900">{order.paymentStatus}</span>
+                </div>
+                {order.quotationId && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Linked Quote:</span>
+                    <span className="font-mono font-semibold text-slate-800">#{order.quotationId}</span>
+                  </div>
+                )}
+                {order.proformaId && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Linked PI:</span>
+                    <span className="font-mono font-semibold text-slate-800">#{order.proformaId}</span>
+                  </div>
+                )}
+                {order.salesPersonName && (
+                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
+                    <span className="text-slate-600 font-medium">Sales Rep:</span>
+                    <span className="font-semibold text-slate-900">{order.salesPersonName}</span>
                   </div>
                 )}
               </div>
             </div>
-
-            {/* Shipping Address */}
-            <div>
-              <div style={{ padding: "6px 12px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
-                <strong>Shipping Destination</strong>
-              </div>
-              <div style={{ padding: "10px 16px", minHeight: "80px", lineHeight: 1.6, fontSize: "12px" }}>
-                {renderAddressLinesPrint(order.shippingAddress || order.billingAddress)}
-              </div>
-            </div>
           </div>
 
-          {/* Items Table */}
-          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+          {/* Notes Banner if exists */}
+          {order.notes && (
+            <div className="text-center font-semibold text-xs py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-md mb-3 text-slate-800">
+              Notes: <span className="font-normal text-slate-700">{order.notes}</span>
+            </div>
+          )}
+
+          {/* ══════════════ PRODUCTS TABULAR FORMAT ══════════════ */}
+          <div className="border border-slate-200 rounded-md overflow-hidden">
+            <table className="w-full border-collapse text-xs">
               <thead>
-                <tr style={{ background: "#F9FAFB" }}>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "left", width: "35%" }}>Products</th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "15%" }}>Images</th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "10%" }}>Qty</th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "20%" }}>
-                    Rate ({order.currencyType === "INR" ? "Rs" : getCurrencySymbol(order.currencyType)})
+                <tr className="bg-slate-100/80 text-slate-800 font-semibold border-b border-slate-200">
+                  <th className="py-2 px-2 text-center w-10 border-r border-slate-200">#</th>
+                  <th className="py-2 px-3 text-left border-r border-slate-200">Item Description</th>
+                  <th className="py-2 px-2 text-center w-16 border-r border-slate-200">Qty</th>
+                  <th className="py-2 px-2.5 text-right w-28 border-r border-slate-200">
+                    <div>Rate ({getPrintCurrencySymbol(order.currencyType)})</div>
+                    <div className="text-[9px] font-normal text-slate-500">
+                      {order.paymentType === "Foreign" ? "Standard" : "(Incl. GST)"}
+                    </div>
                   </th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "20%" }}>
-                    Total ({order.currencyType === "INR" ? "Rs" : getCurrencySymbol(order.currencyType)})
+                  {hasDiscounts && (
+                    <th className="py-2 px-2 text-right w-20 border-r border-slate-200">Discount</th>
+                  )}
+                  {order.paymentType !== "Foreign" && (
+                    <th className="py-2 px-2 text-center w-16 border-r border-slate-200">GST %</th>
+                  )}
+                  <th className="py-2 px-3 text-right w-32">
+                    <div>Total ({getPrintCurrencySymbol(order.currencyType)})</div>
+                    <div className="text-[9px] font-normal text-slate-500">
+                      {order.paymentType === "Foreign" ? "" : "(Incl. GST)"}
+                    </div>
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {order.items.map((item) => {
-                  const discountedPrice = item.unitPrice - ((item as any).discountAmount || 0)
-                  const lineTotal = discountedPrice * item.quantity
+              <tbody className="divide-y divide-slate-100 border-b border-slate-200">
+                {order.items.map((item, idx) => {
+                  const discountPercentage = (item as any).discountPercentage || 0
+                  const discountAmount = (item as any).discountAmount || 0
+                  const effectiveUnitPrice = item.unitPrice - discountAmount
+                  const lineTotal = effectiveUnitPrice * item.quantity
+
+                  const isNoProduct = !item.productName || item.productName === "No product found"
+                  const displayName = isNoProduct ? "No product found" : item.productName
+
                   return (
-                    <tr key={item.id}>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", verticalAlign: "top" }}>
-                        <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                        {(item as any).name && (item as any).name !== item.productName && (
-                          <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "2px" }}>{(item as any).name}</div>
-                        )}
-                        <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "1px" }}>SKU: {item.sku}</div>
-                        {(item as any).discountPercentage > 0 && (
-                          <div style={{ fontSize: "10px", color: "#DC2626", marginTop: "2px" }}>
-                            Disc: {(item as any).discountPercentage}% ({getCurrencySymbol(order.currencyType)}{(item as any).discountAmount?.toLocaleString()}/pc)
+                    <tr key={item.id || idx} className="hover:bg-slate-50/50">
+                      <td className="py-2 px-2 text-center font-medium text-slate-500 border-r border-slate-100 align-top">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 px-3 border-r border-slate-100 align-top">
+                        <div className="flex items-start gap-2">
+                          {(item as any).imageUrl && !isNoProduct && (
+                            <div className="h-10 w-10 rounded border border-slate-200 bg-white p-0.5 shrink-0 overflow-hidden">
+                              <img
+                                src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""}
+                                alt={displayName}
+                                className="h-full w-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <div className={`text-xs ${isNoProduct ? "font-normal italic text-slate-400" : "font-bold text-slate-900"}`}>
+                              {displayName}
+                            </div>
+                            {!isNoProduct && (item as any).name && (item as any).name !== item.productName && (
+                              <div className="text-[10px] text-slate-500">{(item as any).name}</div>
+                            )}
+                            {!isNoProduct && item.sku && (
+                              <div className="text-[10px] font-mono text-slate-400 mt-0.5">SKU: {item.sku}</div>
+                            )}
                           </div>
-                        )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-center font-semibold text-slate-800 border-r border-slate-100 align-top">
+                        {item.quantity} Nos
+                      </td>
+                      <td className="py-2 px-2.5 text-right font-medium text-slate-800 border-r border-slate-100 align-top">
+                        <div>
+                          {item.unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
                         {order.paymentType !== "Foreign" && (
-                          <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "2px" }}>GST: {item.gstRate || 18}%</div>
+                          <div className="text-[9px] text-emerald-700 font-medium">Incl. GST</div>
                         )}
                       </td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>
-                        {(item as any).imageUrl ? (
-                          <img
-                            src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""}
-                            alt={item.productName}
-                            style={{ width: "48px", height: "48px", objectFit: "contain", margin: "0 auto" }}
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <span style={{ color: "#CBD5E1", fontSize: "10px" }}>—</span>
+                      {hasDiscounts && (
+                        <td className="py-2 px-2 text-right border-r border-slate-100 align-top">
+                          {discountPercentage > 0 ? (
+                            <div>
+                              <span className="text-rose-600 font-semibold text-[11px]">
+                                {discountPercentage}%
+                              </span>
+                              <div className="text-[10px] text-slate-500">
+                                -{(discountAmount * item.quantity).toLocaleString("en-IN")}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                      )}
+                      {order.paymentType !== "Foreign" && (
+                        <td className="py-2 px-2 text-center font-medium text-slate-600 border-r border-slate-100 align-top">
+                          {item.gstRate}%
+                        </td>
+                      )}
+                      <td className="py-2 px-3 text-right font-bold text-slate-900 align-top">
+                        <div>
+                          {lineTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        {order.paymentType !== "Foreign" && (
+                          <div className="text-[9px] text-slate-400 font-normal">Incl. GST</div>
                         )}
-                      </td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>{item.quantity}</td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle" }}>
-                        {getCurrencySymbol(order.currencyType)}{item.unitPrice.toLocaleString()}
-                        {(item as any).discountAmount > 0 && (
-                          <div style={{ fontSize: "10px", color: "#DC2626" }}>
-                            Net: {getCurrencySymbol(order.currencyType)}{discountedPrice.toLocaleString()}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle", fontWeight: "bold" }}>
-                        {getCurrencySymbol(order.currencyType)}{lineTotal.toLocaleString()}
                       </td>
                     </tr>
                   )
                 })}
+              </tbody>
 
-                {/* Filler rows if few items */}
-                {order.items.length < 2 && Array.from({ length: 2 - order.items.length }).map((_, idx) => (
-                  <tr key={`empty-${idx}`}>
-                    {[0, 1, 2, 3, 4].map((c) => (
-                      <td key={c} style={{ border: "1px solid #D1D5DB", padding: "20px 10px" }}>&nbsp;</td>
-                    ))}
-                  </tr>
-                ))}
+              {/* Totals Summary Footer Rows inside Table */}
+              <tfoot className="bg-slate-50/70 text-xs font-semibold text-slate-800">
+                <tr>
+                  <td
+                    colSpan={2 + (hasDiscounts ? 1 : 0) + (order.paymentType !== "Foreign" ? 1 : 0)}
+                    rowSpan={hasDiscounts ? (order.paymentType !== "Foreign" ? 5 : 3) : (order.paymentType !== "Foreign" ? 4 : 2)}
+                    className="p-3 border-r border-slate-200 align-top bg-white"
+                  >
+                    <div className="space-y-1 text-slate-700">
+                      <div className="font-bold text-[11px] uppercase tracking-wider text-slate-800">
+                        Commercial Terms:
+                      </div>
+                      <div className="text-[11px] grid grid-cols-[110px_1fr] gap-1">
+                        <span className="text-slate-500">Tax Clause:</span>
+                        <span className="font-semibold text-emerald-800">
+                          {order.paymentType === "Foreign" ? "Exempt / Export" : "All quoted prices include GST"}
+                        </span>
+                        <span className="text-slate-500">Payment Status:</span>
+                        <span className="font-semibold text-slate-900">
+                          {order.paymentStatus}
+                        </span>
+                        {order.deliveryDate && (
+                          <>
+                            <span className="text-slate-500">Target Delivery:</span>
+                            <span className="font-semibold text-slate-900">
+                              {formatDateWithDots(order.deliveryDate)}
+                            </span>
+                          </>
+                        )}
+                        <span className="text-slate-500">Client GSTIN:</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          {order.clientGSTIN || "Unregistered / URP"}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200">
+                    Gross Total (Incl. GST):
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-medium text-slate-800">
+                    {getPrintCurrencySymbol(order.currencyType)}{" "}
+                    {originalSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
 
-                {/* Gross Total row */}
                 {hasDiscounts && (
-                  <tr style={{ background: "#F9FAFB" }}>
-                    <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold" }}>GROSS TOTAL</td>
-                    <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold" }}>
-                      {getCurrencySymbol(order.currencyType)}{originalSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <tr>
+                    <td colSpan={2} className="py-1.5 px-3 text-right text-rose-600 border-r border-slate-200">
+                      Total Discount:
+                    </td>
+                    <td className="py-1.5 px-3 text-right font-medium text-rose-600">
+                      - {getPrintCurrencySymbol(order.currencyType)}{" "}
+                      {totalDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                   </tr>
                 )}
 
-                {/* Total row */}
-                <tr style={{ background: "#F3F4F6" }}>
-                  <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold", fontSize: "12px" }}>TOTAL AMOUNT</td>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold", fontSize: "13px" }}>
-                    {getCurrencySymbol(order.currencyType)}{order.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {order.paymentType !== "Foreign" && (
+                  <>
+                    <tr>
+                      <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                        Taxable Value (Excl. GST):
+                      </td>
+                      <td className="py-1.5 px-3 text-right font-normal text-slate-700 text-[11px]">
+                        {getPrintCurrencySymbol(order.currencyType)}{" "}
+                        {order.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                        GST Amount (Included):
+                      </td>
+                      <td className="py-1.5 px-3 text-right font-normal text-amber-700 text-[11px]">
+                        {getPrintCurrencySymbol(order.currencyType)}{" "}
+                        {order.taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </>
+                )}
+
+                <tr className="border-t border-slate-300 bg-slate-100/90 text-slate-900">
+                  <td colSpan={2} className="py-2 px-3 text-right font-bold text-sm border-r border-slate-200">
+                    Net Payable (Incl. GST):
+                  </td>
+                  <td className="py-2 px-3 text-right font-bold text-sm text-slate-950">
+                    {getPrintCurrencySymbol(order.currencyType)}{" "}
+                    {order.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
-              </tbody>
+              </tfoot>
             </table>
           </div>
-
-          {/* Order Notes */}
-          {order.notes && (
-            <div style={{ borderBottom: "1px solid #D1D5DB", padding: "6px 12px" }}>
-              <strong>Notes: </strong>
-              <span>{order.notes}</span>
-            </div>
-          )}
-
-          {/* Sales Rep + Bank Details */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "2px solid #374151", minHeight: "120px" }}>
-            {/* Left: Signatory */}
-            <div style={{ borderRight: "1px solid #D1D5DB", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
-              <div style={{ fontWeight: "bold" }}>{COMPANY.forLine}</div>
-              <div style={{ marginTop: "auto", color: "#2563EB", textDecoration: "underline", fontSize: "11px" }}>
-                AUTHORISED SIGNATORY
-              </div>
-            </div>
-
-            {/* Right: Bank Details */}
-            <div style={{ padding: "14px 16px" }}>
-              <div style={{ color: "#2563EB", textDecoration: "underline", fontSize: "11px", marginBottom: "6px" }}>Bank Details</div>
-              {COMPANY.bankDetails.map((line, idx) => (
-                <div key={idx} style={{ fontSize: "11px", lineHeight: 1.6, color: "#374151", fontWeight: idx === 0 ? "bold" : "normal" }}>
-                  {line}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer note */}
-          <div style={{ padding: "10px 16px", textAlign: "center" }}>
-            <p style={{ fontSize: "9px", color: "#9CA3AF", letterSpacing: "1px" }}>
-              This is a computer-generated document. No signature required.
-            </p>
-          </div>
-        </div>
+        </PrintLayout>
       </div>
-
-      {/* Global print CSS */}
-      <style>{`
-        @media screen {
-          .screen-only { display: flex; }
-          #order-print-area { display: none; }
-        }
-      `}</style>
 
       <OrderFormDialog
         open={isEditDialogOpen}

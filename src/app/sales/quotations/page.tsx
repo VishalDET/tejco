@@ -16,12 +16,19 @@ import {
   TrendingUp,
   X,
   Building2,
-  ExternalLink
+  ExternalLink,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Filter
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -38,12 +45,33 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { quotationsApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 import { SalesDocumentStatus } from "../types"
 import { Quotation } from "./types"
 import { QuotationFormDialog } from "./quotation-form-dialog"
 import { toast } from "sonner"
+
+function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "...", totalPages]
+  }
+  if (currentPage >= totalPages - 3) {
+    return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+  }
+  return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages]
+}
 
 const getStatusBadge = (status: SalesDocumentStatus | string) => {
   const norm = String(status || "").toLowerCase().trim()
@@ -90,28 +118,110 @@ export default function QuotationsPage() {
   const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [selectedQuotation, setSelectedQuotation] = React.useState<Quotation | null>(null)
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [statusFilter, setStatusFilter] = React.useState<string>("all")
 
-  const fetchQuotations = async (silent = false) => {
+  // Server Filter States
+  const [searchTerm, setSearchTerm] = React.useState("")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  const [statusFilter, setStatusFilter] = React.useState<string>("all")
+  const [startDate, setStartDate] = React.useState<string>("")
+  const [endDate, setEndDate] = React.useState<string>("")
+
+  // Pagination States
+  const [pageNumber, setPageNumber] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(10)
+  const [totalCount, setTotalCount] = React.useState(0)
+
+  // Debounce search term
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+      setPageNumber(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const { user } = useAuth()
+  const isSalesPerson =
+    Number(user?.roleId) === 3 ||
+    String(user?.role || "").toLowerCase().includes("sales person") ||
+    String(user?.role || "").toLowerCase() === "salesperson"
+  const currentSalesPersonId = isSalesPerson
+    ? String(user?.userId || user?.id || (user as any)?.salesPersonId || "")
+    : ""
+
+  const fetchQuotations = React.useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true)
     else setIsRefreshing(true)
 
     try {
-      const data = await quotationsApi.getAll()
-      setQuotations(data || [])
+      if (isSalesPerson && currentSalesPersonId) {
+        // Fetch all quotations for this specific sales person
+        const list = await quotationsApi.getBySalesPerson(currentSalesPersonId)
+        
+        // Filter in-memory by status, search, and date if applied
+        let filtered = list
+        if (debouncedSearch) {
+          const lower = debouncedSearch.toLowerCase()
+          filtered = filtered.filter(
+            q =>
+              q.number?.toLowerCase().includes(lower) ||
+              q.quotationNumber?.toLowerCase().includes(lower) ||
+              q.clientName?.toLowerCase().includes(lower) ||
+              q.subject?.toLowerCase().includes(lower)
+          )
+        }
+        if (statusFilter !== "all") {
+          filtered = filtered.filter(
+            q => String(q.status || "").toLowerCase() === statusFilter.toLowerCase()
+          )
+        }
+        if (startDate) {
+          const startTs = new Date(startDate).getTime()
+          filtered = filtered.filter(q => q.date && new Date(q.date).getTime() >= startTs)
+        }
+        if (endDate) {
+          const endTs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1
+          filtered = filtered.filter(q => q.date && new Date(q.date).getTime() <= endTs)
+        }
+
+        const total = filtered.length
+        const startIdx = (pageNumber - 1) * pageSize
+        const paginated = filtered.slice(startIdx, startIdx + pageSize)
+
+        setQuotations(paginated)
+        setTotalCount(total)
+      } else {
+        const res = await quotationsApi.getAll({
+          PageNumber: pageNumber,
+          PageSize: pageSize,
+          SearchTerm: debouncedSearch || undefined,
+          Status: statusFilter !== "all" ? statusFilter : undefined,
+          StartDate: startDate || undefined,
+          EndDate: endDate || undefined,
+        })
+
+        if (Array.isArray(res)) {
+          setQuotations(res)
+          setTotalCount(res.length)
+        } else if (res && typeof res === "object") {
+          setQuotations(res.data || [])
+          setTotalCount(res.totalCount || (res.data ? res.data.length : 0))
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch quotations:", error)
       toast.error("Failed to load quotations. Please try again.")
+      setQuotations([])
+      setTotalCount(0)
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }
+  }, [pageNumber, pageSize, debouncedSearch, statusFilter, startDate, endDate, isSalesPerson, currentSalesPersonId])
 
   React.useEffect(() => {
     fetchQuotations()
-  }, [])
+  }, [fetchQuotations])
 
   const handleCreate = () => {
     setSelectedQuotation(null)
@@ -195,6 +305,26 @@ export default function QuotationsPage() {
     fetchQuotations(true)
   }
 
+  const handleClearFilters = () => {
+    setSearchTerm("")
+    setDebouncedSearch("")
+    setStatusFilter("all")
+    setStartDate("")
+    setEndDate("")
+    setPageNumber(1)
+  }
+
+  const hasActiveFilters = Boolean(
+    searchTerm ||
+    statusFilter !== "all" ||
+    startDate ||
+    endDate
+  )
+
+  const totalPages = Math.ceil(totalCount / pageSize) || 1
+  const pageNumbers = getPageNumbers(pageNumber, totalPages)
+  const currentPage = pageNumber
+
   // Summary Metrics / KPIs
   const kpis = React.useMemo(() => {
     let totalValue = 0
@@ -211,38 +341,13 @@ export default function QuotationsPage() {
     }
 
     return {
-      totalCount: quotations.length,
+      totalCount: totalCount || quotations.length,
       totalValue,
       draftCount,
       issuedCount,
       convertedCount,
     }
-  }, [quotations])
-
-  // Filtered list
-  const filtered = React.useMemo(() => {
-    return quotations.filter((o) => {
-      // Status filter
-      if (statusFilter !== "all") {
-        const st = (o.status || "").toLowerCase().trim()
-        if (statusFilter === "draft" && st !== "draft") return false
-        if (statusFilter === "issued" && st !== "issued") return false
-        if (statusFilter === "converted" && st !== "converted to proforma" && st !== "converted to pi") return false
-      }
-
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim()
-        const matchNum = (o.number || (o as any).quotationNumber || "").toLowerCase().includes(q)
-        const matchClient = (o.clientName || "").toLowerCase().includes(q)
-        const matchNotes = (o.notes || "").toLowerCase().includes(q)
-        const matchSubject = ((o as any).subject || "").toLowerCase().includes(q)
-        if (!matchNum && !matchClient && !matchNotes && !matchSubject) return false
-      }
-
-      return true
-    })
-  }, [quotations, statusFilter, searchQuery])
+  }, [quotations, totalCount])
 
   return (
     <div className="flex flex-col gap-6 w-full mx-auto pb-10 animate-in fade-in duration-300">
@@ -364,51 +469,135 @@ export default function QuotationsPage() {
       {/* Main Quotations Table Card */}
       <Card className="shadow-xs border-border/70 overflow-hidden">
         {/* Controls & Filter Header */}
-        <div className="p-4 sm:p-5 border-b bg-slate-50/40 dark:bg-slate-900/30 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Status Filter Pills */}
-          <div className="inline-flex flex-wrap items-center rounded-lg bg-muted/60 p-1 border border-border/50 gap-0.5 w-full sm:w-auto">
-            {[
-              { id: "all", label: "All Quotes", count: quotations.length },
-              { id: "issued", label: "Issued", count: kpis.issuedCount },
-              { id: "converted", label: "Converted", count: kpis.convertedCount },
-              { id: "draft", label: "Draft", count: kpis.draftCount }
-            ].map(({ id, label, count }) => (
-              <Button
-                key={id}
-                type="button"
-                size="sm"
-                variant={statusFilter === id ? "default" : "ghost"}
-                className={`h-7.5 px-3 text-xs font-medium rounded-md transition-all duration-150 ${
-                  statusFilter === id
-                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background/70"
-                }`}
-                onClick={() => setStatusFilter(id)}
+        <div className="p-4 sm:p-5 border-b bg-slate-50/40 dark:bg-slate-900/30 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            {/* Search Input */}
+            <div className="lg:col-span-4 space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search quote #, client, subject..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-8 pr-8 h-9 text-xs bg-background w-full"
+                />
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Status Select */}
+            <div className="lg:col-span-3 space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Status</Label>
+              <Select
+                value={statusFilter}
+                onValueChange={(val) => {
+                  setStatusFilter(val || "all")
+                  setPageNumber(1)
+                }}
               >
-                {label}
-                <span className="ml-1 text-[11px] opacity-70">({count})</span>
-              </Button>
-            ))}
+                <SelectTrigger className="h-9 text-xs bg-background w-full">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="Issued">Issued</SelectItem>
+                  <SelectItem value="Converted To PI">Converted To PI</SelectItem>
+                  <SelectItem value="Draft">Draft</SelectItem>
+                  <SelectItem value="Cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Start Date */}
+            <div className="lg:col-span-2 space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">From Date</Label>
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    setStartDate(e.target.value)
+                    setPageNumber(1)
+                  }}
+                  className="pl-8 h-9 text-xs bg-background w-full"
+                />
+              </div>
+            </div>
+
+            {/* End Date */}
+            <div className="lg:col-span-2 space-y-1">
+              <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">To Date</Label>
+              <div className="relative">
+                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    setEndDate(e.target.value)
+                    setPageNumber(1)
+                  }}
+                  className="pl-8 h-9 text-xs bg-background w-full"
+                />
+              </div>
+            </div>
+
+            {/* Clear Filters */}
+            <div className="lg:col-span-1">
+              {hasActiveFilters ? (
+                <Button
+                  variant="ghost"
+                  onClick={handleClearFilters}
+                  className="h-9 w-full text-xs text-muted-foreground hover:text-foreground border border-dashed border-border"
+                  title="Clear all filters"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" /> Clear
+                </Button>
+              ) : (
+                <div className="h-9" />
+              )}
+            </div>
           </div>
 
-          {/* Search Box */}
-          <div className="relative w-full md:w-[300px]">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search by quote #, client, notes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 pr-8 h-8.5 text-xs bg-background w-full"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+          {/* Quick Status Filter Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border/40">
+            <span className="text-[11px] text-muted-foreground font-semibold mr-1">Quick Filter:</span>
+            {[
+              { id: "all", label: "All Quotes" },
+              { id: "Issued", label: "Issued" },
+              { id: "Converted To PI", label: "Converted to PI" },
+              { id: "Draft", label: "Draft" },
+            ].map(({ id, label }) => {
+              const active = statusFilter.toLowerCase() === id.toLowerCase()
+              return (
+                <Button
+                  key={id}
+                  type="button"
+                  size="sm"
+                  variant={active ? "default" : "outline"}
+                  className={`h-7 px-2.5 text-[11px] font-medium rounded-full transition-all ${
+                    active
+                      ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground bg-background"
+                  }`}
+                  onClick={() => {
+                    setStatusFilter(id)
+                    setPageNumber(1)
+                  }}
+                >
+                  {label}
+                </Button>
+              )
+            })}
           </div>
         </div>
 
@@ -454,7 +643,7 @@ export default function QuotationsPage() {
                       <TableCell className="px-4 py-3 text-right"><Skeleton className="h-7 w-7 ml-auto rounded-md" /></TableCell>
                     </TableRow>
                   ))
-                ) : filtered.length === 0 ? (
+                ) : quotations.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="h-60 text-center py-10">
                       <div className="flex flex-col items-center justify-center gap-2 text-muted-foreground max-w-sm mx-auto">
@@ -463,18 +652,15 @@ export default function QuotationsPage() {
                         </div>
                         <p className="text-sm font-semibold text-foreground">No quotations found</p>
                         <p className="text-xs text-muted-foreground">
-                          {searchQuery || statusFilter !== "all"
-                            ? "No quotations match your current search or status filter."
+                          {hasActiveFilters
+                            ? "No quotations match your current search, status, or date range filter."
                             : "No quotations have been created yet."}
                         </p>
-                        {(searchQuery || statusFilter !== "all") && (
+                        {hasActiveFilters && (
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              setSearchQuery("")
-                              setStatusFilter("all")
-                            }}
+                            onClick={handleClearFilters}
                             className="h-8 text-xs mt-2"
                           >
                             Reset Filters
@@ -484,7 +670,7 @@ export default function QuotationsPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filtered.map((q) => (
+                  quotations.map((q) => (
                     <TableRow key={q.id} className="group hover:bg-muted/40 transition-colors">
                       {/* Quotation Number */}
                       <TableCell className="py-3 px-4 whitespace-nowrap">
@@ -637,17 +823,132 @@ export default function QuotationsPage() {
             </Table>
           </div>
 
-          {/* Table Footer */}
-          <div className="p-3.5 border-t bg-slate-50/40 dark:bg-slate-900/20 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2">
-            <div>
-              Showing <span className="font-semibold text-foreground">{filtered.length}</span> of{" "}
-              <span className="font-semibold text-foreground">{quotations.length}</span> quotations
+          {/* Table Footer with Pagination */}
+          <div className="p-4 border-t bg-slate-50/40 dark:bg-slate-900/20 flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
+            {/* Left side: Showing count and page size selector */}
+            <div className="flex flex-wrap items-center gap-3 text-muted-foreground w-full md:w-auto justify-between md:justify-start">
+              <div>
+                Showing{" "}
+                <span className="font-bold text-foreground">
+                  {totalCount === 0 ? 0 : (pageNumber - 1) * pageSize + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-bold text-foreground">
+                  {Math.min(pageNumber * pageSize, totalCount)}
+                </span>{" "}
+                of <span className="font-bold text-foreground">{totalCount}</span> entries
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs">Rows per page:</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(val) => {
+                    setPageSize(Number(val))
+                    setPageNumber(1)
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[70px] text-xs bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            {statusFilter !== "all" && (
-              <Badge variant="outline" className="text-[11px] font-normal">
-                Filtered by status: <strong className="ml-1 capitalize">{statusFilter}</strong>
-              </Badge>
-            )}
+
+            {/* Right side: Pagination Navigation Buttons */}
+            <div className="flex items-center gap-1 sm:gap-1.5 w-full md:w-auto justify-center md:justify-end">
+              <div className="text-xs text-muted-foreground font-medium mr-2 whitespace-nowrap bg-background px-2.5 py-1 rounded-md border border-border">
+                Page <span className="font-bold text-foreground">{totalCount === 0 ? 0 : currentPage}</span> of{" "}
+                <span className="font-bold text-foreground">{totalCount === 0 ? 0 : totalPages}</span>
+              </div>
+
+              {/* First Page */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPageNumber(1)}
+                disabled={pageNumber <= 1 || isLoading || totalCount === 0}
+                title="First page"
+              >
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+
+              {/* Previous Page */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                disabled={pageNumber <= 1 || isLoading || totalCount === 0}
+                title="Previous page"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              {/* Direct Page Numbers */}
+              {totalCount > 0 && (
+                <div className="hidden sm:flex items-center gap-1">
+                  {pageNumbers.map((p, idx) => {
+                    if (p === "...") {
+                      return (
+                        <span key={`ellipsis-${idx}`} className="px-1 text-xs text-muted-foreground select-none">
+                          ...
+                        </span>
+                      )
+                    }
+                    const pageNum = p as number
+                    const isSelected = pageNum === currentPage
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        disabled={isLoading}
+                        className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${
+                          isSelected
+                            ? "bg-indigo-600 text-white shadow-2xs font-semibold hover:bg-indigo-700"
+                            : "hover:bg-muted"
+                        }`}
+                        onClick={() => setPageNumber(pageNum)}
+                      >
+                        {pageNum}
+                      </Button>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Next Page */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                disabled={pageNumber >= totalPages || isLoading || totalCount === 0}
+                title="Next page"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+
+              {/* Last Page */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setPageNumber(totalPages)}
+                disabled={pageNumber >= totalPages || isLoading || totalCount === 0}
+                title="Last page"
+              >
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

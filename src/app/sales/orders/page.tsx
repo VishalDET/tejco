@@ -52,6 +52,7 @@ import { Order, OrderStatus, mapApiSalesOrder, salesOrderClientCache } from "./t
 import { OrderFormDialog } from "./order-form-dialog"
 import { ClientSelector } from "@/components/sales/client-selector"
 import { salesOrderApi, clientsApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 import { toast } from "sonner"
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
@@ -128,33 +129,90 @@ export default function OrdersPage() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
+  const { user } = useAuth()
+  const isSalesPerson =
+    Number(user?.roleId) === 3 ||
+    String(user?.role || "").toLowerCase().includes("sales person") ||
+    String(user?.role || "").toLowerCase() === "salesperson"
+  const currentSalesPersonId = isSalesPerson
+    ? String(user?.userId || user?.id || (user as any)?.salesPersonId || "")
+    : ""
+
   const fetchOrders = React.useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true)
     else setIsRefreshing(true)
 
     try {
-      const raw = await salesOrderApi.getAll({
-        PageNumber: pageNumber,
-        PageSize: pageSize,
-        SearchTerm: debouncedSearch || undefined,
-        ClientId: selectedClientId && selectedClientId !== "0" ? selectedClientId : undefined,
-        Status: statusFilter !== "all" ? statusFilter : undefined,
-        StartDate: startDate || undefined,
-        EndDate: endDate || undefined,
-      })
-
       let list: any[] = []
       let total = 0
 
-      if (Array.isArray(raw)) {
-        list = raw
-        total = raw.length
-      } else if (raw?.data && Array.isArray(raw.data)) {
-        list = raw.data
-        total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
-      } else if (raw?.items && Array.isArray(raw.items)) {
-        list = raw.items
-        total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+      if (isSalesPerson && currentSalesPersonId) {
+        const raw = await salesOrderApi.getBySalesPerson(currentSalesPersonId)
+        let rawList: any[] = []
+        if (Array.isArray(raw)) {
+          rawList = raw
+        } else if (raw?.data && Array.isArray(raw.data)) {
+          rawList = raw.data
+        } else if (raw?.items && Array.isArray(raw.items)) {
+          rawList = raw.items
+        }
+
+        let filtered = rawList
+        if (debouncedSearch) {
+          const lower = debouncedSearch.toLowerCase()
+          filtered = filtered.filter(
+            (o: any) =>
+              String(o.orderNumber || o.number || "").toLowerCase().includes(lower) ||
+              String(o.clientName || o.customerName || "").toLowerCase().includes(lower)
+          )
+        }
+        if (selectedClientId && selectedClientId !== "0") {
+          filtered = filtered.filter((o: any) => String(o.clientId) === String(selectedClientId))
+        }
+        if (statusFilter !== "all") {
+          filtered = filtered.filter(
+            (o: any) => String(o.orderStatus || o.status || "").toLowerCase() === statusFilter.toLowerCase()
+          )
+        }
+        if (startDate) {
+          const startTs = new Date(startDate).getTime()
+          filtered = filtered.filter((o: any) => {
+            const d = o.orderDate || o.date
+            return d && new Date(d).getTime() >= startTs
+          })
+        }
+        if (endDate) {
+          const endTs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1
+          filtered = filtered.filter((o: any) => {
+            const d = o.orderDate || o.date
+            return d && new Date(d).getTime() <= endTs
+          })
+        }
+
+        total = filtered.length
+        const startIdx = (pageNumber - 1) * pageSize
+        list = filtered.slice(startIdx, startIdx + pageSize)
+      } else {
+        const raw = await salesOrderApi.getAll({
+          PageNumber: pageNumber,
+          PageSize: pageSize,
+          SearchTerm: debouncedSearch || undefined,
+          ClientId: selectedClientId && selectedClientId !== "0" ? selectedClientId : undefined,
+          Status: statusFilter !== "all" ? statusFilter : undefined,
+          StartDate: startDate || undefined,
+          EndDate: endDate || undefined,
+        })
+
+        if (Array.isArray(raw)) {
+          list = raw
+          total = raw.length
+        } else if (raw?.data && Array.isArray(raw.data)) {
+          list = raw.data
+          total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+        } else if (raw?.items && Array.isArray(raw.items)) {
+          list = raw.items
+          total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+        }
       }
 
       const data = list.map(rawOrder => mapApiSalesOrder(rawOrder, salesOrderClientCache))

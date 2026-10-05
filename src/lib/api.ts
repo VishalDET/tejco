@@ -582,16 +582,79 @@ import { mapApiQuotation, Quotation } from "@/app/sales/quotations/types"
 import { mapApiProforma, ProformaInvoice } from "@/app/sales/proforma-invoices/types"
 import type { SalesDocument } from "@/app/sales/types"
 
+export interface QuotationGetAllParams {
+  PageNumber?: number
+  PageSize?: number
+  SearchTerm?: string
+  Status?: string
+  StartDate?: string
+  EndDate?: string
+  SalesPersonId?: number | string
+}
+
 export const quotationsApi = {
-  /** GET /api/Quotation/GetAll — fetch all quotations */
-  getAll: async (): Promise<Quotation[]> => {
+  /** GET /api/Quotation/GetAll — supports PageNumber, PageSize, SearchTerm, Status, StartDate, EndDate, SalesPersonId */
+  getAll: async (params?: QuotationGetAllParams): Promise<{ data: Quotation[]; totalCount: number } | Quotation[]> => {
     try {
-      const raw = await apiClient.get<any>("/api/Quotation/GetAll")
-      if (Array.isArray(raw)) return raw.map(mapApiQuotation)
-      if (raw?.data && Array.isArray(raw.data)) return raw.data.map(mapApiQuotation)
-      return []
+      const query = new URLSearchParams()
+      if (params?.PageNumber) query.append("PageNumber", String(params.PageNumber))
+      if (params?.PageSize) query.append("PageSize", String(params.PageSize))
+      if (params?.SearchTerm && params.SearchTerm.trim()) query.append("SearchTerm", params.SearchTerm.trim())
+      if (params?.SalesPersonId && String(params.SalesPersonId).trim() !== "0" && String(params.SalesPersonId).trim() !== "all") {
+        query.append("SalesPersonId", String(params.SalesPersonId).trim())
+      }
+      if (params?.Status && params.Status.toLowerCase() !== "all") {
+        query.append("Status", params.Status)
+      }
+      if (params?.StartDate) {
+        const startIso = params.StartDate.includes("T")
+          ? params.StartDate
+          : new Date(params.StartDate + "T00:00:00.000Z").toISOString()
+        query.append("StartDate", startIso)
+      }
+      if (params?.EndDate) {
+        const endIso = params.EndDate.includes("T")
+          ? params.EndDate
+          : new Date(params.EndDate + "T23:59:59.999Z").toISOString()
+        query.append("EndDate", endIso)
+      }
+
+      const queryString = query.toString() ? `?${query.toString()}` : ""
+      const raw = await apiClient.get<any>(`/api/Quotation/GetAll${queryString}`)
+
+      let list: any[] = []
+      let total = 0
+
+      if (Array.isArray(raw)) {
+        list = raw
+        total = raw.length
+      } else if (raw?.data && Array.isArray(raw.data)) {
+        list = raw.data
+        total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+      } else if (raw?.items && Array.isArray(raw.items)) {
+        list = raw.items
+        total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+      }
+
+      const mapped = list.map(mapApiQuotation)
+      if (params) {
+        return { data: mapped, totalCount: total }
+      }
+      return mapped
     } catch (err) {
       console.error("Failed to fetch quotations:", err)
+      return params ? { data: [], totalCount: 0 } : []
+    }
+  },
+
+  /** GET /api/Quotation/BySalesPerson/{salesPersonId} */
+  getBySalesPerson: async (salesPersonId: string | number): Promise<Quotation[]> => {
+    try {
+      const raw = await apiClient.get<any>(`/api/Quotation/BySalesPerson/${salesPersonId}`)
+      const list = Array.isArray(raw) ? raw : (raw?.data || raw?.items || [])
+      return list.map(mapApiQuotation)
+    } catch (err) {
+      console.error(`Failed to fetch quotations by salesPersonId ${salesPersonId}:`, err)
       return []
     }
   },
@@ -617,16 +680,83 @@ export const quotationsApi = {
 // Proforma Invoices  →  /api/ProformaInvoice
 // ---------------------------------------------------------------------------
 
+export interface ProformaGetAllParams {
+  PageNumber?: number
+  PageSize?: number
+  SearchTerm?: string
+  ClientId?: number | string
+  Status?: string
+  StartDate?: string
+  EndDate?: string
+  SalesPersonId?: number | string
+}
+
 export const proformaApi = {
-  /** GET /api/ProformaInvoice/GetAll */
-  getAll: async (): Promise<ProformaInvoice[]> => {
+  /** GET /api/ProformaInvoice/GetAll — supports PageNumber, PageSize, SearchTerm, ClientId, Status, StartDate, EndDate, SalesPersonId */
+  getAll: async (params?: ProformaGetAllParams): Promise<{ data: ProformaInvoice[]; totalCount: number } | ProformaInvoice[]> => {
     try {
-      const raw = await apiClient.get<any>("/api/ProformaInvoice/GetAll")
-      if (Array.isArray(raw)) return raw.map(mapApiProforma)
-      if (raw?.data && Array.isArray(raw.data)) return raw.data.map(mapApiProforma)
-      return []
+      const query = new URLSearchParams()
+      if (params?.PageNumber) query.append("PageNumber", String(params.PageNumber))
+      if (params?.PageSize) query.append("PageSize", String(params.PageSize))
+      if (params?.SearchTerm && params.SearchTerm.trim()) query.append("SearchTerm", params.SearchTerm.trim())
+      if (params?.ClientId && String(params.ClientId).trim() !== "all" && String(params.ClientId).trim() !== "0") {
+        query.append("ClientId", String(params.ClientId).trim())
+      }
+      if (params?.SalesPersonId && String(params.SalesPersonId).trim() !== "0" && String(params.SalesPersonId).trim() !== "all") {
+        query.append("SalesPersonId", String(params.SalesPersonId).trim())
+      }
+      if (params?.Status && params.Status.toLowerCase() !== "all") {
+        query.append("Status", params.Status)
+      }
+      if (params?.StartDate) {
+        const startIso = params.StartDate.includes("T")
+          ? params.StartDate
+          : new Date(params.StartDate + "T00:00:00.000Z").toISOString()
+        query.append("StartDate", startIso)
+      }
+      if (params?.EndDate) {
+        const endIso = params.EndDate.includes("T")
+          ? params.EndDate
+          : new Date(params.EndDate + "T23:59:59.999Z").toISOString()
+        query.append("EndDate", endIso)
+      }
+
+      const queryString = query.toString() ? `?${query.toString()}` : ""
+      const raw = await apiClient.get<any>(`/api/ProformaInvoice/GetAll${queryString}`)
+
+      let list: any[] = []
+      let total = 0
+
+      if (Array.isArray(raw)) {
+        list = raw
+        total = raw.length
+      } else if (raw?.data && Array.isArray(raw.data)) {
+        list = raw.data
+        total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+      } else if (raw?.items && Array.isArray(raw.items)) {
+        list = raw.items
+        total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+      }
+
+      const mapped = list.map(mapApiProforma)
+      if (params) {
+        return { data: mapped, totalCount: total }
+      }
+      return mapped
     } catch (err) {
       console.error("Failed to fetch proforma invoices:", err)
+      return params ? { data: [], totalCount: 0 } : []
+    }
+  },
+
+  /** GET /api/ProformaInvoice/BySalesPerson/{salesPersonId} */
+  getBySalesPerson: async (salesPersonId: string | number): Promise<ProformaInvoice[]> => {
+    try {
+      const raw = await apiClient.get<any>(`/api/ProformaInvoice/BySalesPerson/${salesPersonId}`)
+      const list = Array.isArray(raw) ? raw : (raw?.data || raw?.items || [])
+      return list.map(mapApiProforma)
+    } catch (err) {
+      console.error(`Failed to fetch proformas by salesPersonId ${salesPersonId}:`, err)
       return []
     }
   },
@@ -738,6 +868,7 @@ export interface SalesOrderGetAllParams {
   Status?: string
   StartDate?: string
   EndDate?: string
+  SalesPersonId?: number | string
 }
 
 export const salesOrderApi = {
@@ -751,7 +882,7 @@ export const salesOrderApi = {
   updateStatus: (id: string | number, newStatus: string, remarks?: string) =>
     apiClient.put<any>(`/api/SalesOrder/${id}/Status`, { newStatus, remarks: remarks || "" }),
 
-  /** GET /api/SalesOrder/GetAll — supports PageNumber, PageSize, SearchTerm, ClientId, Status, StartDate, EndDate */
+  /** GET /api/SalesOrder/GetAll — supports PageNumber, PageSize, SearchTerm, ClientId, Status, StartDate, EndDate, SalesPersonId */
   getAll: (params?: SalesOrderGetAllParams) => {
     const query = new URLSearchParams()
     if (params?.PageNumber) query.append("PageNumber", String(params.PageNumber))
@@ -759,6 +890,9 @@ export const salesOrderApi = {
     if (params?.SearchTerm && params.SearchTerm.trim()) query.append("SearchTerm", params.SearchTerm.trim())
     if (params?.ClientId && String(params.ClientId) !== "0" && String(params.ClientId) !== "all") {
       query.append("ClientId", String(params.ClientId))
+    }
+    if (params?.SalesPersonId && String(params.SalesPersonId).trim() !== "0" && String(params.SalesPersonId).trim() !== "all") {
+      query.append("SalesPersonId", String(params.SalesPersonId).trim())
     }
     if (params?.Status && params.Status.toLowerCase() !== "all") {
       query.append("Status", params.Status)
@@ -775,6 +909,10 @@ export const salesOrderApi = {
     const queryString = query.toString() ? `?${query.toString()}` : ""
     return apiClient.get<any>(`/api/SalesOrder/GetAll${queryString}`)
   },
+
+  /** GET /api/SalesOrder/BySalesPerson/{salesPersonId} */
+  getBySalesPerson: (salesPersonId: string | number) =>
+    apiClient.get<any>(`/api/SalesOrder/BySalesPerson/${salesPersonId}`),
 
   /** GET /api/SalesOrder/GetById/{id} */
   getById: (id: string) => apiClient.get<any>(`/api/SalesOrder/GetById/${id}`),
@@ -797,6 +935,205 @@ export const dashboardApi = {
   getOrderStatus: () => apiClient.get<any>("/api/Dashboard/OrderStatus"),
   getTopClients: () => apiClient.get<any>("/api/Dashboard/TopClients"),
   getCriticalStock: () => apiClient.get<any>("/api/Dashboard/CriticalStock"),
+}
+
+// ---------------------------------------------------------------------------
+// Sales Dashboard & Advanced Intelligence  →  /api/SalesDashboard
+// ---------------------------------------------------------------------------
+
+export interface SalesDashboardKPIs {
+  revenueThisMonth: number
+  revenueThisYear: number
+  activeOrders: number
+  quotationsSentThisMonth: number
+  proformaThisMonth: number
+  conversionRatePct: number
+  avgOrderValue: number
+  creditNotesCount: number
+  creditNotesRefundAmount: number
+}
+
+export interface HistoricalTrendItem {
+  year: number
+  month: number
+  monthName: string
+  totalOrders: number
+  totalRevenue: number
+  avgOrderValue: number
+}
+
+export interface PipelineFunnelItem {
+  documentType: string
+  stage: string
+  documentCount: number
+  totalValue: number
+}
+
+export interface ForecastItem {
+  forecastMonth: string
+  year: number
+  month: number
+  estimatedRevenue: number
+  lowerBound: number
+  upperBound: number
+  confidenceLabel: string
+}
+
+export interface ForecastResponse {
+  lookbackMonths: number
+  forecastMonths: number
+  historicalData: HistoricalTrendItem[]
+  forecast: ForecastItem[]
+}
+
+export interface TopSalesPersonItem {
+  salesPersonId: number
+  salesPersonName: string
+  totalOrders: number
+  totalRevenue: number
+  avgOrderValue: number
+  totalQuantitySold: number
+}
+
+export interface TopClientItem {
+  clientId: number
+  clientName: string
+  totalOrders: number
+  totalRevenue: number
+  avgOrderValue: number
+  lastOrderDate: string
+}
+
+export interface TopProductItem {
+  productId: number
+  productName: string
+  categoryName: string
+  totalQuantity: number
+  totalRevenue: number
+  avgUnitPrice: number
+}
+
+export interface SalesVsTargetItem {
+  year: number
+  month: number
+  monthName: string
+  actualRevenue: number
+  targetAmount: number
+  achievementPct: number
+  gap: number
+}
+
+export interface SalesRecordItem {
+  orderId: number
+  orderNumber: string
+  orderDate: string
+  clientId: number
+  clientName: string
+  salesPersonId: number
+  salesPersonName: string
+  productId: number
+  productName: string
+  categoryId: number
+  categoryName: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+  orderStatus: string
+}
+
+export interface SalesRecordsParams {
+  startDate?: string
+  endDate?: string
+  productId?: number | string
+  categoryId?: number | string
+  salesPersonId?: number | string
+  clientId?: number | string
+  status?: string
+  pageNumber?: number
+  pageSize?: number
+}
+
+export interface SalesDashboardApiResponse<T> {
+  statusCode: number
+  success: boolean
+  message: string
+  data: T
+  totalCount?: number
+  error?: any
+}
+
+export const salesDashboardApi = {
+  /** GET /api/SalesDashboard/KPIs */
+  getKPIs: () => apiClient.get<SalesDashboardApiResponse<SalesDashboardKPIs>>("/api/SalesDashboard/KPIs"),
+
+  /** GET /api/SalesDashboard/HistoricalTrend */
+  getHistoricalTrend: (lookbackMonths: number = 12) =>
+    apiClient.get<SalesDashboardApiResponse<HistoricalTrendItem[]>>(`/api/SalesDashboard/HistoricalTrend?lookbackMonths=${lookbackMonths}`),
+
+  /** GET /api/SalesDashboard/PipelineFunnel */
+  getPipelineFunnel: () => apiClient.get<SalesDashboardApiResponse<PipelineFunnelItem[]>>("/api/SalesDashboard/PipelineFunnel"),
+
+  /** GET /api/SalesDashboard/Forecast */
+  getForecast: (lookbackMonths: number = 6, forecastMonths: number = 3) =>
+    apiClient.get<SalesDashboardApiResponse<ForecastResponse>>(`/api/SalesDashboard/Forecast?lookbackMonths=${lookbackMonths}&forecastMonths=${forecastMonths}`),
+
+  /** GET /api/SalesDashboard/TopSalesPersons */
+  getTopSalesPersons: (params?: { startDate?: string; endDate?: string; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.startDate) q.append("startDate", params.startDate)
+    if (params?.endDate) q.append("endDate", params.endDate)
+    if (params?.limit) q.append("limit", String(params.limit))
+    const qs = q.toString() ? `?${q.toString()}` : ""
+    return apiClient.get<SalesDashboardApiResponse<TopSalesPersonItem[]>>(`/api/SalesDashboard/TopSalesPersons${qs}`)
+  },
+
+  /** GET /api/SalesDashboard/TopClients */
+  getTopClients: (params?: { startDate?: string; endDate?: string; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.startDate) q.append("startDate", params.startDate)
+    if (params?.endDate) q.append("endDate", params.endDate)
+    if (params?.limit) q.append("limit", String(params.limit))
+    const qs = q.toString() ? `?${q.toString()}` : ""
+    return apiClient.get<SalesDashboardApiResponse<TopClientItem[]>>(`/api/SalesDashboard/TopClients${qs}`)
+  },
+
+  /** GET /api/SalesDashboard/TopProducts */
+  getTopProducts: (params?: { startDate?: string; endDate?: string; limit?: number }) => {
+    const q = new URLSearchParams()
+    if (params?.startDate) q.append("startDate", params.startDate)
+    if (params?.endDate) q.append("endDate", params.endDate)
+    if (params?.limit) q.append("limit", String(params.limit))
+    const qs = q.toString() ? `?${q.toString()}` : ""
+    return apiClient.get<SalesDashboardApiResponse<TopProductItem[]>>(`/api/SalesDashboard/TopProducts${qs}`)
+  },
+
+  /** GET /api/SalesDashboard/VsTarget */
+  getVsTarget: (params?: { startDate?: string; endDate?: string; salesPersonId?: number | string }) => {
+    const q = new URLSearchParams()
+    if (params?.startDate) q.append("startDate", params.startDate)
+    if (params?.endDate) q.append("endDate", params.endDate)
+    if (params?.salesPersonId && String(params.salesPersonId) !== "0" && String(params.salesPersonId) !== "all") {
+      q.append("salesPersonId", String(params.salesPersonId))
+    }
+    const qs = q.toString() ? `?${q.toString()}` : ""
+    return apiClient.get<SalesDashboardApiResponse<SalesVsTargetItem[]>>(`/api/SalesDashboard/VsTarget${qs}`)
+  },
+
+  /** GET /api/SalesDashboard/SalesRecords */
+  getSalesRecords: (params?: SalesRecordsParams) => {
+    const q = new URLSearchParams()
+    if (params?.startDate) q.append("startDate", params.startDate)
+    if (params?.endDate) q.append("endDate", params.endDate)
+    if (params?.productId) q.append("productId", String(params.productId))
+    if (params?.categoryId) q.append("categoryId", String(params.categoryId))
+    if (params?.salesPersonId) q.append("salesPersonId", String(params.salesPersonId))
+    if (params?.clientId) q.append("clientId", String(params.clientId))
+    if (params?.status && params.status !== "all") q.append("status", params.status)
+    if (params?.pageNumber) q.append("pageNumber", String(params.pageNumber))
+    if (params?.pageSize) q.append("pageSize", String(params.pageSize))
+    const qs = q.toString() ? `?${q.toString()}` : ""
+    return apiClient.get<SalesDashboardApiResponse<SalesRecordItem[]>>(`/api/SalesDashboard/SalesRecords${qs}`)
+  },
 }
 
 // ---------------------------------------------------------------------------
@@ -1177,6 +1514,55 @@ export const rolesApi = {
     }
   },
 }
+
+// ---------------------------------------------------------------------------
+// Credit Note (Goods Return)  →  /api/CreditNote
+// ---------------------------------------------------------------------------
+
+export interface CreditNoteGetAllParams {
+  PageNumber?: number
+  PageSize?: number
+  SearchTerm?: string
+}
+
+export const creditNoteApi = {
+  /** GET /api/CreditNote/GetAll */
+  getAll: async (params?: CreditNoteGetAllParams) => {
+    const query = new URLSearchParams()
+    if (params?.PageNumber) query.append("PageNumber", String(params.PageNumber))
+    if (params?.PageSize) query.append("PageSize", String(params.PageSize))
+    if (params?.SearchTerm && params.SearchTerm.trim()) query.append("SearchTerm", params.SearchTerm.trim())
+
+    const queryString = query.toString() ? `?${query.toString()}` : ""
+    return apiClient.get<any>(`/api/CreditNote/GetAll${queryString}`)
+  },
+
+  /** GET /api/CreditNote/GetById/{id} */
+  getById: async (id: number | string) => {
+    return apiClient.get<any>(`/api/CreditNote/GetById/${id}`)
+  },
+
+  /** GET /api/CreditNote/ByClient/{clientId} */
+  getByClient: async (clientId: number | string) => {
+    return apiClient.get<any>(`/api/CreditNote/ByClient/${clientId}`)
+  },
+
+  /** POST /api/CreditNote/Create */
+  create: async (data: any) => {
+    return apiClient.post<any>("/api/CreditNote/Create", data)
+  },
+
+  /** PUT /api/CreditNote/Update/{id} */
+  update: async (id: number | string, data: any) => {
+    return apiClient.put<any>(`/api/CreditNote/Update/${id}`, data)
+  },
+
+  /** DELETE /api/CreditNote/Delete/{id} */
+  delete: async (id: number | string) => {
+    return apiClient.delete<any>(`/api/CreditNote/Delete/${id}`)
+  },
+}
+
 
 
 

@@ -27,6 +27,7 @@ import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ProformaFormDialog } from "../proforma-form-dialog"
 import { proformaApi, quotationsApi, productsApi } from "@/lib/api"
+import { PrintLayout, executePrint, DEFAULT_TEJCO_COMPANY } from "@/components/common/print"
 import { toast } from "sonner"
 
 interface ProformaDetailsViewProps {
@@ -48,13 +49,30 @@ const COMPANY = {
 }
 
 const getCurrencySymbol = (currency?: string) => {
-  if (!currency) return "\u20B9"
+  if (!currency) return "₹"
   switch (currency.toUpperCase()) {
     case "USD": return "$"
-    case "EUR": return "\u20AC"
-    case "GBP": return "\u00A3"
-    case "INR": return "\u20B9"
+    case "EUR": return "€"
+    case "GBP": return "£"
+    case "INR": return "₹"
     default: return currency
+  }
+}
+
+const getPrintCurrencySymbol = (currency?: string) => {
+  if (!currency || currency.toUpperCase() === "INR") return "Rs"
+  return getCurrencySymbol(currency)
+}
+
+const formatDateWithDots = (dateStr: string) => {
+  try {
+    const d = new Date(dateStr)
+    const day = String(d.getDate()).padStart(2, '0')
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const year = d.getFullYear()
+    return `${day}.${month}.${year}`
+  } catch (e) {
+    return dateStr
   }
 }
 
@@ -154,6 +172,15 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
   React.useEffect(() => {
     enrichProformaWithGst(initialProforma).then(setProforma)
   }, [initialProforma.items, initialProforma.paymentType, initialProforma.freight])
+
+  const printRef = React.useRef<HTMLDivElement>(null)
+
+  const handlePrint = () => {
+    executePrint(printRef.current, {
+      documentTitle: `Proforma Invoice - ${proforma.number || proforma.proformaNumber}`,
+      pageOrientation: "portrait",
+    })
+  }
 
   const [isSendingEmail, setIsSendingEmail] = React.useState(false)
 
@@ -296,15 +323,11 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
                 </>
               )}
             </Button>
-            <Button variant="outline" className="gap-2 border-slate-200 shadow-sm" onClick={() => {
-              const el = document.getElementById('proforma-print-area')
-              if (el) {
-                el.style.display = 'flex'
-                el.style.flexDirection = 'column'
-                window.onafterprint = () => { el.style.display = 'none' }
-              }
-              window.print()
-            }}>
+            <Button
+              variant="outline"
+              className="gap-2 border-slate-200 shadow-sm"
+              onClick={handlePrint}
+            >
               <Printer className="h-4 w-4 text-slate-600" /> Print PI
             </Button>
             {/* <Button variant="outline" className="gap-2 border-slate-200 shadow-sm">
@@ -589,267 +612,332 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
         </div>
       </div>
 
-      {/* â”€â”€ Hidden Print Area â€” matches Proforma-Invoice.pdf exactly â”€â”€â”€ */}
-      <div
-        id="proforma-print-area"
-        className="hidden bg-white text-black"
-        style={{ width: "210mm", minHeight: "297mm", margin: "0 auto", fontFamily: "Arial, sans-serif", fontSize: "12px" }}
-      >
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          @media print {
-            body * { visibility: hidden; }
-            #proforma-print-area, #proforma-print-area * {
-              visibility: visible;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-            }
-            #proforma-print-area {
-              position: absolute;
-              left: 0; top: 0;
-              width: 210mm !important;
-              min-height: 297mm !important;
-              display: flex !important;
-              flex-direction: column !important;
-              background: white !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            @page { size: A4 portrait; margin: 0; }
-          }
-        `}} />
+      {/* ── Hidden Print Area using Common PrintLayout ── */}
+      <div id="proforma-print-area" className="hidden">
+        <PrintLayout
+          containerRef={printRef}
+          documentTitle="PROFORMA INVOICE"
+          documentSubtitle={`REF: ${proforma.number || proforma.proformaNumber}`}
+          footerProps={{
+            documentNumber: proforma.number || proforma.proformaNumber,
+            showBankDetails: true,
+            showComputerGeneratedDisclaimer: true,
+            authorizedSignatoryLabel: `FOR ${COMPANY.name}`,
+            customSignatures: (
+              <div className="pt-3 border-t border-slate-300 mt-4 text-xs font-sans">
+                <div className="grid grid-cols-2 gap-6 items-end">
+                  <div>
+                    <div className="text-[11px] text-slate-500 mb-1">
+                      P.O. SHOULD BE IN THE NAME OF <strong>{COMPANY.name}</strong>
+                    </div>
+                    <div className="font-bold text-xs text-slate-900">{COMPANY.forLine}</div>
+                    {proforma.salesPersonName && (
+                      <div className="mt-1">
+                        <div className="text-xs font-semibold text-slate-800">
+                          {proforma.salesPersonName}
+                        </div>
+                        {proforma.salesPersonCell && (
+                          <div className="text-[11px] text-slate-600">
+                            Cell: {proforma.salesPersonCell}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <div className="h-10 border-b border-slate-300 w-48 ml-auto mb-1" />
+                    <span className="text-[10px] text-slate-500 font-medium">Authorized Signature</span>
+                  </div>
+                </div>
+              </div>
+            ),
+          }}
+        >
+          {/* Customer & Document Information Box */}
+          <div className="mb-4 text-xs font-sans border border-slate-300 rounded-md overflow-hidden">
+            <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white">
+              {/* Left Column: Customer Details */}
+              <div className="p-3 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Billing Name &amp; Address:
+                </div>
+                <div className="font-bold text-sm text-slate-900">{proforma.clientName}</div>
+                {proforma.doctorSpeciality && (
+                  <div className="text-xs text-slate-600 font-medium">{proforma.doctorSpeciality}</div>
+                )}
+                {proforma.billingAddress && (
+                  <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+                    {proforma.billingAddress.replace(/\|/g, ", ")}
+                  </div>
+                )}
+                {proforma.clientMobileNo && (
+                  <div className="text-xs text-slate-700 pt-0.5">
+                    <span className="font-semibold text-slate-800">Mob:</span> {proforma.clientMobileNo}
+                  </div>
+                )}
+                <div className="text-xs text-slate-800 pt-1">
+                  <span className="font-bold text-slate-900">Client GSTIN / UIN:</span>{" "}
+                  <span className="font-mono font-bold text-slate-950 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    {proforma.gstinNo?.trim() ? proforma.gstinNo : "URP / Unregistered"}
+                  </span>
+                </div>
+              </div>
 
-        {/* â•â• HEADER â€” matches PDF: white logo left, red slash, dark grey right â•â• */}
-        <div style={{ position: "relative", width: "100%", height: "105px", overflow: "hidden", flexShrink: 0, background: "#505052" }}>
-          {/* White logo zone â€” diagonal clip */}
-          <div style={{
-            position: "absolute", top: 0, left: 0,
-            width: "240px", height: "86px",
-            background: "white",
-            clipPath: "polygon(0 0, 82% 0, 100% 100%, 0 100%)",
-            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center"
-          }}>
-            <img
-              src="/assets/images/tejco_sidebar_logo.png"
-              alt="Tejco"
-              style={{ height: "50px", width: "auto", objectFit: "contain", marginLeft: "-28px" }}
-            />
-            <div style={{ fontSize: "7px", letterSpacing: "0.22em", textTransform: "uppercase", color: "#505052", marginLeft: "-28px", marginTop: "3px", fontFamily: "Verdana, sans-serif" }}>
-              Hair &bull; Skin &bull; Optics
+              {/* Right Column: Proforma Metadata */}
+              <div className="p-3 space-y-1.5 bg-slate-50/60">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">P.I No:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {proforma.number || proforma.proformaNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Date:</span>
+                  <span className="font-bold text-slate-900">{formatDateWithDots(proforma.date)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Validity:</span>
+                  <span className="font-bold text-slate-900">{proforma.validityDays || 7} Days</span>
+                </div>
+                {linkedQuotationNumber && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Linked Quote:</span>
+                    <span className="font-mono font-semibold text-slate-800">{linkedQuotationNumber}</span>
+                  </div>
+                )}
+                {proforma.deliveryTerms && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Delivery:</span>
+                    <span className="font-semibold text-slate-900">{proforma.deliveryTerms}</span>
+                  </div>
+                )}
+                {proforma.salesPersonName && (
+                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
+                    <span className="text-slate-600 font-medium">Sales Rep:</span>
+                    <span className="font-semibold text-slate-900">{proforma.salesPersonName}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Red diagonal slash */}
-          <div style={{
-            position: "absolute", top: 0, left: "195px",
-            width: "58px", height: "86px",
-            background: "#d9232a",
-            clipPath: "polygon(38% 0, 100% 0, 62% 100%, 0 100%)"
-          }} />
-
-          {/* Company name â€” right of dark grey */}
-          <div style={{
-            position: "absolute", top: 0, right: 0, left: "230px", height: "86px",
-            display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: "22px"
-          }}>
-            <span style={{ color: "white", fontSize: "21px", fontWeight: "bold", letterSpacing: "0.06em", fontFamily: "Calibri, Arial, sans-serif" }}>
-              TEJCO GLOBAL LLP
-            </span>
-          </div>
-
-          {/* Red stripe */}
-          <div style={{ position: "absolute", top: "86px", left: 0, right: 0, height: "10px", background: "#d9232a" }} />
-          {/* Light grey stripe */}
-          <div style={{ position: "absolute", top: "96px", left: 0, right: 0, height: "9px", background: "#e6e6e6" }} />
-        </div>
-
-        {/* â•â• BODY â•â• */}
-        <div style={{ flex: "1 1 auto", padding: "0 0 16px 0" }}>
-
-          {/* Title rows */}
-          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-            <div style={{ textAlign: "center", padding: "6px", fontWeight: "bold", fontSize: "13px", background: "#F9FAFB", borderBottom: "1px solid #D1D5DB" }}>
-              PROFORMA INVOICE
+          {/* Subject / Title Banner if exists */}
+          {proforma.subject && (
+            <div className="text-center font-semibold text-xs py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-md mb-3 text-slate-800">
+              Subject: <span className="font-bold uppercase tracking-wide text-slate-900">{proforma.subject}</span>
             </div>
-            <div style={{ textAlign: "center", padding: "4px", fontSize: "11px", color: "#374151" }}>
-              GST NO :- {COMPANY.gst}
-            </div>
-          </div>
+          )}
 
-          {/* PI No + Date */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "1px solid #D1D5DB" }}>
-            <div style={{ padding: "8px 12px", borderRight: "1px solid #D1D5DB", display: "flex", gap: "8px", alignItems: "center" }}>
-              <strong>P.I No</strong>
-              <span style={{ marginLeft: "8px" }}>{proforma.number}</span>
-            </div>
-            <div style={{ padding: "8px 12px", display: "flex", gap: "8px", alignItems: "center" }}>
-              <strong>DATE</strong>
-              <span style={{ marginLeft: "8px" }}>
-                {new Date(proforma.date).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })}
-              </span>
-            </div>
-          </div>
-
-          {/* Billing Name & Address */}
-          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-            <div style={{ padding: "6px 12px", background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
-              <strong>Billing Name &amp; Address</strong>
-            </div>
-            <div style={{ padding: "10px 16px", minHeight: "80px", lineHeight: 1.6, fontSize: "12px" }}>
-              <div style={{ fontWeight: "bold", fontSize: "13px", marginBottom: "4px" }}>{proforma.clientName}</div>
-              {renderAddressLinesPrint(proforma.billingAddress)}
-              {proforma.clientMobileNo && <div style={{ marginTop: "4px" }}>Mob: {proforma.clientMobileNo}</div>}
-              {proforma.gstinNo && <div style={{ marginTop: "4px", fontWeight: 600 }}>GSTIN: {proforma.gstinNo}</div>}
-            </div>
-          </div>
-
-          {/* Items Table */}
-          <div style={{ borderBottom: "1px solid #D1D5DB" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+          {/* ══════════════ PRODUCTS TABULAR FORMAT ══════════════ */}
+          <div className="border border-slate-200 rounded-md overflow-hidden">
+            <table className="w-full border-collapse text-xs">
               <thead>
-                <tr style={{ background: "#F9FAFB" }}>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "left", width: "35%" }}>Products</th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "20%" }}>Images</th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "10%" }}>Qty</th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "17.5%" }}>
-                    Rate ({proforma.currencyType === "INR" ? "Rs" : getCurrencySymbol(proforma.currencyType)})
+                <tr className="bg-slate-100/80 text-slate-800 font-semibold border-b border-slate-200">
+                  <th className="py-2 px-2 text-center w-10 border-r border-slate-200">#</th>
+                  <th className="py-2 px-3 text-left border-r border-slate-200">Item Description</th>
+                  <th className="py-2 px-2 text-center w-16 border-r border-slate-200">Qty</th>
+                  <th className="py-2 px-2.5 text-right w-28 border-r border-slate-200">
+                    <div>Rate ({getPrintCurrencySymbol(proforma.currencyType)})</div>
+                    <div className="text-[9px] font-normal text-slate-500">
+                      {proforma.paymentType === "Foreign" ? "Standard" : "(Incl. GST)"}
+                    </div>
                   </th>
-                  <th style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "center", width: "17.5%" }}>
-                    Total ({proforma.currencyType === "INR" ? "Rs" : getCurrencySymbol(proforma.currencyType)})
+                  {hasDiscounts && (
+                    <th className="py-2 px-2 text-right w-20 border-r border-slate-200">Discount</th>
+                  )}
+                  {proforma.paymentType !== "Foreign" && (
+                    <th className="py-2 px-2 text-center w-16 border-r border-slate-200">GST %</th>
+                  )}
+                  <th className="py-2 px-3 text-right w-32">
+                    <div>Total ({getPrintCurrencySymbol(proforma.currencyType)})</div>
+                    <div className="text-[9px] font-normal text-slate-500">
+                      {proforma.paymentType === "Foreign" ? "" : "(Incl. GST)"}
+                    </div>
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {proforma.items.map((item) => {
-                  const discountedPrice = item.unitPrice - ((item as any).discountAmount || 0)
-                  const lineTotal = discountedPrice * item.quantity
+              <tbody className="divide-y divide-slate-100 border-b border-slate-200">
+                {proforma.items.map((item, idx) => {
+                  const discountPercentage = (item as any).discountPercentage || 0
+                  const discountAmount = (item as any).discountAmount || 0
+                  const effectiveUnitPrice = item.unitPrice - discountAmount
+                  const lineTotal = effectiveUnitPrice * item.quantity
+
                   return (
-                    <tr key={item.id}>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", verticalAlign: "top" }}>
-                        <div style={{ fontWeight: 600 }}>{item.productName}</div>
-                        {item.name && item.name !== item.productName && (
-                          <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "2px" }}>{item.name}</div>
-                        )}
-                        {(item as any).discountPercentage > 0 && (
-                          <div style={{ fontSize: "10px", color: "#DC2626", marginTop: "2px" }}>
-                            Disc: {(item as any).discountPercentage}% ({getCurrencySymbol(proforma.currencyType)}{(item as any).discountAmount?.toLocaleString()}/pc)
+                    <tr key={item.id || idx} className="hover:bg-slate-50/50">
+                      <td className="py-2 px-2 text-center font-medium text-slate-500 border-r border-slate-100 align-top">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 px-3 border-r border-slate-100 align-top">
+                        <div className="flex items-start gap-2">
+                          {item.imageUrl && (
+                            <div className="h-10 w-10 rounded border border-slate-200 bg-white p-0.5 shrink-0 overflow-hidden">
+                              <img
+                                src={getGoogleDrivePreviewUrl(item.imageUrl) || ""}
+                                alt={item.productName}
+                                className="h-full w-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-slate-900 text-xs">{item.productName}</div>
+                            {item.name && item.name !== item.productName && (
+                              <div className="text-[10px] text-slate-500">{item.name}</div>
+                            )}
+                            {item.sku && (
+                              <div className="text-[10px] font-mono text-slate-400 mt-0.5">SKU: {item.sku}</div>
+                            )}
                           </div>
-                        )}
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-center font-semibold text-slate-800 border-r border-slate-100 align-top">
+                        {item.quantity} Nos
+                      </td>
+                      <td className="py-2 px-2.5 text-right font-medium text-slate-800 border-r border-slate-100 align-top">
+                        <div>
+                          {item.unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
                         {proforma.paymentType !== "Foreign" && (
-                          <div style={{ fontSize: "10px", color: "#6B7280", marginTop: "2px" }}>GST: {item.gstRate}%</div>
+                          <div className="text-[9px] text-emerald-700 font-medium">Incl. GST</div>
                         )}
                       </td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>
-                        {item.imageUrl
-                          ? <img src={getGoogleDrivePreviewUrl(item.imageUrl) || ""} alt={item.productName} style={{ width: "48px", height: "48px", objectFit: "contain", margin: "0 auto" }} referrerPolicy="no-referrer" />
-                          : <span style={{ color: "#CBD5E1", fontSize: "10px" }}>\u2014</span>
-                        }
-                      </td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "center", verticalAlign: "middle" }}>{item.quantity}</td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle" }}>
-                        {getCurrencySymbol(proforma.currencyType)}{item.unitPrice.toLocaleString()}
-                        {(item as any).discountAmount > 0 && (
-                          <div style={{ fontSize: "10px", color: "#DC2626" }}>
-                            Net: {getCurrencySymbol(proforma.currencyType)}{discountedPrice.toLocaleString()}
-                          </div>
+                      {hasDiscounts && (
+                        <td className="py-2 px-2 text-right border-r border-slate-100 align-top">
+                          {discountPercentage > 0 ? (
+                            <div>
+                              <span className="text-rose-600 font-semibold text-[11px]">
+                                {discountPercentage}%
+                              </span>
+                              <div className="text-[10px] text-slate-500">
+                                -{(discountAmount * item.quantity).toLocaleString("en-IN")}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                      )}
+                      {proforma.paymentType !== "Foreign" && (
+                        <td className="py-2 px-2 text-center font-medium text-slate-600 border-r border-slate-100 align-top">
+                          {item.gstRate}%
+                        </td>
+                      )}
+                      <td className="py-2 px-3 text-right font-bold text-slate-900 align-top">
+                        <div>
+                          {lineTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        {proforma.paymentType !== "Foreign" && (
+                          <div className="text-[9px] text-slate-400 font-normal">Incl. GST</div>
                         )}
-                      </td>
-                      <td style={{ border: "1px solid #D1D5DB", padding: "10px", textAlign: "right", verticalAlign: "middle", fontWeight: "bold" }}>
-                        {getCurrencySymbol(proforma.currencyType)}{lineTotal.toLocaleString()}
                       </td>
                     </tr>
                   )
                 })}
-
-                {/* Filler rows if few items */}
-                {proforma.items.length < 2 && Array.from({ length: 2 - proforma.items.length }).map((_, idx) => (
-                  <tr key={`empty-${idx}`}>
-                    {[0, 1, 2, 3, 4].map((c) => (
-                      <td key={c} style={{ border: "1px solid #D1D5DB", padding: "20px 10px" }}>&nbsp;</td>
-                    ))}
-                  </tr>
-                ))}
-
-                {/* Freight row */}
-                <tr style={{ background: "#F9FAFB" }}>
-                  <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold" }}>FREIGHT</td>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold" }}>
-                    {proforma.freight && proforma.freight > 0
-                      ? `${getCurrencySymbol(proforma.currencyType)}${proforma.freight.toLocaleString()}`
-                      : "-"}
-                  </td>
-                </tr>
-
-                {/* Total row */}
-                <tr style={{ background: "#F3F4F6" }}>
-                  <td colSpan={4} style={{ border: "1px solid #D1D5DB", padding: "8px 10px", fontWeight: "bold", fontSize: "12px" }}>TOTAL</td>
-                  <td style={{ border: "1px solid #D1D5DB", padding: "8px 10px", textAlign: "right", fontWeight: "bold", fontSize: "13px" }}>
-                    {getCurrencySymbol(proforma.currencyType)}{proforma.totalAmount.toLocaleString()}
-                  </td>
-                </tr>
               </tbody>
+
+              {/* Totals Summary Footer Rows inside Table */}
+              <tfoot className="bg-slate-50/70 text-xs font-semibold text-slate-800">
+                <tr>
+                  <td
+                    colSpan={2 + (hasDiscounts ? 1 : 0) + (proforma.paymentType !== "Foreign" ? 1 : 0)}
+                    rowSpan={hasDiscounts ? (proforma.paymentType !== "Foreign" ? 5 : 3) : (proforma.paymentType !== "Foreign" ? 4 : 2)}
+                    className="p-3 border-r border-slate-200 align-top bg-white"
+                  >
+                    <div className="space-y-1 text-slate-700">
+                      <div className="font-bold text-[11px] uppercase tracking-wider text-slate-800">
+                        Commercial Terms:
+                      </div>
+                      <div className="text-[11px] grid grid-cols-[110px_1fr] gap-1">
+                        <span className="text-slate-500">Tax Clause:</span>
+                        <span className="font-semibold text-emerald-800">
+                          {proforma.paymentType === "Foreign" ? "Exempt / Export" : "All quoted prices include GST"}
+                        </span>
+                        <span className="text-slate-500">Payment Terms:</span>
+                        <span className="font-semibold text-slate-900">
+                          {proforma.paymentTerms || proforma.notes || "100% Advance"}
+                        </span>
+                        <span className="text-slate-500">Delivery Terms:</span>
+                        <span className="font-semibold text-slate-900">
+                          {proforma.deliveryTerms || proforma.deliveryTime || "Immediate Delivery"}
+                        </span>
+                        <span className="text-slate-500">Client GSTIN:</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          {proforma.gstinNo || "Unregistered / URP"}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                  <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200">
+                    Gross Total (Incl. GST):
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-medium text-slate-800">
+                    {getPrintCurrencySymbol(proforma.currencyType)}{" "}
+                    {originalSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+
+                {hasDiscounts && (
+                  <tr>
+                    <td colSpan={2} className="py-1.5 px-3 text-right text-rose-600 border-r border-slate-200">
+                      Total Discount:
+                    </td>
+                    <td className="py-1.5 px-3 text-right font-medium text-rose-600">
+                      - {getPrintCurrencySymbol(proforma.currencyType)}{" "}
+                      {totalDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                )}
+
+                {proforma.freight !== undefined && proforma.freight > 0 && (
+                  <tr>
+                    <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                      Freight Charges:
+                    </td>
+                    <td className="py-1.5 px-3 text-right font-normal text-slate-800 text-[11px]">
+                      + {getPrintCurrencySymbol(proforma.currencyType)}{" "}
+                      {proforma.freight.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                )}
+
+                {proforma.paymentType !== "Foreign" && (
+                  <>
+                    <tr>
+                      <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                        Taxable Value (Excl. GST):
+                      </td>
+                      <td className="py-1.5 px-3 text-right font-normal text-slate-700 text-[11px]">
+                        {getPrintCurrencySymbol(proforma.currencyType)}{" "}
+                        {proforma.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                        GST Amount (Included):
+                      </td>
+                      <td className="py-1.5 px-3 text-right font-normal text-amber-700 text-[11px]">
+                        {getPrintCurrencySymbol(proforma.currencyType)}{" "}
+                        {proforma.taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </>
+                )}
+
+                <tr className="border-t border-slate-300 bg-slate-100/90 text-slate-900">
+                  <td colSpan={2} className="py-2 px-3 text-right font-bold text-sm border-r border-slate-200">
+                    Net Payable (Incl. GST):
+                  </td>
+                  <td className="py-2 px-3 text-right font-bold text-sm text-slate-950">
+                    {getPrintCurrencySymbol(proforma.currencyType)}{" "}
+                    {proforma.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
-
-          {/* Payment Terms */}
-          <div style={{ borderBottom: "1px solid #D1D5DB", padding: "6px 12px" }}>
-            <strong>Payment Terms: </strong>
-            <span>{proforma.paymentTerms || proforma.notes || "100% Advance"}</span>
-          </div>
-
-          {/* Delivery Terms */}
-          <div style={{ borderBottom: "1px solid #D1D5DB", padding: "6px 12px" }}>
-            <strong>DELIVERY TERMS :- </strong>
-            <span>{proforma.deliveryTerms || proforma.deliveryTime || "Immediate Delivery"}</span>
-          </div>
-
-          {/* Sales Rep + Bank Details â€” 2-column footer */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", borderBottom: "2px solid #374151", minHeight: "120px" }}>
-            {/* Left: Sales Rep */}
-            <div style={{ borderRight: "1px solid #D1D5DB", padding: "14px 16px", display: "flex", flexDirection: "column", gap: "6px" }}>
-              <div style={{ fontWeight: "bold" }}>{COMPANY.forLine}</div>
-              {proforma.salesPersonName && (
-                <div style={{ marginTop: "4px" }}>
-                  <div style={{ fontWeight: 600 }}>
-                    {proforma.salesPersonName}{proforma.salesPersonCell && `: ${proforma.salesPersonCell}`}
-                  </div>
-                </div>
-              )}
-              <div style={{ marginTop: "auto", color: "#2563EB", textDecoration: "underline", fontSize: "11px" }}>
-                AUTHORISED SIGNATORY
-              </div>
-            </div>
-
-            {/* Right: Bank Details */}
-            <div style={{ padding: "14px 16px" }}>
-              <div style={{ color: "#2563EB", textDecoration: "underline", fontSize: "11px", marginBottom: "6px" }}>Bank Details</div>
-              {COMPANY.bankDetails.map((line, idx) => (
-                <div key={idx} style={{ fontSize: "11px", lineHeight: 1.6, color: "#374151", fontWeight: idx === 0 ? "bold" : "normal" }}>
-                  {line}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer note */}
-          <div style={{ padding: "10px 16px", textAlign: "center" }}>
-            <p style={{ fontSize: "9px", color: "#9CA3AF", letterSpacing: "1px" }}>
-              This is a computer-generated document. No signature required.
-            </p>
-          </div>
-        </div>
+        </PrintLayout>
       </div>
-
-      {/* â”€â”€ Global print CSS â”€â”€ */}
-      <style>{`
-        @media screen {
-          .screen-only { display: flex; }
-          #proforma-print-area { display: none; }
-        }
-      `}</style>
 
       <ProformaFormDialog
         open={isDialogOpen}
@@ -860,3 +948,4 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
     </>
   )
 }
+

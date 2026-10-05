@@ -36,6 +36,10 @@ import StockInwardPage from "@/app/inventory/stock-inward/page"
 import StockInwardFormPage from "@/app/inventory/stock-inward/add/page"
 import StockInwardDetailsPage from "@/app/inventory/stock-inward/[id]/page"
 
+// Goods Return
+import GoodsReturnIndexPage from "@/app/goods-return/page"
+import CreditNotesPage from "@/app/goods-return/credit-notes/page"
+
 // Purchases & Vendors
 import PurchaseOrdersPage from "@/app/purchase/page"
 import CreatePurchaseOrderPage from "@/app/purchase/create/page"
@@ -109,7 +113,7 @@ export const router = createBrowserRouter([
       </AuthProvider>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
+      { index: true, element: <ProtectedRoute permission="Dashboard.View"><DashboardPage /></ProtectedRoute> },
       { path: "login", element: <LoginPage /> },
 
       // Sales
@@ -121,16 +125,16 @@ export const router = createBrowserRouter([
       { path: "sales/proforma-invoices/:id", element: <ProtectedRoute permission="ProformaInvoices.View"><ProformaDetailsPage /></ProtectedRoute> },
       { path: "sales/orders", element: <ProtectedRoute permission="SalesOrders.View"><OrdersPage /></ProtectedRoute> },
       { path: "sales/orders/:id", element: <ProtectedRoute permission="SalesOrders.View"><OrderDetailsPage /></ProtectedRoute> },
-      { path: "sales/invoices", element: <ProtectedRoute permission={["Invoices.View", "SalesOrders.View", "ProformaInvoices.View"]}><InvoicesPage /></ProtectedRoute> },
-      { path: "sales/invoices/:id", element: <ProtectedRoute permission={["Invoices.View", "SalesOrders.View", "ProformaInvoices.View"]}><InvoiceDetailsPage /></ProtectedRoute> },
-      { path: "sales/challans", element: <ChallansPage /> },
+      // { path: "sales/invoices", element: <ProtectedRoute permission={["Invoices.View", "SalesOrders.View", "ProformaInvoices.View"]}><InvoicesPage /></ProtectedRoute> },
+      // { path: "sales/invoices/:id", element: <ProtectedRoute permission={["Invoices.View", "SalesOrders.View", "ProformaInvoices.View"]}><InvoiceDetailsPage /></ProtectedRoute> },
+      { path: "sales/challans", element: <ProtectedRoute permission="SalesOrders.View"><ChallansPage /></ProtectedRoute> },
 
       // Inventory
       { path: "inventory/products", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView", "Products.FullView"]}><ProductsPage /></ProtectedRoute> },
       { path: "inventory/products/add", element: <ProtectedRoute permission="Products.Create"><AddProductPage /></ProtectedRoute> },
       { path: "inventory/products/:id", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView", "Products.FullView"]}><ProductDetailsPage /></ProtectedRoute> },
       { path: "inventory/products/view/:id", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView", "Products.FullView"]}><ViewProductPage /></ProtectedRoute> },
-      { path: "inventory/raw-materials", element: <RawMaterialsPage /> },
+      { path: "inventory/raw-materials", element: <ProtectedRoute permission="Inventory.View"><RawMaterialsPage /></ProtectedRoute> },
       { path: "inventory/dispatch", element: <ProtectedRoute permission={["Dispatch.View", "Inventory.Dispatch", "Inventory.View"]}><DispatchPage /></ProtectedRoute> },
       { path: "inventory/dispatch/:id", element: <ProtectedRoute permission={["Dispatch.View", "Inventory.Dispatch", "Inventory.View"]}><DispatchDetailsPage /></ProtectedRoute> },
       { path: "inventory/order-outward", element: <ProtectedRoute permission={["OrderOutward.View", "Inventory.Dispatch", "Inventory.View"]}><OrderOutwardPage /></ProtectedRoute> },
@@ -140,6 +144,10 @@ export const router = createBrowserRouter([
       { path: "inventory/stock-inward/add", element: <ProtectedRoute permission={["StockInward.Create", "StockInward.View", "Inventory.StockInward"]}><StockInwardFormPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/:id", element: <ProtectedRoute permission={["StockInward.View", "Inventory.StockInward", "Inventory.View"]}><StockInwardDetailsPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/:id/edit", element: <ProtectedRoute permission={["StockInward.Edit", "StockInward.View", "Inventory.StockInward"]}><StockInwardFormPage /></ProtectedRoute> },
+
+      // Goods Return & Credit Notes
+      { path: "goods-return", element: <ProtectedRoute permission="GoodsReturn.View"><GoodsReturnIndexPage /></ProtectedRoute> },
+      { path: "goods-return/credit-notes", element: <ProtectedRoute permission="GoodsReturn.View"><CreditNotesPage /></ProtectedRoute> },
 
       // Purchases
       { path: "purchase", element: <ProtectedRoute permission={["PurchaseOrders.View", "Purchases.View"]}><PurchaseOrdersPage /></ProtectedRoute> },
@@ -201,15 +209,15 @@ export const router = createBrowserRouter([
       },
 
       // Modules
-      { path: "marketing", element: <MarketingPage /> },
-      { path: "marketing/templates", element: <MarketingTemplatesPage /> },
+      { path: "marketing", element: <ProtectedRoute permission="EmailTemplates.View"><MarketingPage /></ProtectedRoute> },
+      { path: "marketing/templates", element: <ProtectedRoute permission="EmailTemplates.View"><MarketingTemplatesPage /></ProtectedRoute> },
       { path: "intelligence", element: <ProtectedRoute permission="Reports.View"><IntelligencePage /></ProtectedRoute> },
       { path: "intelligence/reports", element: <ProtectedRoute permission="Reports.View"><IntelligenceReportsPage /></ProtectedRoute> },
-      { path: "intelligence/analytics", element: <ProtectedRoute permission="Reports.View"><IntelligenceAnalyticsPage /></ProtectedRoute> },
-      { path: "manufacturing", element: <ManufacturingPage /> },
-      { path: "manufacturing/orders", element: <ManufacturingOrdersPage /> },
-      { path: "manufacturing/batches", element: <ManufacturingBatchesPage /> },
-      { path: "stakeholders/sales-team", element: <SalesTeamPage /> },
+      { path: "intelligence/analytics", element: <ProtectedRoute permission={["Reports.View", "SalesDashboard.View"]}><IntelligenceAnalyticsPage /></ProtectedRoute> },
+      { path: "manufacturing", element: <ProtectedRoute permission="Inventory.View"><ManufacturingPage /></ProtectedRoute> },
+      { path: "manufacturing/orders", element: <ProtectedRoute permission="Inventory.View"><ManufacturingOrdersPage /></ProtectedRoute> },
+      { path: "manufacturing/batches", element: <ProtectedRoute permission="Inventory.View"><ManufacturingBatchesPage /></ProtectedRoute> },
+      { path: "stakeholders/sales-team", element: <ProtectedRoute permission="Clients.View"><SalesTeamPage /></ProtectedRoute> },
 
       // Catch-all 404
       { path: "*", element: <div className="p-8 text-center"><h1 className="text-2xl font-bold">Page Not Found</h1><p className="text-muted-foreground mt-2">The requested page does not exist.</p></div> },

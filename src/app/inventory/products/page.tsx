@@ -403,8 +403,8 @@ function ProductVariantsExpandedRow({
                             size="sm"
                             variant={currentViewMode === "cards" ? "default" : "ghost"}
                             className={`h-7 px-2.5 text-xs gap-1.5 font-medium transition-all ${currentViewMode === "cards"
-                                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
-                                    : "text-muted-foreground hover:text-foreground"
+                                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                                : "text-muted-foreground hover:text-foreground"
                                 }`}
                             onClick={() => handleSetMode("cards")}
                         >
@@ -416,8 +416,8 @@ function ProductVariantsExpandedRow({
                             size="sm"
                             variant={currentViewMode === "table" ? "default" : "ghost"}
                             className={`h-7 px-2.5 text-xs gap-1.5 font-medium transition-all ${currentViewMode === "table"
-                                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
-                                    : "text-muted-foreground hover:text-foreground"
+                                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                                : "text-muted-foreground hover:text-foreground"
                                 }`}
                             onClick={() => handleSetMode("table")}
                         >
@@ -722,8 +722,8 @@ function ProductVariantsExpandedRow({
                                                             <Badge
                                                                 variant="outline"
                                                                 className={`text-[10px] px-1.5 py-0 h-4.5 font-semibold ${qty <= 0
-                                                                        ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300"
-                                                                        : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300"
+                                                                    ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300"
+                                                                    : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300"
                                                                     }`}
                                                             >
                                                                 {qty <= 0 ? "Depleted" : "Low Stock Alert"}
@@ -1086,11 +1086,6 @@ export default function ProductListPage() {
             },
         },
         {
-            accessorKey: "sku",
-            header: "Base SKU",
-            cell: ({ row }) => <div className="text-xs font-semibold">{row.getValue("sku") || "—"}</div>,
-        },
-        {
             accessorKey: "hsnCode",
             header: "HSN Code",
             cell: ({ row }) => <div className="text-xs font-mono text-muted-foreground">{row.original.hsnCode || "—"}</div>,
@@ -1137,7 +1132,7 @@ export default function ProductListPage() {
         },
         {
             accessorKey: "costPrice",
-            header: () => <div className="text-right">Cost Price</div>,
+            header: () => <div className="text-right">COST</div>,
             cell: ({ row }) => {
                 const min = row.original.costPrice
                 const max = row.original.costPriceMax
@@ -1149,14 +1144,14 @@ export default function ProductListPage() {
         },
         {
             accessorKey: "sellingPrice",
-            header: () => <div className="text-right">Selling Price</div>,
+            header: () => <div className="text-right">Sale</div>,
             cell: ({ row }) => {
                 const min = row.original.sellingPrice
                 const max = row.original.sellingPriceMax
                 const formatted = min && max && min !== max
                     ? `${formatCurrency(min)} - ${formatCurrency(max)}`
                     : formatCurrency(min || 0)
-                return <div className="text-right font-bold text-sm text-emerald-600 dark:text-emerald-400">{formatted}</div>
+                return <div className="text-right text-xs font-bold text-sm text-emerald-600 dark:text-emerald-400">{formatted}</div>
             },
         },
         {
@@ -1422,11 +1417,10 @@ export default function ProductListPage() {
                                         type="button"
                                         size="sm"
                                         variant={variantViewMode === "cards" ? "default" : "ghost"}
-                                        className={`h-8 px-2.5 text-xs gap-1.5 rounded-md transition-all duration-200 ${
-                                            variantViewMode === "cards"
-                                                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs font-semibold"
-                                                : "text-muted-foreground hover:text-foreground"
-                                        }`}
+                                        className={`h-8 px-2.5 text-xs gap-1.5 rounded-md transition-all duration-200 ${variantViewMode === "cards"
+                                            ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                            }`}
                                         onClick={() => handleVariantViewModeChange("cards")}
                                         title="View variations as card grid"
                                     >
@@ -1437,11 +1431,10 @@ export default function ProductListPage() {
                                         type="button"
                                         size="sm"
                                         variant={variantViewMode === "table" ? "default" : "ghost"}
-                                        className={`h-8 px-2.5 text-xs gap-1.5 rounded-md transition-all duration-200 ${
-                                            variantViewMode === "table"
-                                                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs font-semibold"
-                                                : "text-muted-foreground hover:text-foreground"
-                                        }`}
+                                        className={`h-8 px-2.5 text-xs gap-1.5 rounded-md transition-all duration-200 ${variantViewMode === "table"
+                                            ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                            }`}
                                         onClick={() => handleVariantViewModeChange("table")}
                                         title="View variations as tabular matrix"
                                     >
@@ -1537,11 +1530,10 @@ export default function ProductListPage() {
                                             setPageIndex(0)
                                         }}
                                     >
-                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[150px] sm:min-w-[175px] ${
-                                            categoryFilter
-                                                ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
-                                                : "border-border/60 hover:border-border bg-background/90"
-                                        }`}>
+                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[150px] sm:min-w-[175px] ${categoryFilter
+                                            ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
+                                            : "border-border/60 hover:border-border bg-background/90"
+                                            }`}>
                                             <div className="flex items-center gap-1.5 truncate">
                                                 <Tag className="h-3.5 w-3.5 shrink-0 text-indigo-600 dark:text-indigo-400 opacity-80" />
                                                 <SelectValue placeholder="All Categories">
@@ -1589,11 +1581,10 @@ export default function ProductListPage() {
                                             setPageIndex(0)
                                         }}
                                     >
-                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[130px] sm:min-w-[145px] ${
-                                            statusFilter
-                                                ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
-                                                : "border-border/60 hover:border-border bg-background/90"
-                                        }`}>
+                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[130px] sm:min-w-[145px] ${statusFilter
+                                            ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
+                                            : "border-border/60 hover:border-border bg-background/90"
+                                            }`}>
                                             <div className="flex items-center gap-1.5 truncate">
                                                 <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400 opacity-80" />
                                                 <SelectValue placeholder="All Statuses">
@@ -1644,21 +1635,20 @@ export default function ProductListPage() {
                                             setPageIndex(0)
                                         }}
                                     >
-                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[135px] sm:min-w-[155px] ${
-                                            stockStatus
-                                                ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
-                                                : "border-border/60 hover:border-border bg-background/90"
-                                        }`}>
+                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[135px] sm:min-w-[155px] ${stockStatus
+                                            ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
+                                            : "border-border/60 hover:border-border bg-background/90"
+                                            }`}>
                                             <div className="flex items-center gap-1.5 truncate">
                                                 <Package className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400 opacity-80" />
                                                 <SelectValue placeholder="All Stock">
                                                     {stockStatus === "High"
                                                         ? "High Stock"
                                                         : stockStatus === "Low"
-                                                        ? "Low Stock"
-                                                        : stockStatus === "OutOfStock"
-                                                        ? "Out of Stock"
-                                                        : "All Stock"}
+                                                            ? "Low Stock"
+                                                            : stockStatus === "OutOfStock"
+                                                                ? "Out of Stock"
+                                                                : "All Stock"}
                                                 </SelectValue>
                                             </div>
                                         </SelectTrigger>
@@ -1711,19 +1701,18 @@ export default function ProductListPage() {
                                             setPageIndex(0)
                                         }}
                                     >
-                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[135px] sm:min-w-[155px] ${
-                                            hasVariantsFilter
-                                                ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
-                                                : "border-border/60 hover:border-border bg-background/90"
-                                        }`}>
+                                        <SelectTrigger className={`h-9 text-xs rounded-lg transition-all duration-200 cursor-pointer min-w-[135px] sm:min-w-[155px] ${hasVariantsFilter
+                                            ? "border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-semibold ring-2 ring-indigo-500/20 shadow-xs"
+                                            : "border-border/60 hover:border-border bg-background/90"
+                                            }`}>
                                             <div className="flex items-center gap-1.5 truncate">
                                                 <Boxes className="h-3.5 w-3.5 shrink-0 text-indigo-600 dark:text-indigo-400 opacity-80" />
                                                 <SelectValue placeholder="All Variations">
                                                     {hasVariantsFilter === "true"
                                                         ? "With Variants"
                                                         : hasVariantsFilter === "false"
-                                                        ? "No Variants"
-                                                        : "All Variations"}
+                                                            ? "No Variants"
+                                                            : "All Variations"}
                                                 </SelectValue>
                                             </div>
                                         </SelectTrigger>
@@ -2025,8 +2014,8 @@ export default function ProductListPage() {
                                                         size="sm"
                                                         disabled={isLoading}
                                                         className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${isSelected
-                                                                ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs font-semibold"
-                                                                : "hover:bg-muted"
+                                                            ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs font-semibold"
+                                                            : "hover:bg-muted"
                                                             }`}
                                                         onClick={() => setPageIndex(pageNum - 1)}
                                                     >

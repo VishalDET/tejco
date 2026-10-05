@@ -24,6 +24,28 @@ const emptyAddress: Address = {
   country: "India"
 }
 
+export const DOCTOR_SPECIALITIES = [
+  "Dermatologist",
+  "Dermatologist/Cosmetology",
+  "Hair Transplant",
+  "Hair Transplant, Dermatologist/Cosmetology",
+  "Plastic Surgeon",
+  "Dentist",
+  "ENT Doctor",
+  "Chain Clinic",
+  "Hospital",
+  "International Doctor",
+  "Pharma",
+  "Reseller India",
+  "Reseller International",
+  "Technician",
+  "Magnifier",
+  "General Physician",
+  "Trichologist",
+  "Surgeon",
+  "Others"
+] as const
+
 interface ClientFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -40,6 +62,10 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   // Client Excel Import State
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [previewData, setPreviewData] = useState<any>(null)
+
+  // Custom speciality state for "Others" selection
+  const [isOtherSpeciality, setIsOtherSpeciality] = useState(false)
+  const [otherSpecialityText, setOtherSpecialityText] = useState("")
 
   const downloadTemplate = () => {
     const headers = [
@@ -254,7 +280,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   }, [])
 
   useEffect(() => {
-    setForm(client ?? { 
+    const initialClient = client ?? { 
       contacts: [], 
       branches: [], 
       clientType: "Clinic",
@@ -263,7 +289,17 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       status: "Lead",
       billingAddress: { ...emptyAddress },
       shippingAddress: { ...emptyAddress }
-    })
+    }
+    setForm(initialClient)
+
+    const spec = (initialClient.doctorSpeciality || "").trim()
+    if (spec && !DOCTOR_SPECIALITIES.filter(s => s !== "Others").includes(spec as any)) {
+      setIsOtherSpeciality(true)
+      setOtherSpecialityText(spec)
+    } else {
+      setIsOtherSpeciality(false)
+      setOtherSpecialityText("")
+    }
     setError(null)
   }, [client, open])
 
@@ -382,7 +418,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       phone: (form.phone || "").trim(),
       status: form.status || "Active",
       clientType: form.clientType || "Clinic",
-      doctorSpeciality: (form.doctorSpeciality || "").trim(),
+      doctorSpeciality: (isOtherSpeciality ? otherSpecialityText : (form.doctorSpeciality || "")).trim(),
       hasBranches: (form.branches && form.branches.length > 0) || Boolean(form.hasBranches),
       gstin: (form.gstin || "").trim(),
       joinedDate: form.joinedDate
@@ -525,12 +561,52 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="doctorSpeciality">Doctor Speciality</Label>
-                  <Input 
-                    id="doctorSpeciality" 
-                    placeholder="e.g. Dermatologist, Trichologist, Surgeon" 
-                    value={form.doctorSpeciality ?? ""} 
-                    onChange={(e) => set("doctorSpeciality", e.target.value)} 
-                  />
+                  <Select
+                    value={
+                      isOtherSpeciality
+                        ? "Others"
+                        : form.doctorSpeciality || "none"
+                    }
+                    onValueChange={(v) => {
+                      if (v === "Others") {
+                        setIsOtherSpeciality(true)
+                        set("doctorSpeciality", otherSpecialityText.trim())
+                      } else {
+                        setIsOtherSpeciality(false)
+                        setOtherSpecialityText("")
+                        set("doctorSpeciality", v === "none" ? "" : v)
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="doctorSpeciality">
+                      <SelectValue placeholder="Select doctor speciality" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">-- None / Not Specified --</SelectItem>
+                      {DOCTOR_SPECIALITIES.map((spec) => (
+                        <SelectItem key={spec} value={spec}>
+                          {spec}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {isOtherSpeciality && (
+                    <div className="pt-1.5 animate-in fade-in-50 duration-200">
+                      <Input
+                        id="otherDoctorSpeciality"
+                        placeholder="Enter doctor speciality name..."
+                        value={otherSpecialityText}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setOtherSpecialityText(val)
+                          set("doctorSpeciality", val)
+                        }}
+                        autoFocus
+                        className="text-sm bg-muted/20 border-primary/40 focus-visible:ring-primary/20"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 

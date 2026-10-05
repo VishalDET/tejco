@@ -35,6 +35,7 @@ import { quotationsApi } from "@/lib/api"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { toast } from "sonner"
 import { QuotationFormDialog } from "../quotation-form-dialog"
+import { PrintLayout, executePrint } from "@/components/common/print"
 
 interface QuotationDetailsViewProps {
   quotation: Quotation
@@ -173,6 +174,15 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
     }
   }
 
+  const printRef = React.useRef<HTMLDivElement>(null)
+
+  const handlePrint = () => {
+    executePrint(printRef.current, {
+      documentTitle: `Quotation - ${quotation.number || quotation.quotationNumber}`,
+      pageOrientation: "portrait",
+    })
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header Actions */}
@@ -190,18 +200,10 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => {
-            const el = document.getElementById('quotation-print-area')
-            if (el) {
-              el.style.display = 'flex'
-              el.style.flexDirection = 'column'
-              window.onafterprint = () => { el.style.display = 'none' }
-            }
-            window.print()
-          }}>
+          <Button variant="outline" className="gap-2" onClick={handlePrint}>
             <Printer className="h-4 w-4" /> Print
           </Button>
-          <Button variant="outline" className="gap-2">
+          <Button variant="outline" className="gap-2" onClick={handlePrint}>
             <FileDown className="h-4 w-4" /> Export
           </Button>
           <Button
@@ -390,9 +392,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                     <RefreshCw className="h-3.5 w-3.5 text-primary" /> Convert to Proforma
                   </Button>
                 )}
-                <Button variant="outline" className="w-full justify-start text-xs font-semibold gap-2 border-slate-200" size="sm">
-                  <FileDown className="h-3.5 w-3.5" /> Generate PDF
-                </Button>
+
               </div>
             </CardContent>
           </Card>
@@ -437,281 +437,306 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
         </div>
       </div>
 
-           {/* Hidden Print Layout */}
-      <div id="quotation-print-area" className="hidden bg-white text-black leading-relaxed font-tahoma" style={{ width: "210mm", minHeight: "297mm", margin: "0 auto" }}>
-        {/* Print Stylesheet injection */}
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          @media print {
-            body * {
-              visibility: hidden;
-            }
-            #quotation-print-area, #quotation-print-area * {
-              visibility: visible;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-            }
-            #quotation-print-area {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 210mm !important;
-              min-height: 297mm !important;
-              display: flex !important;
-              flex-direction: column !important;
-              background: white !important;
-              color: black !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              font-family: 'Tahoma', sans-serif !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-            }
-            .font-calibri {
-              font-family: 'Calibri', 'Arial', sans-serif !important;
-            }
-            .font-verdana {
-              font-family: 'Verdana', sans-serif !important;
-            }
-            .font-tahoma {
-              font-family: 'Tahoma', sans-serif !important;
-            }
-            .print-body {
-              flex: 1 1 auto !important;
-            }
-            @page {
-              size: A4 portrait;
-              margin: 0;
-            }
-          }
-        `}} />
+      {/* ── Hidden Print Area using Common PrintLayout ── */}
+      <div id="quotation-print-area" className="hidden">
+        <PrintLayout
+          containerRef={printRef}
+          documentTitle="QUOTATION"
+          documentSubtitle={`ESTIMATE • REF: ${quotation.number || quotation.quotationNumber}`}
+          footerProps={{
+            documentNumber: quotation.number || quotation.quotationNumber,
+            showBankDetails: false,
+            showComputerGeneratedDisclaimer: false,
+            customSignatures: (
+              <div className="pt-4 border-t mt-4 font-tahoma text-xs">
+                <p className="text-[11px] text-slate-500 mb-1.5">
+                  The information on prices given here is for your personal use and should not be disclosed to our competitors.
+                </p>
+                <p className="font-bold text-xs text-slate-800 mb-2">
+                  P.O. SHOULD BE IN THE NAME OF TEJCO GLOBAL LLP
+                </p>
+                <div className="flex justify-between items-end pt-3">
+                  <div>
+                    <p className="text-[11px] text-slate-500">Thanking you and Assuring Our Best Services</p>
+                    <p className="text-xs font-semibold mt-1">Yours faithfully,</p>
+                    <div className="mt-3">
+                      <div className="font-bold text-xs text-slate-900">FOR TEJCO GLOBAL LLP</div>
+                      <div className="text-[#d9232a] font-bold uppercase text-xs mt-0.5">
+                        {quotation.salesPersonName || "Authorized Signatory"}
+                      </div>
+                      <div className="text-[11px] text-slate-600">
+                        Cell: {quotation.salesPersonCell || "+91 9820096805"}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="h-10 border-b border-slate-300 w-48 mb-1" />
+                    <span className="text-[10px] text-slate-400 font-medium">Authorized Signature</span>
+                  </div>
+                </div>
+              </div>
+            ),
+          }}
+        >
+          {/* Date and Customer Info Box */}
+          <div className="mb-4 text-xs font-sans border border-slate-300 rounded-md overflow-hidden">
+            <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white">
+              {/* Left Column: Customer Details */}
+              <div className="p-3 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Quotation For:</div>
+                <div className="font-bold text-sm text-slate-900">{quotation.clientName}</div>
+                {quotation.doctorSpeciality && (
+                  <div className="text-xs text-slate-600 font-medium">{quotation.doctorSpeciality}</div>
+                )}
+                {quotation.billingAddress && (
+                  <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+                    {quotation.billingAddress.replace(/\|/g, ", ")}
+                  </div>
+                )}
+                {quotation.clientMobileNo && (
+                  <div className="text-xs text-slate-700 pt-0.5">
+                    <span className="font-semibold text-slate-800">Mob No:</span> {quotation.clientMobileNo}
+                  </div>
+                )}
+                <div className="text-xs text-slate-800 pt-1">
+                  <span className="font-bold text-slate-900">Client GSTIN / UIN:</span>{" "}
+                  <span className="font-mono font-bold text-slate-950 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                    {quotation.gstinNo?.trim() ? quotation.gstinNo : "URP / Unregistered"}
+                  </span>
+                </div>
+              </div>
 
-        {/* ===== BRAND HEADER — matches PDF exactly ===== */}
-        <div className="relative w-full overflow-hidden flex-shrink-0" style={{ height: "105px" }}>
-          {/* Full-width dark grey background */}
-          <div className="absolute inset-0 bg-[#505052]" />
-
-          {/* White logo zone on LEFT — diagonal clip on right edge */}
-          <div
-            className="absolute top-0 left-0 bg-white flex flex-col items-center justify-center"
-            style={{
-              width: "240px",
-              height: "86px",
-              clipPath: "polygon(0 0, 82% 0, 100% 100%, 0 100%)"
-            }}
-          >
-            <img
-              src="/assets/images/tejco_sidebar_logo.png"
-              alt="Tejco Global LLP"
-              style={{ height: "50px", width: "auto", objectFit: "contain", marginLeft: "-28px" }}
-            />
-            <div
-              className="font-verdana uppercase text-[#505052]"
-              style={{ fontSize: "7px", letterSpacing: "0.22em", marginLeft: "-28px", marginTop: "3px" }}
-            >
-              Hair &bull; Skin &bull; Optics
-            </div>
-          </div>
-
-          {/* Red diagonal slash between white and dark grey */}
-          <div
-            className="absolute top-0 bg-[#d9232a]"
-            style={{
-              left: "195px",
-              width: "58px",
-              height: "86px",
-              clipPath: "polygon(38% 0, 100% 0, 62% 100%, 0 100%)"
-            }}
-          />
-
-          {/* TEJCO GLOBAL LLP — right-aligned in dark grey zone */}
-          <div
-            className="absolute top-0 right-0 flex items-center justify-end"
-            style={{ left: "230px", height: "86px", paddingRight: "22px" }}
-          >
-            <span
-              className="font-calibri font-bold text-white"
-              style={{ fontSize: "21px", letterSpacing: "0.06em" }}
-            >
-              TEJCO GLOBAL LLP
-            </span>
-          </div>
-
-          {/* Red horizontal stripe — bottom of dark grey area */}
-          <div
-            className="absolute left-0 right-0 bg-[#d9232a]"
-            style={{ top: "86px", height: "10px" }}
-          />
-
-          {/* Light grey stripe below red */}
-          <div
-            className="absolute left-0 right-0 bg-[#e6e6e6]"
-            style={{ top: "96px", height: "9px" }}
-          />
-        </div>
-
-        {/* ===== BODY CONTENT ===== */}
-        <div className="print-body" style={{ flex: "1 1 auto", padding: "14px 22px 10px 22px" }}>
-
-          {/* Date and Customer Info */}
-          <div className="mb-4 text-sm font-calibri" style={{ marginTop: "10px" }}>
-            <div className="font-bold" style={{ marginBottom: "8px" }}>Date: {formatDateWithDots(quotation.date)}</div>
-            <div>
-              <div className="font-bold" style={{ fontSize: "13px" }}>To</div>
-              <div className="font-bold" style={{ fontSize: "13px" }}>{quotation.clientName}</div>
-              <div className="text-slate-700 whitespace-pre-wrap leading-relaxed" style={{ fontSize: "12px" }}>{quotation.billingAddress?.replace(/\|/g, ", ")}</div>
-              {quotation.clientMobileNo && <div className="text-slate-700"><strong>Mob No:</strong> {quotation.clientMobileNo}</div>}
+              {/* Right Column: Quotation Meta */}
+              <div className="p-3 space-y-1.5 bg-slate-50/60">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Quotation No:</span>
+                  <span className="font-mono font-bold text-slate-900">
+                    {quotation.number || quotation.quotationNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Date:</span>
+                  <span className="font-bold text-slate-900">{formatDateWithDots(quotation.date)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Validity:</span>
+                  <span className="font-bold text-slate-900">{quotation.validityDays || 7} Days</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Delivery:</span>
+                  <span className="font-semibold text-slate-900">{quotation.deliveryTime || "10-15 Working Days"}</span>
+                </div>
+                {quotation.salesPersonName && (
+                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
+                    <span className="text-slate-600 font-medium">Sales Rep:</span>
+                    <span className="font-semibold text-slate-900">{quotation.salesPersonName}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Subject */}
-          <div className="text-center font-bold font-tahoma" style={{ fontSize: "13px", margin: "14px 0" }}>
-            Sub : <span className="underline">Quotation for <span className="uppercase">{quotation.subject || "Surgical Products"}</span> .</span>
+          <div className="text-center font-semibold text-xs py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-md mb-3 text-slate-800">
+            Subject: <span className="font-bold uppercase tracking-wide text-slate-900">{quotation.subject || "Commercial Quote for Products"}</span>
           </div>
 
           {/* Salutation & Opening */}
-          <div className="font-tahoma" style={{ fontSize: "12px", marginBottom: "12px" }}>
-            <p style={{ marginBottom: "4px" }}>Dear Sir,</p>
-            <p>Thank you very much for kind courtesy extended. As discussed sending you quote for the same as follows :</p>
+          <div className="text-xs text-slate-700 space-y-1 mb-3">
+            <p className="font-semibold">Dear Sir / Madam,</p>
+            <p>Thank you very much for kind courtesy extended. As discussed, please find our commercial quote detailed below:</p>
           </div>
 
-          {/* Item Boxes */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }} className="font-tahoma">
-            {quotation.items.map((item, idx) => {
-              const discountPercentage = (item as any).discountPercentage || 0
-              const discountAmount = (item as any).discountAmount || 0
-              const roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
-              return (
-                <div key={item.id || idx} style={{ border: "2px solid #1e293b", borderRadius: "3px", overflow: "hidden", display: "flex", fontSize: "11px" }}>
-                  <div style={{ flex: 1, display: "grid", gridTemplateRows: "1fr 1fr 1fr" }}>
-                    {/* Row 1 — Product Name */}
-                    <div style={{ display: "grid", gridTemplateColumns: "125px 1fr", borderBottom: "2px solid #1e293b" }}>
-                      <div style={{ padding: "3px 8px", fontWeight: "bold", background: "#f1f5f9", display: "flex", alignItems: "center", borderRight: "2px solid #1e293b" }}>
-                        Product Name : {roman[idx] || String(idx + 1)}
-                      </div>
-                      <div style={{ padding: "3px 8px", display: "flex", flexDirection: "column", justifyContent: "center", fontWeight: "bold", fontSize: "12px" }}>
-                        {item.productName}
-                        {item.name && <span style={{ fontSize: "10px", color: "#64748b", fontWeight: "normal", marginTop: "2px" }}>{item.name}</span>}
-                      </div>
+          {/* ══════════════ PRODUCTS TABULAR FORMAT ══════════════ */}
+          <div className="border border-slate-200 rounded-md overflow-hidden">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100/80 text-slate-800 font-semibold border-b border-slate-200">
+                  <th className="py-2 px-2 text-center w-10 border-r border-slate-200">#</th>
+                  <th className="py-2 px-3 text-left border-r border-slate-200">Item Description</th>
+                  <th className="py-2 px-2 text-center w-16 border-r border-slate-200">Qty</th>
+                  <th className="py-2 px-2.5 text-right w-28 border-r border-slate-200">
+                    <div>Rate ({getPrintCurrencySymbol(quotation.currencyType)})</div>
+                    <div className="text-[9px] font-normal text-slate-500">
+                      {quotation.paymentType === "Foreign" ? "Standard" : "(Incl. GST)"}
                     </div>
-                    {/* Row 2 — Price */}
-                    <div style={{ display: "grid", gridTemplateColumns: "125px 1fr", borderBottom: "2px solid #1e293b" }}>
-                      <div style={{ padding: "3px 8px", fontWeight: "bold", background: "#f1f5f9", display: "flex", alignItems: "center", borderRight: "2px solid #1e293b" }}>
-                        Price
-                      </div>
-                      <div style={{ padding: "3px 8px", display: "flex", alignItems: "center", fontWeight: "600" }}>
-                        {getPrintCurrencySymbol(quotation.currencyType)} {item.unitPrice.toLocaleString("en-IN")}{quotation.currencyType === "INR" ? " /-" : ""}
-                        {discountPercentage > 0 && (
-                          <span style={{ color: "#e11d48", marginLeft: "4px", fontWeight: "normal", fontSize: "10px" }}>
-                            ({discountPercentage}% Disc. applied: {getPrintCurrencySymbol(quotation.currencyType)} {(item.unitPrice - discountAmount).toLocaleString("en-IN")}{quotation.currencyType === "INR" ? " /-" : ""})
-                          </span>
-                        )}
-                        {quotation.paymentType !== "Foreign" && (
-                          <span>&nbsp;+ GST({item.gstRate}%) per pcs</span>
-                        )}
-                      </div>
-                    </div>
-                    {/* Row 3 — Qty */}
-                    <div style={{ display: "grid", gridTemplateColumns: "125px 1fr" }}>
-                      <div style={{ padding: "3px 8px", fontWeight: "bold", background: "#f1f5f9", display: "flex", alignItems: "center", borderRight: "2px solid #1e293b" }}>
-                        Qty
-                      </div>
-                      <div style={{ padding: "3px 8px", display: "flex", alignItems: "center", fontWeight: "bold", fontSize: "12px" }}>
-                        {item.quantity} Nos
-                      </div>
-                    </div>
-                  </div>
-                  {item.imageUrl && (
-                    <div style={{ width: "120px", borderLeft: "2px solid #1e293b", padding: "4px", display: "flex", alignItems: "center", justifyContent: "center", background: "white", flexShrink: 0 }}>
-                      <img src={getGoogleDrivePreviewUrl(item.imageUrl) || ""} alt={item.productName} style={{ maxHeight: "70px", maxWidth: "100%", objectFit: "contain" }} referrerPolicy="no-referrer" />
-                    </div>
+                  </th>
+                  {hasDiscounts && (
+                    <th className="py-2 px-2 text-right w-20 border-r border-slate-200">Discount</th>
                   )}
-                </div>
-              )
-            })}
+                  {quotation.paymentType !== "Foreign" && (
+                    <th className="py-2 px-2 text-center w-16 border-r border-slate-200">GST %</th>
+                  )}
+                  <th className="py-2 px-3 text-right w-32">
+                    <div>Total ({getPrintCurrencySymbol(quotation.currencyType)})</div>
+                    <div className="text-[9px] font-normal text-slate-500">
+                      {quotation.paymentType === "Foreign" ? "" : "(Incl. GST)"}
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 border-b border-slate-200">
+                {quotation.items.map((item, idx) => {
+                  const discountPercentage = (item as any).discountPercentage || 0
+                  const discountAmount = (item as any).discountAmount || 0
+                  const effectiveUnitPrice = item.unitPrice - discountAmount
+                  const lineTotal = effectiveUnitPrice * item.quantity
+
+                  return (
+                    <tr key={item.id || idx} className="hover:bg-slate-50/50">
+                      <td className="py-2 px-2 text-center font-medium text-slate-500 border-r border-slate-100 align-top">
+                        {idx + 1}
+                      </td>
+                      <td className="py-2 px-3 border-r border-slate-100 align-top">
+                        <div className="flex items-start gap-2">
+                          {item.imageUrl && (
+                            <div className="h-10 w-10 rounded border border-slate-200 bg-white p-0.5 shrink-0 overflow-hidden">
+                              <img
+                                src={getGoogleDrivePreviewUrl(item.imageUrl) || ""}
+                                alt={item.productName}
+                                className="h-full w-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-slate-900 text-xs">{item.productName}</div>
+                            {item.name && item.name !== item.productName && (
+                              <div className="text-[10px] text-slate-500">{item.name}</div>
+                            )}
+                            {item.sku && (
+                              <div className="text-[10px] font-mono text-slate-400 mt-0.5">SKU: {item.sku}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2 px-2 text-center font-semibold text-slate-800 border-r border-slate-100 align-top">
+                        {item.quantity} Nos
+                      </td>
+                      <td className="py-2 px-2.5 text-right font-medium text-slate-800 border-r border-slate-100 align-top">
+                        <div>
+                          {item.unitPrice.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        {quotation.paymentType !== "Foreign" && (
+                          <div className="text-[9px] text-emerald-700 font-medium">Incl. GST</div>
+                        )}
+                      </td>
+                      {hasDiscounts && (
+                        <td className="py-2 px-2 text-right border-r border-slate-100 align-top">
+                          {discountPercentage > 0 ? (
+                            <div>
+                              <span className="text-rose-600 font-semibold text-[11px]">
+                                {discountPercentage}%
+                              </span>
+                              <div className="text-[10px] text-slate-500">
+                                -{(discountAmount * item.quantity).toLocaleString("en-IN")}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                      )}
+                      {quotation.paymentType !== "Foreign" && (
+                        <td className="py-2 px-2 text-center font-medium text-slate-600 border-r border-slate-100 align-top">
+                          {item.gstRate}%
+                        </td>
+                      )}
+                      <td className="py-2 px-3 text-right font-bold text-slate-900 align-top">
+                        <div>
+                          {lineTotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        {quotation.paymentType !== "Foreign" && (
+                          <div className="text-[9px] text-slate-400 font-normal">Incl. GST</div>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+
+              {/* Totals Summary Footer Rows inside Table */}
+              <tfoot className="bg-slate-50/70 text-xs font-semibold text-slate-800">
+                <tr>
+                  <td
+                    colSpan={2 + (hasDiscounts ? 1 : 0) + (quotation.paymentType !== "Foreign" ? 1 : 0)}
+                    rowSpan={hasDiscounts ? (quotation.paymentType !== "Foreign" ? 5 : 3) : (quotation.paymentType !== "Foreign" ? 4 : 2)}
+                    className="p-3 border-r border-slate-200 align-top bg-white"
+                  >
+                    <div className="space-y-1 text-slate-700">
+                      <div className="font-bold text-[11px] uppercase tracking-wider text-slate-800">
+                        Commercial Terms:
+                      </div>
+                      <div className="text-[11px] grid grid-cols-[110px_1fr] gap-1">
+                        <span className="text-slate-500">Tax Clause:</span>
+                        <span className="font-semibold text-emerald-800">
+                          {quotation.paymentType === "Foreign" ? "Exempt / Export" : "All quoted prices include GST"}
+                        </span>
+                        <span className="text-slate-500">Validity:</span>
+                        <span className="font-semibold text-slate-900">{quotation.validityDays || 7} Days</span>
+                        <span className="text-slate-500">Delivery Time:</span>
+                        <span className="font-semibold text-slate-900">{quotation.deliveryTime || "10-15 Working Days"}</span>
+                        <span className="text-slate-500">Client GSTIN:</span>
+                        <span className="font-mono font-bold text-slate-900">{quotation.gstinNo || "Unregistered / URP"}</span>
+                        <span className="text-slate-500">Payment Type:</span>
+                        <span className="font-semibold text-slate-900">{quotation.paymentType || "Domestic"}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200">
+                    Gross Total (Incl. GST):
+                  </td>
+                  <td className="py-1.5 px-3 text-right font-medium text-slate-800">
+                    {getPrintCurrencySymbol(quotation.currencyType)} {originalSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+
+                {hasDiscounts && (
+                  <tr>
+                    <td colSpan={2} className="py-1.5 px-3 text-right text-rose-600 border-r border-slate-200">
+                      Total Discount:
+                    </td>
+                    <td className="py-1.5 px-3 text-right font-medium text-rose-600">
+                      - {getPrintCurrencySymbol(quotation.currencyType)} {totalDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                )}
+
+                {quotation.paymentType !== "Foreign" && (
+                  <>
+                    <tr>
+                      <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                        Taxable Value (Excl. GST):
+                      </td>
+                      <td className="py-1.5 px-3 text-right font-normal text-slate-700 text-[11px]">
+                        {getPrintCurrencySymbol(quotation.currencyType)} {quotation.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                        GST Amount (Included):
+                      </td>
+                      <td className="py-1.5 px-3 text-right font-normal text-amber-700 text-[11px]">
+                        {getPrintCurrencySymbol(quotation.currencyType)} {quotation.taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  </>
+                )}
+
+                <tr className="border-t border-slate-300 bg-slate-100/90 text-slate-900">
+                  <td colSpan={2} className="py-2 px-3 text-right font-bold text-sm border-r border-slate-200">
+                    Net Payable (Incl. GST):
+                  </td>
+                  <td className="py-2 px-3 text-right font-bold text-sm text-slate-950">
+                    {getPrintCurrencySymbol(quotation.currencyType)} {quotation.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
-
-          {/* Spacing */}
-          <div style={{ height: "20px" }} />
-
-          {/* Terms & Details Table */}
-          <table className="font-tahoma" style={{ width: "100%", border: "2px solid #1e293b", borderCollapse: "collapse", fontSize: "12px", marginBottom: "20px" }}>
-            <tbody>
-              <tr style={{ borderBottom: "2px solid #1e293b" }}>
-                <td style={{ width: "33%", padding: "4px 6px", background: "#f1f5f9", borderRight: "2px solid #1e293b" }}>GSTIN No:</td>
-                <td style={{ padding: "4px 6px" }}>{quotation.gstinNo || "27AAUFT6646F1ZJ"}</td>
-              </tr>
-              <tr style={{ borderBottom: "2px solid #1e293b" }}>
-                <td style={{ padding: "4px 6px", background: "#f1f5f9", borderRight: "2px solid #1e293b" }}>Validity of Quotation:</td>
-                <td style={{ padding: "4px 6px" }}>{quotation.validityDays || 7} Days</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "4px 6px", background: "#f1f5f9", borderRight: "2px solid #1e293b" }}>DELIVERY Time:</td>
-                <td style={{ padding: "4px 6px" }}>{quotation.deliveryTime || "10-15 Working Days"}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Closing Text */}
-          <div className="font-tahoma" style={{ fontSize: "11px", marginBottom: "12px" }}>
-            <p style={{ marginBottom: "6px" }}>The information on prices given here is for your personal use and should not be disclosed to our competitors.</p>
-            <p style={{ fontWeight: "600", fontSize: "12px", marginBottom: "10px" }}>P.O SHOULD BE IN THE NAME OF TEJCO GLOBAL LLP</p>
-            <p style={{ marginBottom: "2px" }}>Thanking you and Assuring Our Best Services</p>
-            <p style={{ marginBottom: "10px" }}>Yours faithfully</p>
-            <div style={{ fontWeight: "bold", fontSize: "12px" }}>
-              <div>FOR TEJCO GLOBAL LLP</div>
-              <div style={{ color: "#d9232a", fontWeight: "bold", textTransform: "uppercase", marginTop: "4px" }}>{quotation.salesPersonName || "Admin"}</div>
-              <div>Cell : {quotation.salesPersonCell || "+91-xxxxxxxxxx"}</div>
-            </div>
-          </div>
-
-        </div>{/* end body wrapper */}
-
-        {/* ===== BRAND FOOTER — matches PDF exactly ===== */}
-        <div className="relative flex-shrink-0" style={{ minHeight: "80px", width: "100%" }}>
-          {/* Top separator line */}
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "1px", background: "#cbd5e1" }} />
-
-          {/* Address — left side */}
-          <div
-            className="font-calibri"
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              bottom: 0,
-              width: "60%",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              paddingLeft: "22px",
-              paddingTop: "8px",
-              paddingBottom: "8px",
-              fontSize: "9.5px",
-              color: "#374151",
-              lineHeight: "1.5"
-            }}
-          >
-            <span style={{ color: "#d9232a", fontSize: "12px", lineHeight: 1, marginTop: "1px", flexShrink: 0 }}>📍</span>
-            <div>
-              <strong>404, Amore Commercial Premises</strong>, Junction of 2<sup>nd</sup> &amp; 4<sup>th</sup> Road Khar West<br />
-              Mumbai - 400052 &nbsp;<strong>Tel:-</strong> 022-46730834 &nbsp;<strong>Email:-</strong> tejcoglobal@gmail.com
-            </div>
-          </div>
-
-          {/* Decorative polygons — bottom-right corner, exact match to PDF */}
-          <div style={{ position: "absolute", right: 0, bottom: 0, width: "42%", height: "80px", overflow: "hidden", pointerEvents: "none" }}>
-            {/* Outermost — light grey */}
-            <div style={{ position: "absolute", right: 0, bottom: 0, width: "100%", height: "52px", background: "#e6e6e6", clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }} />
-            {/* Middle — red */}
-            <div style={{ position: "absolute", right: 0, bottom: 0, width: "78%", height: "68px", background: "#d9232a", clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }} />
-            {/* Inner — dark grey */}
-            <div style={{ position: "absolute", right: 0, bottom: 0, width: "56%", height: "80px", background: "#505052", clipPath: "polygon(100% 0, 100% 100%, 0 100%)" }} />
-          </div>
-        </div>
+        </PrintLayout>
       </div>
+
       <QuotationFormDialog
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}

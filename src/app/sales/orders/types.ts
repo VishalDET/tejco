@@ -38,6 +38,8 @@ export interface Order {
   notes?: string
   doctorSpeciality?: string
   clientGSTIN?: string
+  salesPersonName?: string
+  salesPersonCell?: string
   quotationId?: string | number
   proformaId?: string | number
   paymentType?: string
@@ -213,6 +215,8 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
     notes: raw.orderNotes || raw.notes || raw.subject || "",
     doctorSpeciality,
     clientGSTIN,
+    salesPersonName: raw.salesPersonName || undefined,
+    salesPersonCell: raw.salesPersonCell || undefined,
     quotationId: raw.linkedQuotationId || raw.quotationId || undefined,
     proformaId: raw.linkedProformaInvoiceId || raw.proformaId || undefined,
     paymentType: raw.paymentType || "Domestic",
