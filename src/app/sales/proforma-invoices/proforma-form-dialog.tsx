@@ -148,14 +148,14 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   useEffect(() => {
     if (users.length > 0 && form.salesPersonName) {
       const hasValidId = form.salesPersonId && users.some(u => String(u.userId) === String(form.salesPersonId))
-      
+
       if (!hasValidId) {
         const match = users.find(u =>
           `${u.firstName} ${u.lastName}`.trim().toLowerCase() === form.salesPersonName?.trim().toLowerCase()
         )
         if (match) {
-          setForm(prev => ({ 
-            ...prev, 
+          setForm(prev => ({
+            ...prev,
             salesPersonId: String(match.userId),
             salesPersonCell: match.mobile || match.phone || prev.salesPersonCell || ""
           }))
@@ -168,15 +168,31 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   }, [users, form.salesPersonName, form.salesPersonId])
 
   const calculateTotals = (items: SalesDocumentItem[]) => {
-    const grossTotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)
-    const totalDiscount = items.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)
-    const totalAmount = grossTotal - totalDiscount
+    const isForeign = form.paymentType === "Foreign"
+
+    // Subtotal is sum of discounted base prices
     const subtotal = items.reduce((sum, item) => {
-      const netItemTotal = (item.unitPrice - ((item as any).discountAmount || 0)) * item.quantity
-      const itemBase = netItemTotal / (1 + (item.gstRate || 0) / 100)
-      return sum + itemBase
+      const price = item.unitPrice || 0
+      const gstRate = isForeign ? 0 : (item.gstRate || 0)
+      const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+      const discAmt = (item as any).discountAmount || 0
+      const discountedBase = Math.max(0, basePrice - discAmt)
+      return sum + (discountedBase * item.quantity)
     }, 0)
-    const taxAmount = totalAmount - subtotal
+
+    // Total GST calculated on the discounted base amount
+    const taxAmount = isForeign ? 0 : items.reduce((sum, item) => {
+      const price = item.unitPrice || 0
+      const gstRate = item.gstRate || 0
+      const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+      const discAmt = (item as any).discountAmount || 0
+      const discountedBase = Math.max(0, basePrice - discAmt)
+      return sum + (discountedBase * (gstRate / 100) * item.quantity)
+    }, 0)
+
+    // Grand total is subtotal + taxAmount + freight
+    const totalAmount = subtotal + taxAmount + (form.freight || 0)
+
     return { subtotal, taxAmount, totalAmount }
   }
 
@@ -185,8 +201,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
   }
 
   const onProductSelect = (product: any, variant: any) => {
-    const sku = `${product.baseSKU}${variant.skuSuffix}`
-    const exists = (form.items || []).some(item => item.sku === sku)
+    const sku = `${product.baseSKU || ""}${variant.skuSuffix || ""}` || variant.variantName || product.productName
+    const exists = (form.items || []).some(item => item.sku === sku && (item as any).variantId === (variant.variantId || variant.id))
     if (exists) {
       toast.error(`"${product.productName} - ${variant.variantName}" is already included in this proforma.`)
       return
@@ -207,23 +223,25 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
       gstRate: isForeign ? 0 : (variant.gstPercentage ?? product.gstPercentage ?? 18),
       imageUrl: variant.variantImage || product.imageUrl || "",
     }
-    ;(newItem as any).variantId = variant.variantId || variant.id || 0
-    ;(newItem as any).discountPercentage = 0
-    ;(newItem as any).discountAmount = 0
-    ;(newItem as any).stock = variant.currentQuantity ?? 0
-    ;(newItem as any).sellingPrice = variant.sellingPrice
-    ;(newItem as any).usdAmount = variant.usdAmount || variant.exportSellingPrice || 0
-    ;(newItem as any).gstRateOriginal = variant.gstPercentage ?? product.gstPercentage ?? 18
+      ; (newItem as any).variantId = variant.variantId || variant.id || 0
+      ; (newItem as any).discountPercentage = 0
+      ; (newItem as any).discountAmount = 0
+      ; (newItem as any).stock = variant.currentQuantity ?? 0
+      ; (newItem as any).sellingPrice = variant.sellingPrice
+      ; (newItem as any).usdAmount = variant.usdAmount || variant.exportSellingPrice || 0
+      ; (newItem as any).gstRateOriginal = variant.gstPercentage ?? product.gstPercentage ?? 18
 
     if ((variant.currentQuantity ?? 0) < 1) {
       toast.warning(`Warning: "${product.productName} - ${variant.variantName}" is currently out of stock.`)
     }
 
     const newItems = [...(form.items || []), newItem]
-    setForm(prev => ({ ...prev, items: newItems, ...calculateTotals(newItems) }))
+    const totals = calculateTotals(newItems)
+    setForm(prev => ({ ...prev, items: newItems, ...totals }))
   }
 
-  const updateItem = (id: string, field: keyof SalesDocumentItem | "discountPercentage", value: any) => {
+  const updateItem = (id: string, field: keyof SalesDocumentItem | "discountPercentage" | "discountAmount", value: any) => {
+    const isForeign = form.paymentType === "Foreign"
     const newItems = (form.items || []).map(item => {
       if (item.id === id) {
         if (field === "quantity") {
@@ -233,28 +251,49 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
             toast.error(`Requested quantity (${qty}) exceeds available stock (${stock}) for "${item.productName}".`)
           }
         }
-        const updated = { ...item, [field]: value } as any
-        if (field === "quantity" || field === "unitPrice" || field === "discountPercentage") {
-          const qty = updated.quantity || 0
-          const price = updated.unitPrice || 0
-          const discPct = updated.discountPercentage || 0
-          const discAmt = price * discPct / 100
-          updated.discountAmount = discAmt
-          updated.total = price * qty
+        const updatedItem = { ...item, [field]: value } as any
+        const qty = updatedItem.quantity || 0
+        const price = updatedItem.unitPrice || 0
+        const gstRate = isForeign ? 0 : (updatedItem.gstRate || 0)
 
-          if (field === "unitPrice") {
-            if (form.paymentType === "Foreign") {
-              updated.usdAmount = price
-            } else {
-              updated.sellingPrice = price
-            }
+        // 1. Minus GST from price to get base price:
+        const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+
+        // 2. Apply discount on base price:
+        if (field === "discountPercentage") {
+          const discPct = Math.max(0, Math.min(100, parseFloat(value) || 0))
+          updatedItem.discountPercentage = discPct
+          const discAmt = parseFloat((basePrice * (discPct / 100)).toFixed(2))
+          updatedItem.discountAmount = discAmt
+        } else if (field === "discountAmount") {
+          const discAmt = Math.max(0, parseFloat(value) || 0)
+          updatedItem.discountAmount = discAmt
+          const discPct = basePrice > 0 ? parseFloat(((discAmt / basePrice) * 100).toFixed(2)) : 0
+          updatedItem.discountPercentage = discPct
+        } else if (field === "unitPrice") {
+          if (form.paymentType === "Foreign") {
+            updatedItem.usdAmount = price
+          } else {
+            updatedItem.sellingPrice = price
           }
+          const discPct = updatedItem.discountPercentage || 0
+          updatedItem.discountAmount = parseFloat((basePrice * (discPct / 100)).toFixed(2))
         }
-        return updated as SalesDocumentItem
+
+        // 3. Discounted base price after subtracting discount:
+        const discAmt = updatedItem.discountAmount || 0
+        const discountedBase = Math.max(0, basePrice - discAmt)
+
+        // 4. Apply mentioned GST % on the discounted amount to get the final unit price & line total:
+        const finalUnitPrice = gstRate > 0 ? discountedBase * (1 + gstRate / 100) : discountedBase
+        updatedItem.total = parseFloat((finalUnitPrice * qty).toFixed(2))
+
+        return updatedItem as SalesDocumentItem
       }
       return item
     })
-    setForm(prev => ({ ...prev, items: newItems, ...calculateTotals(newItems) }))
+    const totals = calculateTotals(newItems)
+    setForm(prev => ({ ...prev, items: newItems, ...totals }))
   }
 
   const handlePaymentTypeChange = (newPaymentType: string) => {
@@ -530,15 +569,15 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-slate-50">
-                      <TableHead className="w-[24%] font-bold">Product</TableHead>
-                      <TableHead className="font-bold">SKU</TableHead>
-                      <TableHead className="w-[8%] text-center font-bold">Qty</TableHead>
-                      <TableHead className="w-[10%] text-right font-bold">Price</TableHead>
-                      <TableHead className="w-[8%] text-center font-bold">Disc%</TableHead>
+                      <TableHead className="w-[20%] font-bold">Product</TableHead>
+                      <TableHead className="w-[11%] font-bold">Variant</TableHead>
+                      <TableHead className="w-[6%] text-center font-bold">Qty</TableHead>
+                      <TableHead className="w-[18%] text-right font-bold">Price</TableHead>
+                      <TableHead className="w-[7%] text-center font-bold">Disc %</TableHead>
                       <TableHead className="w-[11%] text-right font-bold">Disc Amt</TableHead>
-                      <TableHead className="w-[9%] text-center font-bold">GST %</TableHead>
-                      <TableHead className="w-[12%] text-right font-bold">Total</TableHead>
-                      <TableHead className="w-12.5"></TableHead>
+                      <TableHead className="w-[7%] text-center font-bold">GST %</TableHead>
+                      <TableHead className="w-[16%] text-right font-bold">Total</TableHead>
+                      <TableHead className="w-[40px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -552,8 +591,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                       (form.items || []).map((item) => {
                         const isOverStock = (item as any).stock !== undefined && item.quantity > (item as any).stock
                         return (
-                          <TableRow 
-                            key={item.id} 
+                          <TableRow
+                            key={item.id}
                             className={isOverStock ? "bg-orange-50/80 hover:bg-orange-100/80 border-orange-200 transition-colors" : "hover:bg-slate-50/50"}
                           >
                             <TableCell className="font-medium">
@@ -563,43 +602,67 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                                     <img src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""} alt={item.productName} className="h-full w-full object-contain" referrerPolicy="no-referrer" />
                                   </div>
                                 )}
-                                <div>
-                                  <div className="font-medium text-slate-900">{item.productName}</div>
-                                  {item.name && <div className="text-xs text-slate-500">{item.name}</div>}
+                                <div className="min-w-0">
+                                  <div className="font-medium text-slate-900 truncate" title={item.productName}>{item.productName}</div>
+                                  <div className="text-[11px] text-muted-foreground font-mono">{item.sku}</div>
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell className="text-xs font-mono">{item.sku}</TableCell>
+                            <TableCell className="text-xs text-slate-700 font-medium">
+                              {item.name || "—"}
+                            </TableCell>
                             <TableCell>
                               <Input
                                 type="number" min="1" value={item.quantity ?? ""}
                                 onChange={(e) => updateItem(item.id, "quantity", parseInt(e.target.value) || 0)}
-                                className="h-8 text-center"
+                                className="h-8 text-center border-0 bg-transparent hover:bg-slate-100/80 focus-visible:bg-white focus-visible:ring-1 focus-visible:ring-primary shadow-none font-medium px-1 no-spinner"
                               />
                             </TableCell>
                             <TableCell>
-                              <Input
-                                type="number" value={item.unitPrice ?? ""}
-                                onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
-                                className="h-8 text-right"
-                              />
+                              <div className="flex flex-col items-end">
+                                <div className="flex items-center justify-end gap-1 w-full">
+                                  <span className="text-xs text-muted-foreground font-semibold">{getCurrencySymbol(form.currencyType)}</span>
+                                  <Input
+                                    type="number"
+                                    value={item.unitPrice ?? ""}
+                                    onChange={(e) => updateItem(item.id, "unitPrice", parseFloat(e.target.value) || 0)}
+                                    className="h-8 text-right border-0 bg-transparent hover:bg-slate-100/80 focus-visible:bg-white focus-visible:ring-1 focus-visible:ring-primary shadow-none font-semibold px-1 no-spinner w-full min-w-[90px]"
+                                  />
+                                </div>
+                                {form.paymentType !== "Foreign" && (item.gstRate || 0) > 0 && (
+                                  <div className="text-[10px] text-muted-foreground whitespace-nowrap pr-1">
+                                    Base: {getCurrencySymbol(form.currencyType)}{((item.unitPrice || 0) / (1 + (item.gstRate || 0) / 100)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </div>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Input
                                 type="number" min="0" max="100"
-                                value={(item as any).discountPercentage ?? ""}
-                                onChange={(e) => updateItem(item.id, "discountPercentage", parseFloat(e.target.value) || 0)}
-                                className="h-8 text-center"
+                                value={(item as any).discountPercentage !== undefined && (item as any).discountPercentage !== 0 ? (item as any).discountPercentage : ""}
+                                onChange={(e) => updateItem(item.id, "discountPercentage", e.target.value === "" ? 0 : parseFloat(e.target.value))}
+                                className="h-8 text-center border-0 bg-transparent hover:bg-slate-100/80 focus-visible:bg-white focus-visible:ring-1 focus-visible:ring-primary shadow-none font-medium px-1 no-spinner"
+                                placeholder="0"
                               />
                             </TableCell>
-                            <TableCell className="text-right text-slate-600 font-medium">
-                              {getCurrencySymbol(form.currencyType)}{(((item as any).discountAmount || 0) * item.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-1">
+                                <span className="text-xs text-muted-foreground font-semibold">{getCurrencySymbol(form.currencyType)}</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={(item as any).discountAmount !== undefined && (item as any).discountAmount !== 0 ? (item as any).discountAmount : ""}
+                                  onChange={(e) => updateItem(item.id, "discountAmount", e.target.value === "" ? 0 : parseFloat(e.target.value))}
+                                  className="h-8 text-right border-0 bg-transparent hover:bg-slate-100/80 focus-visible:bg-white focus-visible:ring-1 focus-visible:ring-primary shadow-none font-semibold px-1 no-spinner w-full min-w-[70px]"
+                                  placeholder="0.00"
+                                />
+                              </div>
                             </TableCell>
                             <TableCell className="text-center font-medium text-slate-600 bg-slate-50/50">
                               {item.gstRate}%
                             </TableCell>
                             <TableCell className="text-right font-medium">
-                              {getCurrencySymbol(form.currencyType)}{item.total.toLocaleString()}
+                              {getCurrencySymbol(form.currencyType)}{item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
                             <TableCell>
                               <Button
@@ -641,30 +704,68 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
               </div>
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 space-y-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{form.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
-                  <span className="font-medium">{getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                </div>
-                {(form.items || []).some(i => (i as any).discountPercentage > 0) && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Discount</span>
-                    <span className="font-medium text-rose-600">
-                      - {getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {form.paymentType !== "Foreign" && (
+                {form.paymentType === "Foreign" ? (
                   <>
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Subtotal (Excl. GST)</span>
+                      <span className="text-muted-foreground">Gross Total</span>
+                      <span className="font-medium">{getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    {form.items?.some(item => (item as any).discountAmount > 0) && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Discount</span>
+                        <span className="font-medium text-rose-600">- {getCurrencySymbol(form.currencyType)}{form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {/* 1. Base Amount (Price minus GST) */}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Gross Base Value (Excl. GST)</span>
+                      <span className="font-medium">
+                        {getCurrencySymbol(form.currencyType)}
+                        {form.items?.reduce((sum, item) => {
+                          const price = item.unitPrice || 0
+                          const gstRate = item.gstRate || 0
+                          const base = gstRate > 0 ? price / (1 + gstRate / 100) : price
+                          return sum + (base * item.quantity)
+                        }, 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    {/* 2. Total Discount applied on Base Amount */}
+                    {form.items?.some(item => (item as any).discountAmount > 0) && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Discount (On Base Value)</span>
+                        <span className="font-medium text-rose-600">
+                          - {getCurrencySymbol(form.currencyType)}
+                          {form.items?.reduce((sum, item) => sum + (((item as any).discountAmount || 0) * item.quantity), 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* 3. Taxable Subtotal after Discount */}
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Taxable Subtotal</span>
                       <span className="font-medium">{getCurrencySymbol(form.currencyType)}{form.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
+
+                    {/* 4. GST on Discounted Subtotal */}
                     <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Total GST (Included)</span>
-                      <span className="font-medium text-amber-600">{getCurrencySymbol(form.currencyType)}{form.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-muted-foreground">Total GST</span>
+                      <span className="font-medium text-emerald-600">{getCurrencySymbol(form.currencyType)}{form.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   </>
                 )}
+
+                {/* 5. Freight Charges if any */}
+                {form.freight !== undefined && form.freight > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Freight Charges</span>
+                    <span className="font-medium text-slate-800">+ {getCurrencySymbol(form.currencyType)}{Number(form.freight).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+
                 <Separator />
                 <div className="flex justify-between font-bold text-xl items-baseline">
                   <span>Grand Total</span>

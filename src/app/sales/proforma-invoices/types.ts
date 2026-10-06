@@ -88,15 +88,22 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     const itemId = item.proformaInvoiceItemId ?? item.proformaItemId ?? 0
     const price = item.rate ?? item.price ?? 0
     const quantity = item.quantity || 0
-    const discountPercentage = item.discountPercentage || 0
-    const discountAmount = item.hasOwnProperty('discountAmount')
-      ? (item.discountAmount || 0)
-      : (price * discountPercentage / 100)
+    const isForeign = raw.paymentType === "Foreign"
+    const gstRate = isForeign ? 0 : (item.gstPercentage || 0)
+    const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
 
-    const discountedPrice = price - discountAmount
-    const itemSubtotal = discountedPrice * quantity
-    const itemTax = itemSubtotal * (item.gstPercentage || 0) / 100
-    const itemTotal = item.total ?? (itemSubtotal + itemTax)
+    const discountPercentage = item.discountPercentage || 0
+    let discountAmount = 0
+
+    if (item.hasOwnProperty('discountAmount') && item.discountAmount !== undefined && item.discountAmount !== null) {
+      discountAmount = item.discountAmount
+    } else if (discountPercentage > 0) {
+      discountAmount = parseFloat((basePrice * discountPercentage / 100).toFixed(2))
+    }
+
+    const discountedBase = Math.max(0, basePrice - discountAmount)
+    const finalUnitPrice = gstRate > 0 ? discountedBase * (1 + gstRate / 100) : discountedBase
+    const itemTotal = parseFloat((finalUnitPrice * quantity).toFixed(2))
 
     return {
       id: String(itemId),
@@ -109,7 +116,7 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
       unitPrice: price,
       discountPercentage,
       discountAmount,
-      discountedUnitPrice: discountedPrice,
+      discountedUnitPrice: finalUnitPrice,
       gstRate: item.gstPercentage || 0,
       total: itemTotal,
       imageUrl: item.imageUrl || ""
@@ -118,13 +125,22 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
 
   const isForeign = raw.paymentType === "Foreign"
   const subtotal = items.reduce((acc, item) => {
-    const netItemTotal = (item as any).discountedUnitPrice * item.quantity
-    const itemBase = isForeign ? netItemTotal : (netItemTotal / (1 + (item.gstRate || 0) / 100))
-    return acc + itemBase
+    const price = item.unitPrice || 0
+    const gstRate = isForeign ? 0 : (item.gstRate || 0)
+    const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+    const discAmt = (item as any).discountAmount || 0
+    const discountedBase = Math.max(0, basePrice - discAmt)
+    return acc + (discountedBase * item.quantity)
   }, 0)
 
-  const calculatedTotalAmount = items.reduce((acc, item) => acc + ((item as any).discountedUnitPrice * item.quantity), 0)
-  const taxAmount = isForeign ? 0 : (calculatedTotalAmount - subtotal)
+  const taxAmount = isForeign ? 0 : items.reduce((acc, item) => {
+    const price = item.unitPrice || 0
+    const gstRate = item.gstRate || 0
+    const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+    const discAmt = (item as any).discountAmount || 0
+    const discountedBase = Math.max(0, basePrice - discAmt)
+    return acc + (discountedBase * (gstRate / 100) * item.quantity)
+  }, 0)
 
   const dateValue = raw.piDate || raw.proformaDate || new Date().toISOString()
   const parsedDate = dateValue ? new Date(dateValue) : null

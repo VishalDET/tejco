@@ -282,7 +282,7 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
                           )}
                         </TableCell>
                         <TableCell className="text-center text-slate-500 py-1.5 text-xs">{item.gstRate}%</TableCell>
-                        <TableCell className="text-right font-bold text-slate-900 py-1.5 text-xs">{getCurrencySymbol(quotation.currencyType)}{(item.unitPrice * item.quantity).toLocaleString("en-IN")}</TableCell>
+                        <TableCell className="text-right font-bold text-slate-900 py-1.5 text-xs">{getCurrencySymbol(quotation.currencyType)}{(item.total ?? (item.unitPrice * item.quantity)).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
                       </TableRow>
                     )
                   })}
@@ -291,26 +291,55 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
 
               <div className="mt-8 flex justify-end">
                 <div className="w-80 space-y-3 bg-slate-50 p-6 rounded-xl border border-slate-100">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">{quotation.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
-                    <span className="font-medium">{getCurrencySymbol(quotation.currencyType)}{originalSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  </div>
-                  {hasDiscounts && (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-medium">Total Discount (Deducted)</span>
-                      <span className="text-rose-600 font-medium">- {getCurrencySymbol(quotation.currencyType)}{totalDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                  )}
-                  {quotation.paymentType !== "Foreign" && (
+                  {quotation.paymentType === "Foreign" ? (
                     <>
-                      <Separator className="my-1.5 opacity-50" />
-                      <div className="flex justify-between text-xs text-slate-500 italic">
-                        <span>Subtotal (Excl. GST)</span>
-                        <span>{getCurrencySymbol(quotation.currencyType)}{quotation.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Gross Total</span>
+                        <span className="font-medium">{getCurrencySymbol(quotation.currencyType)}{originalSubtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
-                      <div className="flex justify-between text-xs text-slate-500 italic">
-                        <span>Total GST (Included)</span>
-                        <span className="text-amber-600">{getCurrencySymbol(quotation.currencyType)}{quotation.taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      {hasDiscounts && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500 font-medium">Total Discount</span>
+                          <span className="text-rose-600 font-medium">- {getCurrencySymbol(quotation.currencyType)}{totalDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {/* 1. Base Amount (Price minus GST) */}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Gross Base Value (Excl. GST)</span>
+                        <span className="font-medium">
+                          {getCurrencySymbol(quotation.currencyType)}
+                          {quotation.items.reduce((sum, item) => {
+                            const price = item.unitPrice || 0
+                            const gstRate = item.gstRate || 0
+                            const base = gstRate > 0 ? price / (1 + gstRate / 100) : price
+                            return sum + (base * item.quantity)
+                          }, 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+
+                      {/* 2. Total Discount applied on Base Amount */}
+                      {hasDiscounts && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-500 font-medium">Total Discount (On Base Value)</span>
+                          <span className="text-rose-600 font-medium">- {getCurrencySymbol(quotation.currencyType)}{totalDiscount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+
+                      {/* 3. Net Taxable Subtotal */}
+                      <div className="flex justify-between text-sm font-medium">
+                        <span className="text-slate-700">Taxable Subtotal</span>
+                        <span className="text-slate-900">{getCurrencySymbol(quotation.currencyType)}{quotation.subtotal.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+
+                      <Separator className="my-1.5 opacity-50" />
+
+                      {/* 4. GST on Discounted Taxable Base */}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Total GST</span>
+                        <span className="text-emerald-600 font-medium">+ {getCurrencySymbol(quotation.currencyType)}{quotation.taxAmount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                       </div>
                     </>
                   )}

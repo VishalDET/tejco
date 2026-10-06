@@ -41,25 +41,62 @@ export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps)
   const [searchQuery, setSearchQuery] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
+  // Fetch products from API whenever dialog opens or search query changes (debounced)
   useEffect(() => {
-    if (open && products.length === 0) {
+    if (!open) return
+
+    const timer = setTimeout(() => {
       setIsLoading(true)
-      apiClient.get<any>("/api/Product/GetAll")
+      const trimmed = searchQuery.trim()
+      const url = trimmed
+        ? `/api/Product/GetAll?SearchTerm=${encodeURIComponent(trimmed)}`
+        : `/api/Product/GetAll`
+
+      apiClient.get<any>(url)
         .then((resp) => {
-          if (resp.success && Array.isArray(resp.data)) {
+          if (resp && resp.success && Array.isArray(resp.data)) {
             setProducts(resp.data)
+          } else if (resp && Array.isArray(resp.data)) {
+            setProducts(resp.data)
+          } else {
+            setProducts([])
           }
         })
+        .catch((err) => {
+          console.error("Failed to fetch products:", err)
+          setProducts([])
+        })
         .finally(() => setIsLoading(false))
-    }
-  }, [open, products.length])
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [open, searchQuery])
 
   const flattenedResults: { product: Product, variant: ProductVariant }[] = []
+  const search = (searchQuery || "").toLowerCase().trim()
+
   products.forEach(p => {
-    p.variants.forEach(v => {
-      const fullName = `${p.productName} ${v.variantName} ${(v as any).size || ""} ${(p as any).vendorName || ""} ${(p as any).hsnCode || ""}`.toLowerCase()
-      const search = searchQuery.toLowerCase()
-      if (fullName.includes(search) || p.baseSKU.toLowerCase().includes(search) || (p.baseSKU + v.skuSuffix).toLowerCase().includes(search)) {
+    if (!p) return
+    const variants = Array.isArray(p.variants) ? p.variants : []
+    const pName = p.productName || ""
+    const baseSku = p.baseSKU || ""
+    const vendorName = (p as any).vendorName || (p as any).VendorName || ""
+    const hsn = (p as any).hsnCode || (p as any).HSNCode || ""
+
+    variants.forEach(v => {
+      if (!v) return
+      const vName = v.variantName || ""
+      const vSize = (v as any).size || (v as any).Size || ""
+      const skuSuffix = v.skuSuffix || ""
+      const fullSku = `${baseSku}${skuSuffix}`
+
+      const searchableText = `${pName} ${vName} ${vSize} ${vendorName} ${hsn} ${baseSku} ${fullSku}`.toLowerCase()
+      // If server filtered products by SearchTerm, or client matches product / variant info
+      const matchesSearch = !search ||
+        searchableText.includes(search) ||
+        pName.toLowerCase().includes(search)
+
+      if (matchesSearch) {
         flattenedResults.push({ product: p, variant: v })
       }
     })
@@ -127,9 +164,9 @@ export function ProductSelector({ onSelect, paymentType }: ProductSelectorProps)
                       <div className="font-semibold">
                         {paymentType === "Foreign"
                           ? `$${(item.variant.usdAmount ?? 0).toLocaleString()}`
-                          : `₹${item.variant.sellingPrice.toLocaleString()}`}
+                          : `₹${(item.variant.sellingPrice ?? 0).toLocaleString()}`}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">Stock: {item.variant.currentQuantity}</div>
+                      <div className="text-[10px] text-muted-foreground">Stock: {item.variant.currentQuantity ?? 0}</div>
                     </div>
                   </button>
                 ))}

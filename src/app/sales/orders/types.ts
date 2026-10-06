@@ -109,18 +109,25 @@ export const salesOrderClientCache = new Map<string, any>()
 
 export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order {
   const rawItems = raw.lineItems || raw.items || []
+  const isForeign = raw.paymentType === "Foreign"
+
   const items = rawItems.map((item: any) => {
     const price = item.price || item.unitPrice || 0
     const quantity = item.quantity || 0
+    const gstRate = isForeign ? 0 : (item.gstPercentage || item.gstRate || 18)
+    const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+
     const discountPercentage = item.discountPercentage || 0
-    const discountAmount = item.hasOwnProperty('discountAmount')
-      ? (item.discountAmount || 0)
-      : (price * discountPercentage / 100)
-      
-    const discountedPrice = price - discountAmount
-    const itemSubtotal = discountedPrice * quantity
-    const itemTax = itemSubtotal * (item.gstPercentage || item.gstRate || 0) / 100
-    const itemTotal = item.total || item.totalPrice || (itemSubtotal + itemTax)
+    let discountAmount = 0
+    if (item.hasOwnProperty('discountAmount') && item.discountAmount !== undefined && item.discountAmount !== null) {
+      discountAmount = item.discountAmount
+    } else if (discountPercentage > 0) {
+      discountAmount = parseFloat((basePrice * discountPercentage / 100).toFixed(2))
+    }
+
+    const discountedBase = Math.max(0, basePrice - discountAmount)
+    const finalUnitPrice = gstRate > 0 ? discountedBase * (1 + gstRate / 100) : discountedBase
+    const itemTotal = parseFloat((finalUnitPrice * quantity).toFixed(2))
 
     return {
       id: String(item.orderItemId || item.id || Math.random().toString(36).substring(2, 9)),
@@ -140,8 +147,6 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
     }
   })
 
-  const isForeign = raw.paymentType === "Foreign"
-
   // Use API-provided subtotal/gst/total if available (no line items returned from GetAll)
   const apiSubtotal = raw.subtotal ?? 0
   const apiGst = raw.gstAmount ?? raw.taxAmount ?? 0
@@ -153,17 +158,25 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
   let totalAmount = apiTotal
 
   if (items.length > 0) {
-    const calcTotal = items.reduce((acc: number, item: OrderItem) => {
-      return acc + ((item.unitPrice - (item.discountAmount || 0)) * item.quantity)
+    subtotal = items.reduce((acc: number, item: OrderItem) => {
+      const price = item.unitPrice || 0
+      const gstRate = isForeign ? 0 : (item.gstRate || 0)
+      const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+      const discAmt = (item as any).discountAmount || 0
+      const discountedBase = Math.max(0, basePrice - discAmt)
+      return acc + (discountedBase * item.quantity)
     }, 0)
-    const calcSubtotal = items.reduce((acc: number, item: OrderItem) => {
-      const netItemTotal = (item.unitPrice - (item.discountAmount || 0)) * item.quantity
-      const itemBase = isForeign ? netItemTotal : (netItemTotal / (1 + (item.gstRate || 0) / 100))
-      return acc + itemBase
+
+    taxAmount = isForeign ? 0 : items.reduce((acc: number, item: OrderItem) => {
+      const price = item.unitPrice || 0
+      const gstRate = item.gstRate || 0
+      const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+      const discAmt = (item as any).discountAmount || 0
+      const discountedBase = Math.max(0, basePrice - discAmt)
+      return acc + (discountedBase * (gstRate / 100) * item.quantity)
     }, 0)
-    subtotal = calcSubtotal
-    taxAmount = isForeign ? 0 : (calcTotal - calcSubtotal)
-    totalAmount = calcTotal
+
+    totalAmount = subtotal + taxAmount
   }
 
   const cId = String(raw.clientId || "")

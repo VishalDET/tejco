@@ -139,7 +139,7 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
               }))
             }
           })
-          .catch(() => {})
+          .catch(() => { })
       }
     }
 
@@ -417,7 +417,7 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                             ) : "—"}
                           </TableCell>
                           <TableCell className="text-right font-medium">
-                            {getCurrencySymbol(order.currencyType)}{(item.unitPrice * item.quantity).toLocaleString()}
+                            {getCurrencySymbol(order.currencyType)}{item.total?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? ((item.unitPrice * item.quantity).toLocaleString())}
                           </TableCell>
                         </TableRow>
                       )
@@ -426,17 +426,58 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                 </Table>
 
                 <div className="mt-6 flex justify-end">
-                  <div className="w-64 space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">{order.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
-                      <span>{getCurrencySymbol(order.currencyType)}{originalSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    {hasDiscounts && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Total Discount (Deducted)</span>
-                        <span className="text-rose-600 font-medium">- {getCurrencySymbol(order.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
+                  <div className="w-80 space-y-3">
+                    {order.paymentType === "Foreign" ? (
+                      <>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Gross Total</span>
+                          <span className="font-medium">{getCurrencySymbol(order.currencyType)}{originalSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        {hasDiscounts && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Total Discount</span>
+                            <span className="text-rose-600 font-medium">- {getCurrencySymbol(order.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {/* 1. Base Amount (Price minus GST) */}
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Gross Base Value (Excl. GST)</span>
+                          <span className="font-medium">
+                            {getCurrencySymbol(order.currencyType)}
+                            {order.items?.reduce((sum, item) => {
+                              const price = item.unitPrice || 0
+                              const gstRate = item.gstRate || 0
+                              const base = gstRate > 0 ? price / (1 + gstRate / 100) : price
+                              return sum + (base * item.quantity)
+                            }, 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+
+                        {/* 2. Total Discount applied on Base Amount */}
+                        {hasDiscounts && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Total Discount (On Base Value)</span>
+                            <span className="text-rose-600 font-medium">- {getCurrencySymbol(order.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
+
+                        {/* 3. Taxable Subtotal after Discount */}
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Taxable Subtotal</span>
+                          <span className="font-medium">{getCurrencySymbol(order.currencyType)}{order.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+
+                        {/* 4. GST on Discounted Subtotal */}
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Total GST</span>
+                          <span className="text-emerald-600 font-medium">{getCurrencySymbol(order.currencyType)}{order.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </>
                     )}
+
                     <Separator />
                     <div className="flex justify-between font-bold text-lg">
                       <span>Grand Total</span>

@@ -134,9 +134,26 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
               }
             }
 
+            const isForeign = targetProforma.paymentType === "Foreign"
+            const finalGst = isForeign ? 0 : (gstRate || 0)
+            const basePrice = finalGst > 0 ? (item.unitPrice || 0) / (1 + finalGst / 100) : (item.unitPrice || 0)
+
+            const discPct = item.discountPercentage || 0
+            let discAmt = item.discountAmount || 0
+            if (discAmt === 0 && discPct > 0) {
+              discAmt = parseFloat((basePrice * (discPct / 100)).toFixed(2))
+            }
+
+            const discountedBase = Math.max(0, basePrice - discAmt)
+            const finalUnitPrice = finalGst > 0 ? discountedBase * (1 + finalGst / 100) : discountedBase
+            const itemTotal = parseFloat((finalUnitPrice * item.quantity).toFixed(2))
+
             return {
               ...item,
-              gstRate: gstRate || 0
+              gstRate: gstRate || 0,
+              discountAmount: discAmt,
+              discountedUnitPrice: finalUnitPrice,
+              total: itemTotal
             }
           } catch (err) {
             console.error(`Failed to fetch GST rate for product ID ${item.productId}:`, err)
@@ -147,13 +164,22 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
 
       const isForeign = targetProforma.paymentType === "Foreign"
       const subtotal = updatedItems.reduce((acc, item) => {
-        const netItemTotal = (item as any).discountedUnitPrice * item.quantity
-        const itemBase = isForeign ? netItemTotal : (netItemTotal / (1 + (item.gstRate || 0) / 100))
-        return acc + itemBase
+        const price = item.unitPrice || 0
+        const gstRate = isForeign ? 0 : (item.gstRate || 0)
+        const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+        const discAmt = (item as any).discountAmount || 0
+        const discountedBase = Math.max(0, basePrice - discAmt)
+        return acc + (discountedBase * item.quantity)
       }, 0)
 
-      const calculatedTotalAmount = updatedItems.reduce((acc, item) => acc + ((item as any).discountedUnitPrice * item.quantity), 0)
-      const taxAmount = isForeign ? 0 : (calculatedTotalAmount - subtotal)
+      const taxAmount = isForeign ? 0 : updatedItems.reduce((acc, item) => {
+        const price = item.unitPrice || 0
+        const gstRate = item.gstRate || 0
+        const basePrice = gstRate > 0 ? price / (1 + gstRate / 100) : price
+        const discAmt = (item as any).discountAmount || 0
+        const discountedBase = Math.max(0, basePrice - discAmt)
+        return acc + (discountedBase * (gstRate / 100) * item.quantity)
+      }, 0)
 
       return {
         ...targetProforma,
@@ -392,7 +418,7 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
                           ) : "\u2014"}
                         </TableCell>
                         <TableCell className="text-center font-bold text-slate-500 bg-slate-50/50">{item.gstRate}%</TableCell>
-                        <TableCell className="text-right pr-6 font-extrabold text-slate-900">{getCurrencySymbol(proforma.currencyType)}{(item.unitPrice * item.quantity).toLocaleString()}</TableCell>
+                        <TableCell className="text-right pr-6 font-extrabold text-slate-900">{getCurrencySymbol(proforma.currencyType)}{item.total?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ?? ((item.unitPrice * item.quantity).toLocaleString())}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -400,25 +426,55 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
 
                 <div className="p-8 flex justify-end bg-slate-50/20 border-t border-slate-50 font-sans">
                   <div className="w-96 space-y-4">
-                    <div className="flex justify-between text-sm items-center">
-                      <span className="text-slate-500 font-medium">{proforma.paymentType === "Foreign" ? "Gross Total" : "Gross Total (Incl. GST)"}</span>
-                      <span className="font-bold text-slate-800 text-lg">{getCurrencySymbol(proforma.currencyType)}{originalSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                    {proforma.paymentType !== "Foreign" && (
+                    {proforma.paymentType === "Foreign" ? (
                       <>
-                        <Separator className="my-1.5 opacity-50" />
-
                         <div className="flex justify-between text-sm items-center">
-                          <span className="text-slate-500 font-medium">Total GST (Included)</span>
-                          <span className="text-emerald-600 font-extrabold text-lg">{getCurrencySymbol(proforma.currencyType)}{proforma.taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-slate-500 font-medium">Gross Total</span>
+                          <span className="font-bold text-slate-800 text-lg">{getCurrencySymbol(proforma.currencyType)}{originalSubtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        {hasDiscounts && (
+                          <div className="flex justify-between text-sm items-center">
+                            <span className="text-slate-500 font-medium">Total Discount</span>
+                            <span className="text-rose-600 font-bold text-lg">- {getCurrencySymbol(proforma.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {/* 1. Base Amount (Price minus GST) */}
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-slate-500 font-medium">Gross Base Value (Excl. GST)</span>
+                          <span className="font-bold text-slate-800 text-lg">
+                            {getCurrencySymbol(proforma.currencyType)}
+                            {proforma.items?.reduce((sum, item) => {
+                              const price = item.unitPrice || 0
+                              const gstRate = item.gstRate || 0
+                              const base = gstRate > 0 ? price / (1 + gstRate / 100) : price
+                              return sum + (base * item.quantity)
+                            }, 0)?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+
+                        {/* 2. Total Discount applied on Base Amount */}
+                        {hasDiscounts && (
+                          <div className="flex justify-between text-sm items-center">
+                            <span className="text-slate-500 font-medium">Total Discount (On Base Value)</span>
+                            <span className="text-rose-600 font-bold text-lg">- {getCurrencySymbol(proforma.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
+
+                        {/* 3. Taxable Subtotal after Discount */}
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-slate-500 font-medium">Taxable Subtotal</span>
+                          <span className="font-bold text-slate-800 text-lg">{getCurrencySymbol(proforma.currencyType)}{proforma.subtotal?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+
+                        {/* 4. GST on Discounted Subtotal */}
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-slate-500 font-medium">Total GST</span>
+                          <span className="text-emerald-600 font-extrabold text-lg">{getCurrencySymbol(proforma.currencyType)}{proforma.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
                       </>
-                    )}
-                    {hasDiscounts && (
-                      <div className="flex justify-between text-sm items-center">
-                        <span className="text-slate-500 font-medium">Total Discount (Deducted)</span>
-                        <span className="text-rose-600 font-bold text-lg">- {getCurrencySymbol(proforma.currencyType)}{totalDiscount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      </div>
                     )}
 
                     {proforma.freight !== undefined && proforma.freight > 0 && (
@@ -431,7 +487,7 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
                     <div className="flex justify-between items-baseline pt-2">
                       <span className="text-slate-900 font-extrabold text-lg">Total Payable</span>
                       <div className="text-right">
-                        <span className="text-slate-900 text-4xl font-black tracking-tighter">{getCurrencySymbol(proforma.currencyType)}{proforma.totalAmount.toLocaleString()}</span>
+                        <span className="text-slate-900 text-4xl font-black tracking-tighter">{getCurrencySymbol(proforma.currencyType)}{proforma.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         {proforma.paymentType !== "Foreign" && (
                           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Inclusive of all taxes</p>
                         )}
