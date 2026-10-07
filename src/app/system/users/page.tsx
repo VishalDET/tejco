@@ -133,14 +133,14 @@ export default function UsersPage() {
                 const deptMap = new Map<number, string>()
                 deptsList.forEach((d: any) => {
                     const id = Number(d.departmentId ?? d.DepartmentID ?? d.id ?? 0)
-                    const name = d.departmentName ?? d.DepartmentName ?? d.name
+                    const name = String(d.departmentName ?? d.DepartmentName ?? d.name ?? "").trim()
                     if (id && name) deptMap.set(id, name)
                 })
 
                 const branchMap = new Map<number, string>()
                 branchesList.forEach((b: any) => {
                     const id = Number(b.branchId ?? b.BranchID ?? b.id ?? 0)
-                    const name = b.branchName ?? b.BranchName ?? b.name
+                    const name = String(b.branchName ?? b.BranchName ?? b.name ?? "").trim()
                     if (id && name) branchMap.set(id, name)
                 })
 

@@ -77,10 +77,10 @@ export default function AddUserPage() {
     const [isFetchingMasters, setIsFetchingMasters] = React.useState(true)
 
     // Master Options
-    const [companies, setCompanies] = React.useState<CompanyOption[]>(DEFAULT_COMPANIES)
-    const [branches, setBranches] = React.useState<BranchOption[]>(DEFAULT_BRANCHES)
-    const [departments, setDepartments] = React.useState<DepartmentOption[]>(DEFAULT_DEPARTMENTS)
-    const [roles, setRoles] = React.useState<RoleOption[]>(DEFAULT_ROLES)
+    const [companies, setCompanies] = React.useState<CompanyOption[]>([])
+    const [branches, setBranches] = React.useState<BranchOption[]>([])
+    const [departments, setDepartments] = React.useState<DepartmentOption[]>([])
+    const [roles, setRoles] = React.useState<RoleOption[]>([])
 
     // Form State
     const [formData, setFormData] = React.useState({
@@ -90,10 +90,10 @@ export default function AddUserPage() {
         employeeId: "",
         email: "",
         phone: "",
-        companyId: "1",
-        branchId: "1",
-        departmentId: "1",
-        roleId: "1",
+        companyId: "",
+        branchId: "",
+        departmentId: "",
+        roleId: "",
         handlerId: "0",
         status: "Active",
         password: "",
@@ -144,8 +144,11 @@ export default function AddUserPage() {
                     setDepartments(
                         deptList.map((d: any) => ({
                             id: Number(d.id ?? d.departmentId ?? d.DepartmentID ?? 0),
+                            companyId: Number(d.companyId ?? d.companyID ?? d.CompanyId ?? 0),
                             branchId: Number(d.branchId ?? d.branchID ?? d.BranchID ?? d.branch?.id ?? 0),
-                            name: String(d.name ?? d.departmentName ?? `Dept #${d.id}`),
+                            name: String(d.name ?? d.departmentName ?? `Dept #${d.id}`).trim(),
+                            code: d.code,
+                            branchName: d.branch,
                         }))
                     )
                 }
@@ -393,11 +396,15 @@ export default function AddUserPage() {
                                             setFormData((prev) => ({
                                                 ...prev,
                                                 companyId: val ?? "1",
+                                                branchId: "",
+                                                departmentId: "",
                                             }))
                                         }
                                     >
                                         <SelectTrigger id="companyId">
-                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select company"} />
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select company"}>
+                                                {companies.find((c) => String(c.id) === String(formData.companyId))?.name}
+                                            </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
                                             {companies.map((c) => (
@@ -416,15 +423,17 @@ export default function AddUserPage() {
                                         onValueChange={(val) =>
                                             setFormData((prev) => ({
                                                 ...prev,
-                                                branchId: val ?? "1",
+                                                branchId: val ?? "",
                                             }))
                                         }
                                     >
                                         <SelectTrigger id="branchId">
-                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select branch"} />
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select branch"}>
+                                                {branches.find((b) => String(b.id) === String(formData.branchId))?.name}
+                                            </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {availableBranches.map((b) => (
+                                            {branches.map((b) => (
                                                 <SelectItem key={b.id} value={String(b.id)}>
                                                     {b.name}
                                                 </SelectItem>
@@ -440,15 +449,17 @@ export default function AddUserPage() {
                                         onValueChange={(val) =>
                                             setFormData((prev) => ({
                                                 ...prev,
-                                                departmentId: val ?? "1",
+                                                departmentId: val ?? "",
                                             }))
                                         }
                                     >
                                         <SelectTrigger id="departmentId">
-                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select department"} />
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading..." : "Select department"}>
+                                                {departments.find((d) => String(d.id) === String(formData.departmentId))?.name}
+                                            </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {availableDepartments.map((d) => (
+                                            {departments.map((d) => (
                                                 <SelectItem key={d.id} value={String(d.id)}>
                                                     {d.name}
                                                 </SelectItem>
@@ -497,12 +508,14 @@ export default function AddUserPage() {
                                         onValueChange={(val) => setFormData((prev) => ({ ...prev, roleId: val ?? "1" }))}
                                     >
                                         <SelectTrigger id="roleId">
-                                            <SelectValue placeholder={isFetchingMasters ? "Loading roles..." : "Select role"} />
+                                            <SelectValue placeholder={isFetchingMasters ? "Loading roles..." : "Select role"}>
+                                                {roles.find((r) => String(r.roleId) === String(formData.roleId))?.roleName}
+                                            </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
                                             {roles.map((r) => (
                                                 <SelectItem key={r.roleId} value={String(r.roleId)}>
-                                                    {r.roleName} (ID: #{r.roleId})
+                                                    {r.roleName}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
