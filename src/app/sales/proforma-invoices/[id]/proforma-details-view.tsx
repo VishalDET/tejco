@@ -25,7 +25,15 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { ProformaFormDialog } from "../proforma-form-dialog"
+import { getAllowedNextStatuses } from "../page"
 import { proformaApi, quotationsApi, productsApi } from "@/lib/api"
 import { PrintLayout, executePrint, DEFAULT_TEJCO_COMPANY } from "@/components/common/print"
 import { toast } from "sonner"
@@ -256,6 +264,23 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
     navigate("/sales/orders?convert=true")
   }
 
+  const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false)
+
+  const handleStatusChange = async (newStatus: string | null) => {
+    if (!newStatus || proforma.status?.toLowerCase() === newStatus.toLowerCase()) return
+    setIsUpdatingStatus(true)
+    try {
+      await proformaApi.updateStatus(proforma.proformaId || proforma.id, newStatus)
+      setProforma((prev) => ({ ...prev, status: newStatus as SalesDocumentStatus }))
+      toast.success(`Status updated to "${newStatus}" successfully.`)
+    } catch (err: any) {
+      console.error("Failed to update status:", err)
+      toast.error(err?.message || "Failed to update proforma status.")
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
   const handleSave = async () => {
     try {
       const updated = await proformaApi.getById(String(initialProforma.proformaId))
@@ -286,24 +311,49 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
     return lines.map((line, idx) => <div key={idx}>{line}</div>)
   }
 
-  const getStatusIcon = (status: SalesDocumentStatus) => {
-    switch (status) {
-      case "Draft": return <Clock className="h-5 w-5 text-slate-400" />
-      case "Issued": return <Receipt className="h-5 w-5 text-primary" />
-      case "Converted to Sales Order": return <ShoppingCart className="h-5 w-5 text-emerald-500" />
-      case "Cancelled": return <Circle className="h-5 w-5 text-destructive" />
+  const getStatusIcon = (status: SalesDocumentStatus | string) => {
+    const norm = String(status || "").toLowerCase().trim()
+    switch (norm) {
+      case "draft": return <Clock className="h-5 w-5 text-slate-400" />
+      case "sent to client": return <Mail className="h-5 w-5 text-sky-500" />
+      case "accepted": return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+      case "rejected": return <Circle className="h-5 w-5 text-rose-500" />
+      case "converted to pi":
+      case "converted to proforma": return <Receipt className="h-5 w-5 text-purple-500" />
+      case "converted to sales order": return <ShoppingCart className="h-5 w-5 text-emerald-500" />
+      case "cancelled": return <Circle className="h-5 w-5 text-destructive" />
+      case "issued": return <Receipt className="h-5 w-5 text-primary" />
       default: return <Circle className="h-5 w-5" />
     }
   }
 
-  const getStatusBadge = (status: SalesDocumentStatus) => {
-    switch (status) {
-      case "Draft": return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-none">Draft Mode</Badge>
-      case "Issued": return <Badge variant="secondary" className="bg-primary/10 text-primary border-none">Issued &amp; Pending</Badge>
-      case "Converted to Sales Order": return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Converted to Order</Badge>
-      case "Cancelled": return <Badge variant="destructive">Cancelled</Badge>
-      default: return <Badge variant="outline">{status}</Badge>
+  const getStatusBadge = (status: SalesDocumentStatus | string) => {
+    const norm = String(status || "").toLowerCase().trim()
+    if (norm === "draft") {
+      return <Badge variant="secondary" className="bg-slate-100 text-slate-700 border-none">Draft Mode</Badge>
     }
+    if (norm === "sent to client") {
+      return <Badge variant="secondary" className="bg-sky-100 text-sky-800 border-none">Sent to Client</Badge>
+    }
+    if (norm === "accepted") {
+      return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Accepted</Badge>
+    }
+    if (norm === "rejected") {
+      return <Badge variant="secondary" className="bg-rose-100 text-rose-800 border-none">Rejected</Badge>
+    }
+    if (norm === "converted to pi" || norm === "converted to proforma") {
+      return <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-none">Converted to PI</Badge>
+    }
+    if (norm === "converted to sales order" || norm === "converted to order") {
+      return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Converted to Order</Badge>
+    }
+    if (norm === "cancelled") {
+      return <Badge variant="destructive">Cancelled</Badge>
+    }
+    if (norm === "issued") {
+      return <Badge variant="secondary" className="bg-primary/10 text-primary border-none">Issued & Pending</Badge>
+    }
+    return <Badge variant="outline">{status}</Badge>
   }
 
   return (
@@ -323,6 +373,27 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
               <div className="flex items-center gap-3">
                 <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">{proforma.number}</h1>
                 {getStatusBadge(proforma.status)}
+                <div className="w-[190px]">
+                  <Select
+                    value={proforma.status || "Draft"}
+                    onValueChange={handleStatusChange}
+                    disabled={isUpdatingStatus || getAllowedNextStatuses(proforma.status).length === 0}
+                  >
+                    <SelectTrigger className="h-8 text-xs bg-white border-slate-200">
+                      <SelectValue placeholder="Change status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={proforma.status || "Draft"}>
+                        {proforma.status || "Draft"} (Current)
+                      </SelectItem>
+                      {getAllowedNextStatuses(proforma.status).map((st) => (
+                        <SelectItem key={st} value={st}>
+                          {st}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="text-sm font-medium text-slate-500 mt-1 flex items-center gap-2">
                 <Clock className="h-3.5 w-3.5" />

@@ -672,6 +672,10 @@ export const quotationsApi = {
   /** PUT /api/Quotation/Update/{id} */
   update: (id: string, data: any) => apiClient.put<any>(`/api/Quotation/Update/${id}`, data),
 
+  /** PUT /api/Quotation/{id}/Status */
+  updateStatus: (id: string | number, newStatus: string, remarks?: string) =>
+    apiClient.put<any>(`/api/Quotation/${id}/Status`, { newStatus, remarks: remarks || "" }),
+
   /** DELETE /api/Quotation/Delete/{id} */
   remove: (id: string) => apiClient.delete<void>(`/api/Quotation/Delete/${id}`),
 }
@@ -784,6 +788,10 @@ export const proformaApi = {
     targetDeliveryDate: string
     orderNotes: string
   }) => apiClient.post<any>(`/api/ProformaInvoice/${id}/ConvertToSalesOrder`, data),
+
+  /** PUT /api/ProformaInvoice/{id}/Status */
+  updateStatus: (id: string | number, newStatus: string, remarks?: string) =>
+    apiClient.put<any>(`/api/ProformaInvoice/${id}/Status`, { newStatus, remarks: remarks || "" }),
 
   /** POST /api/ProformaInvoice/{id}/SendEmail */
   sendEmail: (id: string | number) => apiClient.post<any>(`/api/ProformaInvoice/${id}/SendEmail`),

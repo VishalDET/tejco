@@ -2,9 +2,14 @@ import { OrderStatus, PaymentStatus, OrderItem } from "./orders/types"
 
 export type SalesDocumentStatus = 
   | "Draft" 
+  | "Sent to Client"
+  | "Accepted"
+  | "Rejected"
+  | "Converted To PI"
+  | "Converted To Sales Order"
+  | "Converted to Proforma"
+  | "Converted to Sales Order"
   | "Issued" 
-  | "Converted to Proforma" 
-  | "Converted to Sales Order" 
   | "Cancelled"
 
 export interface SalesDocumentItem extends OrderItem {

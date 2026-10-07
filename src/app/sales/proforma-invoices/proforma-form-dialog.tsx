@@ -446,8 +446,10 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                   <SelectTrigger className="w-full min-w-0"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Draft">Draft</SelectItem>
-                    <SelectItem value="Issued">Issued</SelectItem>
-                    <SelectItem value="Converted to Sales Order">Converted to Sales Order</SelectItem>
+                    <SelectItem value="Sent to Client">Sent to Client</SelectItem>
+                    <SelectItem value="Accepted">Accepted</SelectItem>
+                    <SelectItem value="Rejected">Rejected</SelectItem>
+                    <SelectItem value="Converted To Sales Order">Converted To Sales Order</SelectItem>
                     <SelectItem value="Cancelled">Cancelled</SelectItem>
                   </SelectContent>
                 </Select>

@@ -69,6 +69,29 @@ function getPageNumbers(currentPage: number, totalPages: number): (number | stri
   return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages]
 }
 
+export const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
+  "Draft": ["Sent to Client", "Cancelled"],
+  "Sent to Client": ["Accepted", "Rejected"],
+  "Accepted": ["Converted To Sales Order"],
+  "Rejected": ["Draft"],
+  "Converted To Sales Order": ["Accepted"],
+}
+
+export const getAllowedNextStatuses = (currentStatus?: string): string[] => {
+  if (!currentStatus) return ALLOWED_STATUS_TRANSITIONS["Draft"] || []
+  const norm = currentStatus.trim().toLowerCase()
+  const matchKey = Object.keys(ALLOWED_STATUS_TRANSITIONS).find(
+    (k) => k.toLowerCase() === norm
+  )
+  if (matchKey) {
+    return ALLOWED_STATUS_TRANSITIONS[matchKey]
+  }
+  if (norm === "issued") {
+    return ["Accepted", "Rejected"]
+  }
+  return []
+}
+
 const getStatusBadge = (status: SalesDocumentStatus | string) => {
   const norm = String(status || "").toLowerCase().trim()
   if (norm === "draft") {
@@ -78,10 +101,31 @@ const getStatusBadge = (status: SalesDocumentStatus | string) => {
       </Badge>
     )
   }
-  if (norm === "issued") {
+  if (norm === "sent to client") {
     return (
-      <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px] font-medium">
-        Issued
+      <Badge variant="secondary" className="bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-[11px] font-medium">
+        Sent to Client
+      </Badge>
+    )
+  }
+  if (norm === "accepted") {
+    return (
+      <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-[11px] font-medium">
+        Accepted
+      </Badge>
+    )
+  }
+  if (norm === "rejected") {
+    return (
+      <Badge variant="secondary" className="bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-[11px] font-medium">
+        Rejected
+      </Badge>
+    )
+  }
+  if (norm === "converted to pi" || norm === "converted to proforma") {
+    return (
+      <Badge variant="secondary" className="bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-[11px] font-medium">
+        Converted to PI
       </Badge>
     )
   }
@@ -94,6 +138,13 @@ const getStatusBadge = (status: SalesDocumentStatus | string) => {
   }
   if (norm === "cancelled") {
     return <Badge variant="destructive" className="text-[11px]">Cancelled</Badge>
+  }
+  if (norm === "issued") {
+    return (
+      <Badge variant="secondary" className="bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[11px] font-medium">
+        Issued
+      </Badge>
+    )
   }
   return <Badge variant="outline" className="text-[11px]">{status || "Unknown"}</Badge>
 }
@@ -336,6 +387,21 @@ export default function ProformaInvoicesPage() {
     navigate("/sales/orders?convert=true")
   }
 
+  const handleStatusUpdate = async (p: ProformaInvoice, newStatus: string, remarks?: string) => {
+    try {
+      await proformaApi.updateStatus(p.proformaId || p.id, newStatus, remarks)
+      toast.success(`Proforma invoice status updated to "${newStatus}".`)
+      setProformas(prev =>
+        prev.map(item =>
+          item.id === p.id ? ({ ...item, status: newStatus as SalesDocumentStatus } as ProformaInvoice) : item
+        )
+      )
+    } catch (err: any) {
+      console.error("Failed to update status:", err)
+      toast.error(err?.message || "Failed to update proforma status.")
+    }
+  }
+
   const handleDelete = async (p: ProformaInvoice) => {
     if (!confirm(`Delete proforma ${p.number}?`)) return
     try {
@@ -560,7 +626,9 @@ export default function ProformaInvoicesPage() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="Draft">Draft</SelectItem>
-                  <SelectItem value="Issued">Issued</SelectItem>
+                  <SelectItem value="Sent to Client">Sent to Client</SelectItem>
+                  <SelectItem value="Accepted">Accepted</SelectItem>
+                  <SelectItem value="Rejected">Rejected</SelectItem>
                   <SelectItem value="Converted To Sales Order">Converted To Sales Order</SelectItem>
                   <SelectItem value="Cancelled">Cancelled</SelectItem>
                 </SelectContent>
@@ -795,6 +863,26 @@ export default function ProformaInvoicesPage() {
                               <Mail className="h-3.5 w-3.5 text-muted-foreground" />
                               {sendingEmailId === p.id ? "Sending Email..." : "Send Email"}
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+                              Update Status
+                            </DropdownMenuLabel>
+                            {getAllowedNextStatuses(p.status).length > 0 ? (
+                              getAllowedNextStatuses(p.status).map((st) => (
+                                <DropdownMenuItem
+                                  key={st}
+                                  className="gap-2 cursor-pointer text-xs"
+                                  onClick={() => handleStatusUpdate(p, st)}
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-muted-foreground opacity-70" />
+                                  Mark as {st}
+                                </DropdownMenuItem>
+                              ))
+                            ) : (
+                              <div className="px-2 py-1 text-[11px] text-muted-foreground italic">
+                                No transitions available
+                              </div>
+                            )}
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="gap-2 text-destructive cursor-pointer text-xs focus:bg-destructive/5"

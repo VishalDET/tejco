@@ -14,7 +14,8 @@ import {
   MoreVertical,
   ChevronLeft,
   ChevronRight,
-  Receipt
+  Receipt,
+  Mail
 } from "lucide-react"
 import { SalesDocumentStatus } from "@/app/sales/types"
 import { Quotation } from "@/app/sales/quotations/types"
@@ -31,10 +32,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { quotationsApi } from "@/lib/api"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { toast } from "sonner"
 import { QuotationFormDialog } from "../quotation-form-dialog"
+import { getAllowedNextStatuses } from "../page"
 import { PrintLayout, executePrint } from "@/components/common/print"
 
 interface QuotationDetailsViewProps {
@@ -148,30 +157,66 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
     navigate("/sales/proforma-invoices?convert=true")
   }
 
-  const getStatusIcon = (status: SalesDocumentStatus) => {
-    const norm = String(status || "").toLowerCase()
+  const [isUpdatingStatus, setIsUpdatingStatus] = React.useState(false)
+
+  const handleStatusChange = async (newStatus: string | null) => {
+    if (!newStatus || quotation.status?.toLowerCase() === newStatus.toLowerCase()) return
+    setIsUpdatingStatus(true)
+    try {
+      await quotationsApi.updateStatus(quotation.quotationId || quotation.id, newStatus)
+      setQuotation((prev) => ({ ...prev, status: newStatus as SalesDocumentStatus }))
+      toast.success(`Status updated to "${newStatus}" successfully.`)
+    } catch (err: any) {
+      console.error("Failed to update status:", err)
+      toast.error(err?.message || "Failed to update quotation status.")
+    } finally {
+      setIsUpdatingStatus(false)
+    }
+  }
+
+  const getStatusIcon = (status: SalesDocumentStatus | string) => {
+    const norm = String(status || "").toLowerCase().trim()
     switch (norm) {
       case "draft": return <Clock className="h-5 w-5 text-slate-500" />
-      case "issued": return <CheckCircle2 className="h-5 w-5 text-blue-500" />
+      case "sent to client": return <Mail className="h-5 w-5 text-sky-500" />
+      case "accepted": return <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+      case "rejected": return <Circle className="h-5 w-5 text-rose-500" />
       case "converted to proforma":
-      case "converted to pi": return <RefreshCw className="h-5 w-5 text-emerald-500" />
+      case "converted to pi": return <RefreshCw className="h-5 w-5 text-purple-500" />
       case "converted to sales order": return <CheckCircle2 className="h-5 w-5 text-emerald-600" />
       case "cancelled": return <Circle className="h-5 w-5 text-destructive" />
+      case "issued": return <CheckCircle2 className="h-5 w-5 text-blue-500" />
       default: return <Circle className="h-5 w-5" />
     }
   }
 
-  const getStatusBadge = (status: SalesDocumentStatus) => {
-    const norm = String(status || "").toLowerCase()
-    switch (norm) {
-      case "draft": return <Badge variant="secondary" className="bg-slate-100 text-slate-800 border-none">Draft</Badge>
-      case "issued": return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-none">Issued</Badge>
-      case "converted to proforma":
-      case "converted to pi": return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Converted to Proforma</Badge>
-      case "converted to sales order": return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Converted to Order</Badge>
-      case "cancelled": return <Badge variant="destructive">Cancelled</Badge>
-      default: return <Badge variant="outline">{status}</Badge>
+  const getStatusBadge = (status: SalesDocumentStatus | string) => {
+    const norm = String(status || "").toLowerCase().trim()
+    if (norm === "draft") {
+      return <Badge variant="secondary" className="bg-slate-100 text-slate-800 border-none">Draft</Badge>
     }
+    if (norm === "sent to client") {
+      return <Badge variant="secondary" className="bg-sky-100 text-sky-800 border-none">Sent to Client</Badge>
+    }
+    if (norm === "accepted") {
+      return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Accepted</Badge>
+    }
+    if (norm === "rejected") {
+      return <Badge variant="secondary" className="bg-rose-100 text-rose-800 border-none">Rejected</Badge>
+    }
+    if (norm === "converted to proforma" || norm === "converted to pi") {
+      return <Badge variant="secondary" className="bg-purple-100 text-purple-800 border-none">Converted to PI</Badge>
+    }
+    if (norm === "converted to sales order" || norm === "converted to order") {
+      return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-none">Converted to Order</Badge>
+    }
+    if (norm === "cancelled") {
+      return <Badge variant="destructive">Cancelled</Badge>
+    }
+    if (norm === "issued") {
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-none">Issued</Badge>
+    }
+    return <Badge variant="outline">{status}</Badge>
   }
 
   const printRef = React.useRef<HTMLDivElement>(null)
@@ -192,9 +237,30 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight">{quotation.number}</h1>
               {getStatusBadge(quotation.status)}
+              <div className="w-[190px]">
+                <Select
+                  value={quotation.status || "Draft"}
+                  onValueChange={handleStatusChange}
+                  disabled={isUpdatingStatus || getAllowedNextStatuses(quotation.status).length === 0}
+                >
+                  <SelectTrigger className="h-8 text-xs bg-white border-slate-200">
+                    <SelectValue placeholder="Change status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={quotation.status || "Draft"}>
+                      {quotation.status || "Draft"} (Current)
+                    </SelectItem>
+                    {getAllowedNextStatuses(quotation.status).map((st) => (
+                      <SelectItem key={st} value={st}>
+                        {st}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <p className="text-muted-foreground">Quotation generated on {new Date(quotation.date).toLocaleDateString("en-GB")} for {quotation.clientName}</p>
           </div>
