@@ -19,6 +19,8 @@ interface ProductVariant {
   usdAmount?: number
   currentQuantity: number
   variantImage?: string
+  warehouseId?: number
+  rackLocation?: string
 }
 
 interface Product {

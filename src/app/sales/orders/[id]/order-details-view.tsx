@@ -330,7 +330,7 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
               <Printer className="h-4 w-4 text-slate-600" /> Print
             </Button>
 
-            <DropdownMenu>
+            {/* <DropdownMenu>
               <DropdownMenuTrigger
                 render={
                   <Button variant="outline" className="gap-2 shadow-sm border-slate-200">
@@ -346,7 +346,7 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                   <FileDown className="h-4 w-4 text-blue-600" /> Save as PDF (Print)
                 </DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
+            </DropdownMenu> */}
 
             <Button className="gap-2 bg-primary hover:bg-primary/90 shadow-md" onClick={() => setIsEditDialogOpen(true)}>
               <Edit className="h-4 w-4" /> Edit Order

@@ -1,8 +1,10 @@
 import * as React from "react"
 import { useParams } from "react-router-dom"
 import { StockTransferView } from "./stock-transfer-view"
-import { StockTransfer } from "../types"
+import { StockTransfer, mapApiStockTransfer } from "../types"
 import { Loader } from "@/components/ui/loader"
+import { stockTransfersApi } from "@/lib/api"
+import { apiClient } from "@/lib/api-client"
 
 const mockTransfers: StockTransfer[] = [
   {
@@ -11,13 +13,15 @@ const mockTransfers: StockTransfer[] = [
       date: "2026-03-20",
       reason: "Stock Redistribution",
       status: "Completed",
-      sourceWarehouseId: "w1",
-      sourceStorageId: "s1",
-      destinationWarehouseId: "w2",
-      destinationStorageId: "s3",
+      sourceWarehouseId: "3",
+      sourceWarehouseName: "AMORE COMMERCIAL",
+      sourceStorageId: "0",
+      destinationWarehouseId: "4",
+      destinationWarehouseName: "Shree Industrial  Centre",
+      destinationStorageId: "0",
       items: [
-          { id: "i1", productId: "p1", productName: "Surgical Blade #10", sku: "SB-010-G", quantity: 50, unit: "Box" },
-          { id: "i2", productId: "p2", productName: "Medical Gauze (Sterile)", sku: "MG-ST-100", quantity: 20, unit: "Pack" }
+          { id: "i1", productId: "127", productName: "Slitting Devices-Cut To Side Blade(per pcs)", sku: "CUT-SIDE-01", quantity: 50, unit: "pcs" },
+          { id: "i2", productId: "128", productName: "Slitting Devices-Disposable Slitter", sku: "SLIT-DISP-01", quantity: 20, unit: "pcs" }
       ],
       createdAt: "2026-03-20T10:00:00Z",
       updatedAt: "2026-03-21T14:30:00Z"
@@ -28,12 +32,14 @@ const mockTransfers: StockTransfer[] = [
       date: "2026-03-24",
       reason: "Damaged Stock - Return to HQ",
       status: "In Transit",
-      sourceWarehouseId: "w2",
-      sourceStorageId: "s4",
-      destinationWarehouseId: "w1",
-      destinationStorageId: "s2",
+      sourceWarehouseId: "4",
+      sourceWarehouseName: "Shree Industrial  Centre",
+      sourceStorageId: "0",
+      destinationWarehouseId: "3",
+      destinationWarehouseName: "AMORE COMMERCIAL",
+      destinationStorageId: "0",
       items: [
-          { id: "i3", productId: "p3", productName: "Antiseptic Solution 500ml", sku: "AS-500", quantity: 5, unit: "Bottle" }
+          { id: "i3", productId: "129", productName: "Disposable Slitter 0.9mm", sku: "SLIT-0.9", quantity: 5, unit: "pcs" }
       ],
       createdAt: "2026-03-24T09:15:00Z",
       updatedAt: "2026-03-24T09:15:00Z"
@@ -48,9 +54,47 @@ export default function StockTransferDetailsPage() {
 
   React.useEffect(() => {
     if (!id) return
-    const found = mockTransfers.find(t => t.id === id) || null
-    setTransfer(found)
-    setLoading(false)
+
+    let isSubscribed = true
+    setLoading(true)
+
+    async function loadTransfer() {
+      try {
+        const [transferRes, whRes, prodRes] = await Promise.all([
+          stockTransfersApi.getById(id).catch(() => null),
+          apiClient.get<any>("/api/Warehouse").catch(() => ({ data: [] })),
+          apiClient.get<any>("/api/Product/GetAll").catch(() => ({ data: [] })),
+        ])
+
+        const warehouses = Array.isArray(whRes?.data) ? whRes.data : []
+        const products = Array.isArray(prodRes?.data) ? prodRes.data : []
+
+        if (!isSubscribed) return
+
+        if (transferRes && (transferRes.success || transferRes.data)) {
+          const raw = transferRes.data || transferRes
+          setTransfer(mapApiStockTransfer(raw, warehouses, products))
+        } else {
+          // Fallback to mock transfers for demo IDs
+          const found = mockTransfers.find(t => t.id === id || t.transferId === id) || null
+          setTransfer(found)
+        }
+      } catch (err) {
+        console.error("Failed to load transfer by id:", err)
+        if (isSubscribed) {
+          const found = mockTransfers.find(t => t.id === id || t.transferId === id) || null
+          setTransfer(found)
+        }
+      } finally {
+        if (isSubscribed) setLoading(false)
+      }
+    }
+
+    loadTransfer()
+
+    return () => {
+      isSubscribed = false
+    }
   }, [id])
 
   if (loading) {
@@ -70,5 +114,5 @@ export default function StockTransferDetailsPage() {
     )
   }
 
-  return <StockTransferView transfer={transfer} />
+  return <StockTransferView transfer={transfer} transferId={id} />
 }

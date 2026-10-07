@@ -32,6 +32,7 @@ import DispatchDetailsPage from "@/app/inventory/dispatch/[id]/page"
 import OrderOutwardPage from "@/app/inventory/order-outward/page"
 import OrderOutwardScanPage from "@/app/inventory/order-outward/[id]/page"
 import StockTransferPage from "@/app/inventory/stock-transfer/page"
+import StockTransferDetailsPage from "@/app/inventory/stock-transfer/[id]/page"
 import StockInwardPage from "@/app/inventory/stock-inward/page"
 import StockInwardFormPage from "@/app/inventory/stock-inward/add/page"
 import StockInwardDetailsPage from "@/app/inventory/stock-inward/[id]/page"
@@ -140,6 +141,7 @@ export const router = createBrowserRouter([
       { path: "inventory/order-outward", element: <ProtectedRoute permission={["OrderOutward.View", "Inventory.Dispatch", "Inventory.View"]}><OrderOutwardPage /></ProtectedRoute> },
       { path: "inventory/order-outward/:id", element: <ProtectedRoute permission={["OrderOutward.View", "Inventory.Dispatch", "Inventory.View"]}><OrderOutwardScanPage /></ProtectedRoute> },
       { path: "inventory/stock-transfer", element: <ProtectedRoute permission={["Inventory.Transfer", "Inventory.View", "Warehouses.View"]}><StockTransferPage /></ProtectedRoute> },
+      { path: "inventory/stock-transfer/:id", element: <ProtectedRoute permission={["Inventory.Transfer", "Inventory.View", "Warehouses.View"]}><StockTransferDetailsPage /></ProtectedRoute> },
       { path: "inventory/stock-inward", element: <ProtectedRoute permission={["StockInward.View", "Inventory.StockInward", "Inventory.View"]}><StockInwardPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/add", element: <ProtectedRoute permission={["StockInward.Create", "StockInward.View", "Inventory.StockInward"]}><StockInwardFormPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/:id", element: <ProtectedRoute permission={["StockInward.View", "Inventory.StockInward", "Inventory.View"]}><StockInwardDetailsPage /></ProtectedRoute> },

@@ -360,83 +360,7 @@ function ProductVariantsExpandedRow({
 
     return (
         <div className="p-5 bg-gradient-to-r from-indigo-50/40 via-muted/20 to-background dark:from-indigo-950/20 dark:via-muted/10 border-t border-b border-l-4 border-l-indigo-500 space-y-4">
-            {/* Header Banner */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-background/90 dark:bg-slate-900/80 p-3.5 rounded-xl border shadow-2xs">
-                <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-lg bg-indigo-600/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                        <Boxes className="h-4.5 w-4.5" />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-bold text-foreground">Variations</h4>
-                            <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 text-[11px] px-2 py-0 font-semibold">
-                                {variants.length} {variants.length === 1 ? "Option" : "Options"}
-                            </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                            Base SKU: <span className="font-semibold text-foreground">{product.sku || "—"}</span>
-                            {product.hsnCode && (
-                                <> • HSN: <span className="font-semibold text-foreground font-mono">{product.hsnCode}</span></>
-                            )}
-                            {product.vendorName && (
-                                <> • Vendor: <span className="font-semibold text-foreground">{product.vendorName}</span></>
-                            )}
-                            {" "}• Total Stock: <span className="font-semibold text-foreground">{totalStock} units</span>
-                        </p>
-                    </div>
-                </div>
 
-                <div className="flex items-center gap-2.5 text-xs flex-wrap">
-                    {minInr > 0 && (
-                        <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-muted/40 rounded-lg border">
-                            <span className="text-muted-foreground">Price Spectrum:</span>
-                            <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                                {minInr === maxInr ? formatCurrency(minInr) : `${formatCurrency(minInr)} - ${formatCurrency(maxInr)}`}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* View Mode Toggle: Cards vs Tabular */}
-                    <div className="inline-flex items-center rounded-lg border bg-muted/50 p-0.5 shadow-2xs">
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant={currentViewMode === "cards" ? "default" : "ghost"}
-                            className={`h-7 px-2.5 text-xs gap-1.5 font-medium transition-all ${currentViewMode === "cards"
-                                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
-                            onClick={() => handleSetMode("cards")}
-                        >
-                            <LayoutGrid className="h-3.5 w-3.5" />
-                            Cards
-                        </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant={currentViewMode === "table" ? "default" : "ghost"}
-                            className={`h-7 px-2.5 text-xs gap-1.5 font-medium transition-all ${currentViewMode === "table"
-                                ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
-                            onClick={() => handleSetMode("table")}
-                        >
-                            <List className="h-3.5 w-3.5" />
-                            Table
-                        </Button>
-                    </div>
-
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs gap-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 font-medium"
-                        onClick={() => onNavigate(`/inventory/products/view/${product.id}`)}
-                    >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        Detailed Showcase
-                    </Button>
-                </div>
-            </div>
 
             {/* Variations Display: Cards Grid or Tabular Matrix */}
             {currentViewMode === "cards" ? (
@@ -606,7 +530,7 @@ function ProductVariantsExpandedRow({
                                     <TableHead className="min-w-[220px] text-xs font-semibold">Variation</TableHead>
                                     <TableHead className="min-w-[100px] text-xs font-semibold">Size</TableHead>
                                     <TableHead className="min-w-[160px] text-xs font-semibold">Stock</TableHead>
-                                    <TableHead className="min-w-[150px] text-xs font-semibold">Threshold</TableHead>
+                                    <TableHead className="min-w-[150px] text-xs font-semibold">Restock Level</TableHead>
                                     <TableHead className="min-w-[180px] text-xs font-semibold">Racks</TableHead>
                                     <TableHead className="text-right w-[100px] text-xs font-semibold">Action</TableHead>
                                 </TableRow>
@@ -730,7 +654,6 @@ function ProductVariantsExpandedRow({
                                                             </Badge>
                                                         )}
                                                     </div>
-                                                    <span className="text-[11px] text-muted-foreground">Reorder threshold</span>
                                                 </div>
                                             </TableCell>
 

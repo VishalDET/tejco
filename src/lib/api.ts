@@ -787,7 +787,21 @@ export const proformaApi = {
     salesPersonId: number
     targetDeliveryDate: string
     orderNotes: string
-  }) => apiClient.post<any>(`/api/ProformaInvoice/${id}/ConvertToSalesOrder`, data),
+    [key: string]: any
+  }) => {
+    const cId = Number(data.clientId) || 0
+    const spId = Number(data.salesPersonId) || 0
+    return apiClient.post<any>(`/api/ProformaInvoice/${id}/ConvertToSalesOrder`, {
+      clientId: cId,
+      ClientId: cId,
+      salesPersonId: spId,
+      SalesPersonId: spId,
+      targetDeliveryDate: data.targetDeliveryDate || new Date().toISOString(),
+      TargetDeliveryDate: data.targetDeliveryDate || new Date().toISOString(),
+      orderNotes: data.orderNotes || "",
+      OrderNotes: data.orderNotes || "",
+    })
+  },
 
   /** PUT /api/ProformaInvoice/{id}/Status */
   updateStatus: (id: string | number, newStatus: string, remarks?: string) =>
@@ -1564,10 +1578,53 @@ export const creditNoteApi = {
   update: async (id: number | string, data: any) => {
     return apiClient.put<any>(`/api/CreditNote/Update/${id}`, data)
   },
-
   /** DELETE /api/CreditNote/Delete/{id} */
   delete: async (id: number | string) => {
     return apiClient.delete<any>(`/api/CreditNote/Delete/${id}`)
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Inventory Stock Transfers
+// ---------------------------------------------------------------------------
+export interface StockTransferItemDto {
+  productId: number
+  variantId: number
+  sku: string
+  quantity: number
+  unit: string
+}
+
+export interface CreateStockTransferDto {
+  date: string
+  reason: string
+  sourceWarehouseId: number
+  sourceStorageId: number
+  destinationWarehouseId: number
+  destinationStorageId: number
+  notes: string
+  items: StockTransferItemDto[]
+}
+
+export const stockTransfersApi = {
+  /** GET /api/Inventory/StockTransfers */
+  getAll: async () => {
+    return apiClient.get<any>("/api/Inventory/StockTransfers")
+  },
+
+  /** GET /api/Inventory/StockTransfers/{id} */
+  getById: async (id: number | string) => {
+    return apiClient.get<any>(`/api/Inventory/StockTransfers/${id}`)
+  },
+
+  /** POST /api/Inventory/StockTransfers */
+  create: async (payload: CreateStockTransferDto) => {
+    return apiClient.post<any>("/api/Inventory/StockTransfers", payload)
+  },
+
+  /** PATCH /api/Inventory/StockTransfers/{id}/status */
+  updateStatus: async (id: number | string, status: string) => {
+    return apiClient.patch<any>(`/api/Inventory/StockTransfers/${id}/status`, { status })
   },
 }
 

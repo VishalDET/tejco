@@ -156,12 +156,25 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
   const clientNameValue = raw.billingName || raw.clientName || ""
   const addressValue = raw.billingAddress || raw.clientAddress || ""
 
+  const rawClientId =
+    raw.clientId ??
+    (raw as any).client_id ??
+    (raw as any).clientMasterId ??
+    (raw as any).customerId ??
+    (raw as any).customerMasterId ??
+    (raw as any).client?.id ??
+    (raw as any).client?.clientId
+  const resolvedClientId =
+    rawClientId !== undefined && rawClientId !== null && String(rawClientId).trim() !== "" && String(rawClientId).trim() !== "0"
+      ? String(rawClientId)
+      : ""
+
   return {
     id: finalId,
     proformaId: Number(idValue) || 0,
     number: numberValue,
     proformaNumber: numberValue,
-    clientId: raw.clientId ? String(raw.clientId) : "",
+    clientId: resolvedClientId,
     clientName: clientNameValue,
     date: dateValue.split("T")[0],
     validUntil,

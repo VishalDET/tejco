@@ -1,209 +1,370 @@
 import * as React from "react"
 import { StockTransfer } from "../types"
-import { cn } from "@/lib/utils"
+import { PrintLayout } from "@/components/common/print"
+import { DEFAULT_TEJCO_COMPANY } from "@/components/common/print/company-config"
 
 interface PrintTemplateProps {
   transfer: StockTransfer
+  containerRef?: React.RefObject<HTMLDivElement | null>
 }
 
-export function DeliveryChallan({ transfer }: PrintTemplateProps) {
+const formatDateWithDots = (dateStr?: string) => {
+  if (!dateStr) return "N/A"
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return dateStr
+    const day = String(d.getDate()).padStart(2, "0")
+    const month = String(d.getMonth() + 1).padStart(2, "0")
+    const year = d.getFullYear()
+    return `${day}.${month}.${year}`
+  } catch {
+    return dateStr
+  }
+}
+
+export function DeliveryChallan({ transfer, containerRef }: PrintTemplateProps) {
+  const totalQuantity = (transfer.items || []).reduce(
+    (sum, item) => sum + (Number(item.quantity) || 0),
+    0
+  )
+
   return (
-    <div className="p-8 bg-white text-black min-h-[297mm] w-[210mm] border shadow-sm mx-auto print:shadow-none print:border-none">
-      {/* Header */}
-      <div className="flex justify-between items-start border-b-2 border-black pb-6 mb-8">
-        <div>
-          <h1 className="text-4xl font-bold tracking-tighter text-blue-900">TEJCO</h1>
-          <p className="text-sm font-bold uppercase tracking-widest text-slate-500">Medical Systems Pvt. Ltd.</p>
-          <div className="mt-4 text-xs space-y-1">
-            <p>A-12, Industrial Estate, Phase II</p>
-            <p>Pune, Maharashtra - 411013</p>
-            <p>GSTIN: 27AAAAA0000A1Z5</p>
-            <p>Contact: +91 20 1234 5678 | info@tejco.com</p>
+    <PrintLayout
+      containerRef={containerRef}
+      documentTitle="DELIVERY CHALLAN"
+      documentSubtitle={`REF: ${transfer.transferId}`}
+      pageOrientation="portrait"
+      footerProps={{
+        documentNumber: transfer.transferId,
+        showBankDetails: false,
+        showComputerGeneratedDisclaimer: true,
+        terms: [
+          "Goods covered by this Delivery Challan are for internal branch / warehouse stock movement only and not for commercial sale.",
+          "The receiving warehouse in-charge must verify item description, batch, and physical quantity upon receipt.",
+          "Any transit discrepancy, physical breakage, or shortage must be endorsed on this document immediately.",
+        ],
+        customSignatures: (
+          <div className="pt-6 border-t border-slate-300 mt-4 text-xs font-sans">
+            <div className="grid grid-cols-2 gap-8 items-end">
+              <div className="text-center">
+                <div className="h-10 border-b border-slate-300 w-48 mx-auto mb-1" />
+                <span className="text-[11px] text-slate-600 font-medium">
+                  Receiver's Signature (Name &amp; Date)
+                </span>
+              </div>
+              <div className="text-center">
+                <div className="h-10 border-b border-slate-300 w-48 mx-auto mb-1" />
+                <span className="text-[11px] text-slate-700 font-semibold">
+                  Authorized Signatory (FOR {DEFAULT_TEJCO_COMPANY.legalName || DEFAULT_TEJCO_COMPANY.name})
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="text-right">
-          <h2 className="text-2xl font-bold uppercase border-b border-black pb-1 mb-4">Delivery Challan</h2>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-            <span className="font-bold">Challan No:</span>
-            <span>{transfer.transferId}</span>
-            <span className="font-bold">Date:</span>
-            <span>{new Date(transfer.date).toLocaleDateString("en-GB")}</span>
-            <span className="font-bold">Status:</span>
-            <span className="uppercase">{transfer.status}</span>
+        ),
+      }}
+    >
+      {/* ── Metadata & Routing Box ── */}
+      <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+        <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white">
+          {/* Left Column: Dispatch & Deliver Details */}
+          <div className="p-3 space-y-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">
+                Dispatch From (Source Location):
+              </div>
+              <div className="font-bold text-sm text-slate-900">
+                {transfer.sourceWarehouseName || `Warehouse #${transfer.sourceWarehouseId}`}
+              </div>
+              <div className="text-[11px] text-slate-600 mt-0.5">
+                Storage / Bay: <span className="font-semibold text-slate-800">{transfer.sourceStorageId || "General Storage"}</span>
+              </div>
+              <div className="text-[10px] text-slate-400 italic mt-0.5">
+                Authorized dispatch origin facility
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1">
+                Deliver To (Destination Location):
+              </div>
+              <div className="font-bold text-sm text-slate-900">
+                {transfer.destinationWarehouseName || `Warehouse #${transfer.destinationWarehouseId}`}
+              </div>
+              <div className="text-[11px] text-slate-600 mt-0.5">
+                Storage / Bay: <span className="font-semibold text-slate-800">{transfer.destinationStorageId || "General Storage"}</span>
+              </div>
+              <div className="text-[10px] text-slate-400 italic mt-0.5">
+                Designated receiving warehouse
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Challan & Movement Metadata */}
+          <div className="p-3 space-y-2 bg-slate-50/60">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Challan No:</span>
+              <span className="font-mono font-bold text-slate-900 text-xs">
+                {transfer.transferId}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Challan Date:</span>
+              <span className="font-bold text-slate-900">
+                {formatDateWithDots(transfer.date)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Movement Status:</span>
+              <span className="font-semibold text-slate-900 uppercase">
+                {transfer.status}
+              </span>
+            </div>
+            {transfer.reason && (
+              <div className="pt-1.5 border-t border-slate-200">
+                <span className="text-slate-500 font-medium text-[10px] uppercase block">
+                  Transfer Reason:
+                </span>
+                <span className="text-slate-800 font-medium italic text-[11px]">
+                  {transfer.reason}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Routing Info */}
-      <div className="grid grid-cols-2 gap-12 mb-10">
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 border-b pb-1">Dispatch From (Source)</h3>
-          <div className="text-sm">
-            <p className="font-bold text-lg">{transfer.sourceWarehouseId}</p>
-            <p className="text-slate-600">Storage: {transfer.sourceStorageId}</p>
-            <p className="mt-2 italic text-xs text-slate-400">Authorized warehouse location</p>
-          </div>
+      {/* Notes banner if present */}
+      {transfer.notes && (
+        <div className="text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-md text-slate-700">
+          <span className="font-bold uppercase text-[10px] text-slate-500 mr-2">Additional Instructions:</span>
+          {transfer.notes}
         </div>
-        <div className="space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 border-b pb-1">Deliver To (Destination)</h3>
-          <div className="text-sm">
-            <p className="font-bold text-lg">{transfer.destinationWarehouseId}</p>
-            <p className="text-slate-600">Storage: {transfer.destinationStorageId}</p>
-            <p className="mt-2 italic text-xs text-slate-400">Intended final destination</p>
-          </div>
-        </div>
-      </div>
+      )}
 
-      {/* Reason */}
-      <div className="mb-8 p-3 bg-slate-50 border border-slate-200 rounded text-sm italic text-slate-600">
-        <span className="font-bold uppercase not-italic mr-2">Reason for Transfer:</span>
-        {transfer.reason}
-      </div>
-
-      {/* Items Table */}
-      <table className="w-full text-left border-collapse border border-black mb-10">
-        <thead>
-          <tr className="bg-slate-100 uppercase text-[10px] font-bold">
-            <th className="border border-black p-3 w-12 text-center">Sr.</th>
-            <th className="border border-black p-3">Description of Goods</th>
-            <th className="border border-black p-3 w-32">SKU / Batches</th>
-            <th className="border border-black p-3 w-20 text-center">Qty</th>
-            <th className="border border-black p-3 w-20">Unit</th>
-          </tr>
-        </thead>
-        <tbody className="text-sm">
-          {transfer.items.map((item, index) => (
-            <tr key={item.id}>
-              <td className="border border-black p-3 text-center">{index + 1}</td>
-              <td className="border border-black p-3">
-                <p className="font-bold">{item.productName}</p>
-                <p className="text-[10px] text-slate-500 italic">Medical Grade Standard</p>
+      {/* ── Products Tabular Format ── */}
+      <div className="border border-slate-200 rounded-md overflow-hidden">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-100/90 text-slate-800 font-semibold border-b border-slate-200">
+              <th className="py-2.5 px-3 text-center w-12 border-r border-slate-200">Sr.</th>
+              <th className="py-2.5 px-3 text-left border-r border-slate-200">Description of Goods</th>
+              <th className="py-2.5 px-3 text-left w-36 border-r border-slate-200">SKU / Variant</th>
+              <th className="py-2.5 px-3 text-right w-24 border-r border-slate-200">Quantity</th>
+              <th className="py-2.5 px-3 text-center w-20">Unit</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {transfer.items.map((item, index) => (
+              <tr key={item.id || index} className="hover:bg-slate-50/50">
+                <td className="py-2.5 px-3 text-center text-slate-500 border-r border-slate-100 font-medium">
+                  {index + 1}
+                </td>
+                <td className="py-2.5 px-3 border-r border-slate-100 font-medium text-slate-900">
+                  <div className="font-bold text-xs">{item.productName}</div>
+                  {(item.variantName || item.size) && (
+                    <div className="text-[10px] text-slate-500 mt-0.5">
+                      {item.variantName || item.size}
+                    </div>
+                  )}
+                </td>
+                <td className="py-2.5 px-3 border-r border-slate-100 font-mono text-[11px] text-slate-600">
+                  {item.sku || "—"}
+                </td>
+                <td className="py-2.5 px-3 border-r border-slate-100 text-right font-bold text-slate-900">
+                  {item.quantity}
+                </td>
+                <td className="py-2.5 px-3 text-center text-slate-600 font-medium">
+                  {item.unit || "pcs"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200">
+            <tr>
+              <td colSpan={3} className="py-2.5 px-3 text-right uppercase text-[11px] text-slate-700 border-r border-slate-200">
+                Total Quantity:
               </td>
-              <td className="border border-black p-3 font-mono text-xs">{item.sku}</td>
-              <td className="border border-black p-3 text-center font-bold">{item.quantity}</td>
-              <td className="border border-black p-3">{item.unit}</td>
+              <td className="py-2.5 px-3 text-right text-slate-900 text-sm font-bold border-r border-slate-200">
+                {totalQuantity}
+              </td>
+              <td className="py-2.5 px-3 text-center text-[11px] text-slate-500">
+                Items
+              </td>
             </tr>
-          ))}
-          {/* Fill remaining space to maintain height */}
-          {Array.from({ length: Math.max(0, 10 - transfer.items.length) }).map((_, i) => (
-            <tr key={`empty-${i}`}>
-                <td className="border border-black p-3">&nbsp;</td>
-                <td className="border border-black p-3">&nbsp;</td>
-                <td className="border border-black p-3">&nbsp;</td>
-                <td className="border border-black p-3">&nbsp;</td>
-                <td className="border border-black p-3">&nbsp;</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-            <tr className="bg-slate-50 font-bold">
-                <td colSpan={3} className="border border-black p-3 text-right text-xs uppercase">Total Quantity:</td>
-                <td className="border border-black p-3 text-center">{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
-                <td className="border border-black p-3">&nbsp;</td>
-            </tr>
-        </tfoot>
-      </table>
-
-      {/* Footer / Signatures */}
-      <div className="mt-auto pt-20 grid grid-cols-2 gap-20">
-        <div className="text-center">
-          <div className="border-t border-black pt-2">
-            <p className="font-bold uppercase text-xs">Receiver's Signature</p>
-            <p className="text-[10px] text-slate-400 mt-1">(Name & Date)</p>
-          </div>
-        </div>
-        <div className="text-center">
-          <div className="border-t border-black pt-2">
-            <p className="font-bold uppercase text-xs">For TEJCO Medical Systems Pvt. Ltd.</p>
-            <p className="text-[10px] text-slate-400 mt-1">(Authorized Signatory)</p>
-          </div>
-        </div>
+          </tfoot>
+        </table>
       </div>
-
-      <div className="mt-8 text-[10px] text-slate-400 text-center border-t border-slate-100 pt-4">
-        Computer generated document. No signature required if electronically verified.
-      </div>
-    </div>
+    </PrintLayout>
   )
 }
 
-export function GatePass({ transfer }: PrintTemplateProps) {
+export function GatePass({ transfer, containerRef }: PrintTemplateProps) {
+  const totalQuantity = (transfer.items || []).reduce(
+    (sum, item) => sum + (Number(item.quantity) || 0),
+    0
+  )
+
   return (
-    <div className="p-6 bg-white text-black w-[148mm] h-[210mm] border shadow-sm mx-auto print:shadow-none print:border-none flex flex-col font-sans">
-      <div className="border-2 border-black p-4 flex-grow flex flex-col">
-          {/* Header */}
-          <div className="text-center border-b-2 border-black pb-4 mb-6">
-            <h1 className="text-2xl font-black italic tracking-tighter">TEJCO</h1>
-            <h2 className="text-xl font-bold uppercase tracking-widest mt-1">SECURITY GATE PASS</h2>
-            <p className="text-[10px] font-bold text-slate-500">(Material Outward)</p>
+    <PrintLayout
+      containerRef={containerRef}
+      documentTitle="SECURITY GATE PASS"
+      documentSubtitle="MATERIAL OUTWARD PERMIT"
+      pageOrientation="portrait"
+      footerProps={{
+        documentNumber: transfer.transferId,
+        showBankDetails: false,
+        showComputerGeneratedDisclaimer: true,
+        terms: [
+          "Security gate pass is mandatory for all vehicles carrying material leaving warehouse premises.",
+          "Security personnel must inspect physical goods against the line items listed on this pass.",
+          "Vehicle details, driver identity, and time of departure must be verified before outward authorization.",
+        ],
+        customSignatures: (
+          <div className="pt-6 border-t border-slate-300 mt-4 text-xs font-sans">
+            <div className="grid grid-cols-2 gap-8 items-end">
+              <div className="text-center">
+                <div className="h-10 border-b border-slate-300 w-48 mx-auto mb-1" />
+                <span className="text-[11px] text-slate-600 font-medium">
+                  Store In-Charge Signature
+                </span>
+              </div>
+              <div className="text-center">
+                <div className="h-10 border-b border-slate-300 w-48 mx-auto mb-1" />
+                <span className="text-[11px] text-slate-700 font-semibold">
+                  Security Personnel Signature &amp; Stamp
+                </span>
+              </div>
+            </div>
           </div>
-
-          {/* Details */}
-          <div className="grid grid-cols-2 gap-y-4 text-xs mb-8">
-            <div className="space-y-1">
-                <p className="font-bold uppercase text-slate-400 text-[8px]">Ref Transaction No.</p>
-                <p className="font-bold text-sm tracking-tight">{transfer.transferId}</p>
+        ),
+      }}
+    >
+      {/* ── Movement Particulars ── */}
+      <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+        <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white">
+          <div className="p-3 space-y-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              Transfer Routing
             </div>
-            <div className="space-y-1">
-                <p className="font-bold uppercase text-slate-400 text-[8px]">Date & Time</p>
-                <p className="font-medium">{new Date(transfer.date).toLocaleDateString("en-GB")} | _________</p>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase block">Outward From:</span>
+              <span className="font-bold text-sm text-slate-900">
+                {transfer.sourceWarehouseName || `Warehouse #${transfer.sourceWarehouseId}`}
+              </span>
             </div>
-            <div className="space-y-1">
-                <p className="font-bold uppercase text-slate-400 text-[8px]">From Warehouse</p>
-                <p className="font-medium uppercase">{transfer.sourceWarehouseId}</p>
-            </div>
-            <div className="space-y-1">
-                <p className="font-bold uppercase text-slate-400 text-[8px]">Going To</p>
-                <p className="font-medium uppercase">{transfer.destinationWarehouseId}</p>
-            </div>
-          </div>
-
-          {/* Summary Table */}
-          <div className="mb-8 font-bold border-t border-b border-black py-4">
-             <div className="flex justify-between items-center mb-2">
-                <span className="text-xs uppercase">Total Line Items:</span>
-                <span className="text-sm bg-black text-white px-2 py-0.5">{transfer.items.length}</span>
-             </div>
-             <div className="flex justify-between items-center">
-                <span className="text-xs uppercase">Total Physical Units:</span>
-                <span className="text-sm bg-black text-white px-2 py-0.5">{transfer.items.reduce((sum, item) => sum + item.quantity, 0)}</span>
-             </div>
-          </div>
-
-          {/* Vehicle Info */}
-          <div className="space-y-4 mb-auto">
-            <div className="grid grid-cols-1 gap-4">
-                <div className="border-b border-slate-300 pb-1 flex justify-between">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Vehicle No:</span>
-                    <span className="w-40 border-b border-slate-200"></span>
-                </div>
-                <div className="border-b border-slate-300 pb-1 flex justify-between">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Driver Name:</span>
-                    <span className="w-40 border-b border-slate-200"></span>
-                </div>
-                <div className="border-b border-slate-300 pb-1 flex justify-between">
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Mobile No:</span>
-                    <span className="w-40 border-b border-slate-200"></span>
-                </div>
+            <div className="pt-1 border-t border-slate-100">
+              <span className="text-[10px] text-slate-500 uppercase block">Consigned To:</span>
+              <span className="font-bold text-sm text-slate-900">
+                {transfer.destinationWarehouseName || `Warehouse #${transfer.destinationWarehouseId}`}
+              </span>
             </div>
           </div>
 
-          {/* Verification section */}
-          <div className="mt-12 grid grid-cols-2 gap-8 pt-8 border-t border-slate-200">
-             <div className="text-center space-y-4">
-                <div className="h-10 border-b border-slate-300"></div>
-                <p className="text-[9px] uppercase font-bold">Store In-Charge</p>
-             </div>
-             <div className="text-center space-y-4">
-                <div className="h-10 border-b border-slate-300"></div>
-                <p className="text-[9px] uppercase font-bold">Security Signature</p>
-             </div>
+          <div className="p-3 space-y-2 bg-slate-50/60">
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Transfer Ref:</span>
+              <span className="font-mono font-bold text-slate-900">{transfer.transferId}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Issue Date:</span>
+              <span className="font-bold text-slate-900">
+                {formatDateWithDots(transfer.date)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Purpose:</span>
+              <span className="font-medium text-slate-800 italic">{transfer.reason || "Internal Stock Movement"}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-slate-600 font-medium">Total Packages/Units:</span>
+              <span className="font-bold text-slate-900">{totalQuantity} units ({transfer.items.length} items)</span>
+            </div>
           </div>
-
-          <div className="mt-6 text-[8px] text-slate-300 text-center uppercase tracking-widest">
-            Transfer ID: {transfer.id} | Generated at {new Date().toLocaleTimeString()}
-          </div>
+        </div>
       </div>
-    </div>
+
+      {/* ── Transport / Vehicle Details Form Box ── */}
+      <div className="border border-slate-200 rounded-lg p-3 bg-slate-50/50 text-xs space-y-3">
+        <div className="font-bold text-[10px] uppercase tracking-wider text-slate-700">
+          Transport &amp; Carrier Verification:
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="border-b border-slate-300 pb-1">
+            <span className="text-[10px] uppercase text-slate-500 block">Vehicle Number:</span>
+            <span className="h-5 block"></span>
+          </div>
+          <div className="border-b border-slate-300 pb-1">
+            <span className="text-[10px] uppercase text-slate-500 block">Driver Name:</span>
+            <span className="h-5 block"></span>
+          </div>
+          <div className="border-b border-slate-300 pb-1">
+            <span className="text-[10px] uppercase text-slate-500 block">Driver Contact No:</span>
+            <span className="h-5 block"></span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 pt-1">
+          <div className="border-b border-slate-300 pb-1">
+            <span className="text-[10px] uppercase text-slate-500 block">Time of Outward Dispatch:</span>
+            <span className="h-5 block"></span>
+          </div>
+          <div className="border-b border-slate-300 pb-1">
+            <span className="text-[10px] uppercase text-slate-500 block">Gate Pass Pass-Through Check:</span>
+            <span className="h-5 block text-slate-400 italic text-[10px]">Verified [ &nbsp; ] Ok</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Products List Summary ── */}
+      <div className="border border-slate-200 rounded-md overflow-hidden">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-100/90 text-slate-800 font-semibold border-b border-slate-200">
+              <th className="py-2 px-3 text-center w-12 border-r border-slate-200">#</th>
+              <th className="py-2 px-3 text-left border-r border-slate-200">Item Name</th>
+              <th className="py-2 px-3 text-left w-36 border-r border-slate-200">SKU</th>
+              <th className="py-2 px-3 text-right w-24 border-r border-slate-200">Quantity</th>
+              <th className="py-2 px-3 text-center w-20">Unit</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {transfer.items.map((item, index) => (
+              <tr key={item.id || index}>
+                <td className="py-2 px-3 text-center text-slate-500 border-r border-slate-100 font-medium">
+                  {index + 1}
+                </td>
+                <td className="py-2 px-3 border-r border-slate-100 font-medium text-slate-900">
+                  <div>{item.productName}</div>
+                  {(item.variantName || item.size) && (
+                    <div className="text-[10px] text-slate-400">{item.variantName || item.size}</div>
+                  )}
+                </td>
+                <td className="py-2 px-3 border-r border-slate-100 font-mono text-[11px] text-slate-600">
+                  {item.sku || "—"}
+                </td>
+                <td className="py-2 px-3 border-r border-slate-100 text-right font-bold text-slate-900">
+                  {item.quantity}
+                </td>
+                <td className="py-2 px-3 text-center text-slate-600 font-medium">
+                  {item.unit || "pcs"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot className="bg-slate-50/80 font-bold border-t border-slate-200">
+            <tr>
+              <td colSpan={3} className="py-2 px-3 text-right uppercase text-[11px] text-slate-700 border-r border-slate-200">
+                Total Units Dispatched:
+              </td>
+              <td className="py-2 px-3 text-right text-slate-900 text-sm font-bold border-r border-slate-200">
+                {totalQuantity}
+              </td>
+              <td className="py-2 px-3 text-center text-[11px] text-slate-500">
+                Total
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </PrintLayout>
   )
 }

@@ -280,9 +280,9 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   }, [])
 
   useEffect(() => {
-    const initialClient = client ?? { 
-      contacts: [], 
-      branches: [], 
+    const initialClient = client ?? {
+      contacts: [],
+      branches: [],
       clientType: "Clinic",
       doctorSpeciality: "",
       hasBranches: false,
@@ -359,7 +359,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
     }
     setForm(prev => ({
       ...prev,
-      branches: (prev.branches || []).map(b => 
+      branches: (prev.branches || []).map(b =>
         b.id === branchId ? { ...b, contacts: [...(b.contacts || []), newContact] } : b
       )
     }))
@@ -368,7 +368,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   const removeBranchContact = (branchId: string, contactId: string) => {
     setForm(prev => ({
       ...prev,
-      branches: (prev.branches || []).map(b => 
+      branches: (prev.branches || []).map(b =>
         b.id === branchId ? { ...b, contacts: (b.contacts || []).filter(c => c.id !== contactId) } : b
       )
     }))
@@ -377,10 +377,10 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   const updateBranchContact = (branchId: string, contactId: string, field: keyof ClientContact, value: string) => {
     setForm(prev => ({
       ...prev,
-      branches: (prev.branches || []).map(b => 
-        b.id === branchId ? { 
-          ...b, 
-          contacts: (b.contacts || []).map(c => c.id === contactId ? { ...c, [field]: value } : c) 
+      branches: (prev.branches || []).map(b =>
+        b.id === branchId ? {
+          ...b,
+          contacts: (b.contacts || []).map(c => c.id === contactId ? { ...c, [field]: value } : c)
         } : b
       )
     }))
@@ -397,7 +397,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   const setBranchAddress = (branchId: string, field: keyof Address, value: string) => {
     setForm(prev => ({
       ...prev,
-      branches: (prev.branches || []).map(b => 
+      branches: (prev.branches || []).map(b =>
         b.id === branchId ? { ...b, address: { ...(b.address || emptyAddress), [field]: value } } : b
       )
     }))
@@ -518,8 +518,8 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   <Input id="name" placeholder="Tejco Healthcare" value={form.name ?? ""} onChange={(e) => set("name", e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="company">Short Name / Alias</Label>
-                  <Input id="company" placeholder="Tejco" value={form.company ?? ""} onChange={(e) => set("company", e.target.value)} />
+                  <Label htmlFor="company">Doctor Name</Label>
+                  <Input id="company" placeholder="Dr Sanjoy" value={form.company ?? ""} onChange={(e) => set("company", e.target.value)} />
                 </div>
               </div>
 
@@ -636,20 +636,20 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="dateOfBirth">Date of Birth</Label>
-                    <Input 
-                      id="dateOfBirth" 
-                      type="date" 
-                      value={form.dateOfBirth ? form.dateOfBirth.split("T")[0] : ""} 
-                      onChange={(e) => set("dateOfBirth", e.target.value)} 
+                    <Input
+                      id="dateOfBirth"
+                      type="date"
+                      value={form.dateOfBirth ? form.dateOfBirth.split("T")[0] : ""}
+                      onChange={(e) => set("dateOfBirth", e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="instagramUrl">Instagram ID / URL</Label>
-                    <Input 
-                      id="instagramUrl" 
-                      placeholder="e.g. dr.johndoe" 
-                      value={form.instagramUrl ?? ""} 
-                      onChange={(e) => set("instagramUrl", e.target.value)} 
+                    <Input
+                      id="instagramUrl"
+                      placeholder="e.g. dr.johndoe"
+                      value={form.instagramUrl ?? ""}
+                      onChange={(e) => set("instagramUrl", e.target.value)}
                     />
                   </div>
                 </div>
@@ -661,7 +661,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                     <Label className="text-sm font-bold">Does this {form.clientType.toLowerCase()} have multiple branches?</Label>
                     <p className="text-xs text-muted-foreground">Toggle to add and manage different branch locations.</p>
                   </div>
-                  <Button 
+                  <Button
                     variant={form.hasBranches ? "default" : "outline"}
                     size="sm"
                     onClick={() => set("hasBranches", !form.hasBranches)}
@@ -692,15 +692,15 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                     <div className="space-y-6">
                       {(form.branches || []).map((branch) => (
                         <div key={branch.id} className="relative p-5 border rounded-xl bg-slate-50/50 space-y-4 group">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="absolute top-3 right-3 h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => removeBranch(branch.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
-                          
+
                           <div className="space-y-2">
                             <Label className="text-xs font-bold text-slate-700">Branch Name</Label>
                             <Input className="h-9" placeholder="e.g. South Mumbai Hub" value={branch.name} onChange={(e) => updateBranch(branch.id, "name", e.target.value)} />
@@ -736,13 +736,13 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                                 + Add Contact
                               </Button>
                             </div>
-                            
+
                             <div className="space-y-2">
                               {(branch.contacts || []).map(contact => (
                                 <div key={contact.id} className="grid grid-cols-2 gap-2 p-3 bg-white border rounded-lg relative group/contact">
-                                   <Button 
-                                    variant="ghost" 
-                                    size="icon" 
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
                                     className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white border shadow-sm opacity-0 group-contact-hover:opacity-100"
                                     onClick={() => removeBranchContact(branch.id, contact.id)}
                                   >
@@ -772,7 +772,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
             {/* Addresses */}
             <div className="space-y-6">
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Address Management</h3>
-              
+
               {/* Billing Address */}
               <div className="p-4 border rounded-xl bg-slate-50/30 space-y-4">
                 <Label className="text-xs font-bold text-slate-700 flex items-center gap-2">
@@ -806,7 +806,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                   <MapPin className="h-3 w-3" /> Shipping Address
                 </Label>
                 <div className="grid grid-cols-2 gap-3">
-                   <Input className="h-9 col-span-2" placeholder="Street Address 1" value={form.shippingAddress?.street1 || ""} onChange={(e) => setAddress("shipping", "street1", e.target.value)} />
+                  <Input className="h-9 col-span-2" placeholder="Street Address 1" value={form.shippingAddress?.street1 || ""} onChange={(e) => setAddress("shipping", "street1", e.target.value)} />
                   <Input className="h-9 col-span-2" placeholder="Street Address 2 (Optional)" value={form.shippingAddress?.street2 || ""} onChange={(e) => setAddress("shipping", "street2", e.target.value)} />
                   <Input className="h-9" placeholder="City" value={form.shippingAddress?.city || ""} onChange={(e) => setAddress("shipping", "city", e.target.value)} />
                   <Input className="h-9" placeholder="State" value={form.shippingAddress?.state || ""} onChange={(e) => setAddress("shipping", "state", e.target.value)} />
@@ -845,15 +845,15 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 <div className="space-y-4">
                   {(form.contacts || []).map((contact, index) => (
                     <div key={contact.id} className="relative p-4 border rounded-lg bg-muted/20 space-y-3 group">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="absolute top-2 right-2 h-7 w-7 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => removeContact(contact.id)}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
-                      
+
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase text-muted-foreground">Name</Label>
@@ -864,7 +864,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                           <Input className="h-8 text-xs" placeholder="e.g. Purchase Manager" value={contact.designation} onChange={(e) => updateContact(contact.id, "designation", e.target.value)} />
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-[10px] uppercase text-muted-foreground">Email</Label>
