@@ -1241,6 +1241,7 @@ export interface ApiDispatch {
   orderId: number
   orderNumber: string
   clientName: string
+  clientCity?: string
   warehouseName: string
   warehouseCode: string
   shippingAddress: string

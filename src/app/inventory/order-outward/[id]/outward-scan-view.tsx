@@ -265,7 +265,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     // Check item index to register appropriate scan status to server
     const itemIndex = outwardOrder.items.findIndex((item) => item.barcode === barcode)
     const productName = itemIndex === -1 ? "" : outwardOrder.items[itemIndex].productName
-    
+
     // Register scan event on server
     try {
       const scanType = itemIndex === -1 ? "Error" : "Pick"
@@ -333,11 +333,11 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
 
       toast.success(event.message)
       const nextStatus = resolveStatus(currentOrder, nextItems, "success")
-      
+
       // Auto-update status on server if we transition to Completed or Partially Scanned
       orderOutwardApi.updateStatus(
-        currentOrder.id, 
-        nextStatus === "Completed" ? "Picked" : "Picking", 
+        currentOrder.id,
+        nextStatus === "Completed" ? "Picked" : "Picking",
         `Scanned ${barcode}`
       ).catch(err => console.warn("Failed to update status on server:", err))
 
@@ -403,7 +403,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
 
       // Update status to Picked
       await orderOutwardApi.updateStatus(finalId, "Picked", "All items scanned and completed via scan console")
-      
+
       setOutwardOrder((currentOrder) => ({
         ...currentOrder,
         id: String(finalId),
@@ -461,7 +461,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                 </Button>
               }
             />
-            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogContent className="w-full sm:max-w-5xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Create Dispatch Details</DialogTitle>
                 <DialogDescription>

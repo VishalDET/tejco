@@ -129,14 +129,19 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
     const finalUnitPrice = gstRate > 0 ? discountedBase * (1 + gstRate / 100) : discountedBase
     const itemTotal = parseFloat((finalUnitPrice * quantity).toFixed(2))
 
+    const rawProdName = item.productName || item.itemName || item.name || ""
+    const fallbackProdName = rawProdName && rawProdName !== "null" && rawProdName !== "na"
+      ? rawProdName
+      : (item.sku && item.sku !== "na" && item.sku !== "null" ? item.sku : `Product #${item.productId}`)
+
     return {
       id: String(item.orderItemId || item.id || Math.random().toString(36).substring(2, 9)),
       orderItemId: item.orderItemId,
       productId: String(item.productId),
       variantId: item.variantId || 0,
-      productName: item.productName || item.sku || "",
-      name: item.itemName || item.name || item.sku || "",
-      sku: item.sku || item.itemName || item.name || "",
+      productName: fallbackProdName,
+      name: fallbackProdName,
+      sku: item.sku || "",
       quantity,
       unitPrice: price,
       discountPercentage,

@@ -37,6 +37,7 @@ export interface OrderDispatch {
   orderId: string
   orderNumber: string
   clientName: string
+  clientCity?: string
   warehouseName: string
   warehouseCode: string
   shippingAddress: string
@@ -126,6 +127,7 @@ export function mapApiDispatch(rawInput: ApiDispatch | any): OrderDispatch {
     orderId: String(raw.orderId),
     orderNumber: raw.orderNumber || `SO-${raw.orderId}`,
     clientName: raw.clientName || "Unknown Client",
+    clientCity: raw.clientCity || "",
     warehouseName: raw.warehouseName || "Default Warehouse",
     warehouseCode: raw.warehouseCode || "WH",
     shippingAddress: raw.shippingAddress || "",
@@ -179,12 +181,32 @@ export function getDispatchReadiness(dispatch: OrderDispatch) {
   }
 }
 
+export const ALLOWED_STATUS_TRANSITIONS: Record<DispatchStatus, DispatchStatus[]> = {
+  Ready: ["Dispatched", "Exception"],
+  Dispatched: ["In Transit", "Exception"],
+  "In Transit": ["Delivered", "Exception"],
+  Delivered: [],
+  Exception: ["Ready"],
+  Created: ["Dispatched", "Exception"],
+  Packed: ["Dispatched", "Exception"],
+  ReadyForDispatch: ["Dispatched", "Exception"],
+  InTransit: ["Delivered", "Exception"],
+  OutForDelivery: ["Delivered", "Exception"],
+  Returned: ["Ready"],
+  Cancelled: ["Ready"],
+}
+
+export function getAllowedNextStatuses(currentStatus: DispatchStatus): DispatchStatus[] {
+  return ALLOWED_STATUS_TRANSITIONS[currentStatus] || []
+}
+
 export function mapOrderDispatchToApi(ui: OrderDispatch): ApiDispatch {
   return {
     dispatchId: ui.dispatchId || parseInt(ui.id) || 0,
     orderId: parseInt(ui.orderId) || 0,
     orderNumber: ui.orderNumber,
     clientName: ui.clientName,
+    clientCity: ui.clientCity,
     warehouseName: ui.warehouseName,
     warehouseCode: ui.warehouseCode,
     shippingAddress: ui.shippingAddress,

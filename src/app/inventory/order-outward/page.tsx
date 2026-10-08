@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { useNavigate } from "react-router-dom"
 import {
@@ -30,10 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { toast } from "sonner"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { getOutwardProgress, mapApiOutwardOrder, type OutwardOrder, type OutwardStatus } from "./types"
-import { orderOutwardApi, salesOrderApi, warehousesApi, apiClient, productsApi } from "@/lib/api"
+import { getOutwardProgress, mapApiOutwardOrder, mapApiOutwardOrderItem, mapApiOutwardScanEvent, type OutwardOrder, type OutwardOrderItem, type OutwardStatus } from "./types"
+import { orderOutwardApi, salesOrderApi, warehousesApi, productsApi } from "@/lib/api"
 import { mapApiSalesOrder } from "../../sales/orders/types"
 
 const tabFilters: Array<{ label: string; value: "all" | OutwardStatus }> = [
@@ -72,6 +69,70 @@ function getPriorityBadge(priority: OutwardOrder["priority"]) {
   }
 }
 
+function formatDate(dateStr?: string) {
+  if (!dateStr) return "—"
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr).split("T")[0]
+    return d.toLocaleDateString("en-GB")
+  } catch {
+    return "—"
+  }
+}
+
+function createOutwardItems(
+  rawItems: any[],
+  barcodeMap: Map<string, any>,
+  productByIdMap: Map<number, any>,
+  variantByIdMap: Map<number, any>
+): OutwardOrderItem[] {
+  if (!Array.isArray(rawItems)) return []
+  return rawItems.map((item: any, idx: number) => {
+    const pId = Number(item.productId || 0)
+    const vId = Number(item.variantId || 0)
+    const skuLower = String(item.sku || "").toLowerCase().trim()
+    const resolved = barcodeMap.get(skuLower)
+    const resolvedProd = productByIdMap.get(pId)
+    const resolvedVar = variantByIdMap.get(vId) || (resolvedProd?.variants && Array.isArray(resolvedProd.variants) ? resolvedProd.variants[0] : null)
+
+    const rawProdName = String(item.productName || item.name || "").trim()
+    const isValidProdName = rawProdName && rawProdName !== "null" && rawProdName !== "na" && !rawProdName.startsWith("Product #")
+    const finalProdName = isValidProdName
+      ? rawProdName
+      : resolvedVar?.productName || resolvedProd?.name || resolvedProd?.productName || (rawProdName && rawProdName !== "null" && rawProdName !== "na" ? rawProdName : "") || `Product #${pId || idx + 1}`
+
+    const rawVarName = String(item.variantName || "").trim()
+    const isValidVarName = rawVarName && rawVarName !== "null" && rawVarName !== "na"
+    const finalVarName = isValidVarName
+      ? rawVarName
+      : resolvedVar?.variantName || resolvedVar?.name || ""
+
+    const rawSku = String(item.sku || "").trim()
+    const isValidSku = rawSku && rawSku !== "null" && rawSku !== "na"
+    const finalSku = isValidSku
+      ? rawSku
+      : resolvedVar?.sku || (resolvedProd?.baseSKU ? `${resolvedProd.baseSKU}${resolvedVar?.skuSuffix || ""}` : (pId ? `SKU-${pId}` : `SKU-ITEM-${idx + 1}`))
+
+    const rawBarcode = String(item.barcode || "").trim()
+    const isValidBarcode = rawBarcode && rawBarcode !== "null" && rawBarcode !== "na"
+    const finalBarcode = isValidBarcode
+      ? rawBarcode
+      : resolvedVar?.barcode || resolved?.barcode || (isValidSku ? rawSku : (pId ? `BC-${pId}` : `BC-${idx + 1}`))
+
+    return {
+      id: String(item.id || item.orderItemId || `item-${pId}-${idx}`),
+      productId: String(pId),
+      productName: finalProdName,
+      sku: finalSku,
+      barcode: finalBarcode,
+      variantName: finalVarName,
+      orderedQty: Number(item.quantity || item.orderedQty || 1),
+      scannedQty: Number(item.scannedQty || 0),
+      locationCode: item.locationCode || "A-1"
+    }
+  })
+}
+
 function DashboardStat({
   title,
   value,
@@ -101,14 +162,13 @@ function DashboardStat({
 
 export default function OrderOutwardPage() {
   const navigate = useNavigate()
-  const router = useNavigate()
   const [orders, setOrders] = React.useState<OutwardOrder[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [activeTab, setActiveTab] = React.useState<"all" | OutwardStatus>("all")
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [expandedOrders, setExpandedOrders] = React.useState<Record<number, boolean>>({})
+  const [expandedOrders, setExpandedOrders] = React.useState<Record<string | number, boolean>>({})
 
-  const toggleOrderExpand = (orderId: number) => {
+  const toggleOrderExpand = (orderId: string | number) => {
     setExpandedOrders(prev => ({ ...prev, [orderId]: !prev[orderId] }))
   }
 
@@ -117,28 +177,64 @@ export default function OrderOutwardPage() {
     try {
       // Parallel fetch for Sales Orders, Products Catalog, Warehouses, and Outward Orders
       const [resOrders, resProducts, resWarehouses, resOutward] = await Promise.all([
-        salesOrderApi.getAll(),
-        productsApi.getAll(),
-        warehousesApi.getAll(),
+        salesOrderApi.getAll({ Status: "Approved", PageSize: 500 }).catch((e) => {
+          console.error("Failed to fetch approved sales orders:", e)
+          return []
+        }),
+        productsApi.getAll().catch(() => []),
+        warehousesApi.getAll().catch(() => []),
         orderOutwardApi.getAll().catch(() => [])
       ])
 
-      const rawList = Array.isArray(resOrders) ? resOrders : ((resOrders as any)?.data && Array.isArray((resOrders as any).data) ? (resOrders as any).data : [])
-      const mappedOrders = rawList.map(mapApiSalesOrder)
-      // Only show orders which are approved by status (status === "Approved")
-      const approvedOrders = mappedOrders.filter((order: any) => order.status === "Approved")
+      let rawList: any[] = []
+      if (Array.isArray(resOrders)) {
+        rawList = resOrders
+      } else if (resOrders?.data && Array.isArray(resOrders.data)) {
+        rawList = resOrders.data
+      } else if (resOrders?.items && Array.isArray(resOrders.items)) {
+        rawList = resOrders.items
+      }
+
+      // Fallback: If Status=Approved returned empty, fetch general list
+      if (rawList.length === 0) {
+        try {
+          const fallbackRes = await salesOrderApi.getAll({ PageSize: 500 })
+          if (Array.isArray(fallbackRes)) {
+            rawList = fallbackRes
+          } else if (fallbackRes?.data && Array.isArray(fallbackRes.data)) {
+            rawList = fallbackRes.data
+          } else if (fallbackRes?.items && Array.isArray(fallbackRes.items)) {
+            rawList = fallbackRes.items
+          }
+        } catch (e) {
+          console.warn("Fallback sales order fetch failed:", e)
+        }
+      }
+
+      const mappedOrders = rawList.map((order) => mapApiSalesOrder(order))
+      // Every order returned by Status=Approved API call is an approved sales order
+      const approvedOrders = mappedOrders
 
       // Process product catalog to map SKU to Barcode
-      const productCatalog = resProducts?.success && Array.isArray(resProducts.data) ? resProducts.data : []
-      const barcodeMap = new Map<string, { barcode: string; variantName: string }>()
+      const productCatalog = Array.isArray(resProducts) ? resProducts : (Array.isArray((resProducts as any)?.data) ? (resProducts as any).data : [])
+      const productByIdMap = new Map<number, any>()
+      const variantByIdMap = new Map<number, any>()
+      const barcodeMap = new Map<string, { barcode: string; variantName: string; productName: string }>()
       productCatalog.forEach((prod: any) => {
+        const pId = Number(prod.id || prod.productId || 0)
+        if (pId) productByIdMap.set(pId, prod)
+
         if (prod.variants && Array.isArray(prod.variants)) {
           prod.variants.forEach((v: any) => {
+            const vId = Number(v.id || v.variantId || 0)
+            if (vId) variantByIdMap.set(vId, { ...v, productName: prod.name || prod.productName })
+
             const sku = `${prod.baseSKU || ""}${v.skuSuffix || ""}`
             if (sku) {
               barcodeMap.set(sku.toLowerCase(), {
                 barcode: v.barcode || v.sku || sku,
-                variantName: v.variantName || ""
+                variantName: v.variantName || "",
+                productName: prod.name || prod.productName || ""
               })
             }
           })
@@ -146,7 +242,8 @@ export default function OrderOutwardPage() {
       })
 
       // Select first active warehouse or use fallback
-      const defaultWarehouse = resWarehouses.find((w: any) => w.status === "Active") || resWarehouses[0]
+      const rawWarehouses = Array.isArray(resWarehouses) ? resWarehouses : ((resWarehouses as any)?.data || [])
+      const defaultWarehouse = rawWarehouses.find((w: any) => w.status === "Active") || rawWarehouses[0]
       const whName = defaultWarehouse?.name || "Main Warehouse"
       const whCode = defaultWarehouse?.id ? `WH-${defaultWarehouse.id}` : "M-WH"
 
@@ -155,53 +252,62 @@ export default function OrderOutwardPage() {
       const outwardOrders: OutwardOrder[] = []
       const processedOrderIds = new Set<number>()
 
-      // 1. Add all saved outward orders from the DB first
+      // 1. Add all approved Sales Orders first
+      approvedOrders.forEach((order: any) => {
+        const oId = Number(order.orderId || order.id || 0)
+        if (oId) processedOrderIds.add(oId)
+
+        const items = createOutwardItems(order.items, barcodeMap, productByIdMap, variantByIdMap)
+        const existingOutward = rawOutwardList.find((out: any) => Number(out.orderId) === oId)
+
+        let resolvedStatus: OutwardStatus = "Ready"
+        let scanHistory: any[] = []
+        let resolvedItems = items
+
+        if (existingOutward) {
+          try {
+            const mappedOutward = mapApiOutwardOrder(existingOutward)
+            resolvedStatus = mappedOutward.status
+            scanHistory = mappedOutward.scanHistory || []
+            if (mappedOutward.items && mappedOutward.items.length > 0) {
+              resolvedItems = mappedOutward.items
+            }
+          } catch (e) {
+            console.warn("Failed to parse existing outward record:", e)
+          }
+        }
+
+        outwardOrders.push({
+          id: String(order.orderId || order.id),
+          outwardOrderId: existingOutward?.outwardOrderId,
+          orderId: oId,
+          orderNumber: order.orderNumber || `SO-${order.id}`,
+          clientName: order.clientName || "Unknown Client",
+          warehouseName: existingOutward?.warehouseName || whName,
+          warehouseCode: existingOutward?.warehouseCode || whCode,
+          shippingAddress: order.shippingAddress || order.billingAddress || existingOutward?.shippingAddress || "",
+          orderDate: order.date || new Date().toISOString(),
+          promisedDate: order.deliveryDate || order.date || new Date().toISOString(),
+          status: resolvedStatus,
+          priority: "Normal",
+          items: resolvedItems,
+          scanHistory
+        })
+      })
+
+      // 2. Add any standalone outward orders from DB not linked to fetched approved sales orders
       rawOutwardList.forEach((out: any) => {
         try {
-          const mapped = mapApiOutwardOrder(out)
-          outwardOrders.push(mapped)
-          if (mapped.orderId) {
-            processedOrderIds.add(mapped.orderId)
+          const oId = Number(out.orderId || 0)
+          if (!processedOrderIds.has(oId) && out.outwardOrderId) {
+            const mapped = mapApiOutwardOrder(out)
+            if (mapped && mapped.id) {
+              outwardOrders.push(mapped)
+              if (oId) processedOrderIds.add(oId)
+            }
           }
         } catch (e) {
           console.warn("Failed to map outward order:", e)
-        }
-      })
-
-      // 2. Add approved Sales Orders that don't have an outward order record yet
-      approvedOrders.forEach((order: any) => {
-        if (!processedOrderIds.has(order.orderId)) {
-          const items = order.items.map((item: any) => {
-            const skuLower = (item.sku || "").toLowerCase()
-            const resolved = barcodeMap.get(skuLower)
-            return {
-              id: item.id,
-              productId: item.productId,
-              productName: item.productName,
-              sku: item.sku,
-              barcode: resolved?.barcode || item.sku, // Resolved barcode from Product variants
-              variantName: resolved?.variantName || item.name || "",
-              orderedQty: item.quantity,
-              scannedQty: 0,
-              locationCode: "A-1"
-            }
-          })
-
-          outwardOrders.push({
-            id: order.id,
-            orderId: order.orderId,
-            orderNumber: order.orderNumber,
-            clientName: order.clientName,
-            warehouseName: whName,
-            warehouseCode: whCode,
-            shippingAddress: order.shippingAddress,
-            orderDate: order.date,
-            promisedDate: order.deliveryDate || order.date,
-            status: "Ready",
-            priority: "Normal",
-            items,
-            scanHistory: []
-          })
         }
       })
 
@@ -218,17 +324,33 @@ export default function OrderOutwardPage() {
     fetchOrders()
   }, [fetchOrders])
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesTab = activeTab === "all" || order.status === activeTab
-    const query = searchQuery.toLowerCase()
-    const matchesSearch =
-      order.orderNumber.toLowerCase().includes(query) ||
-      order.clientName.toLowerCase().includes(query) ||
-      order.warehouseName.toLowerCase().includes(query) ||
-      order.items.some((item) => item.sku.toLowerCase().includes(query) || item.barcode.includes(query))
+  const filteredOrders = React.useMemo(() => {
+    return orders.filter((order) => {
+      if (!order) return false
+      const matchesTab = activeTab === "all" || order.status === activeTab
+      const query = (searchQuery || "").toLowerCase().trim()
+      if (!query) return matchesTab
 
-    return matchesTab && matchesSearch
-  })
+      const orderNumber = String(order.orderNumber || "").toLowerCase()
+      const clientName = String(order.clientName || "").toLowerCase()
+      const warehouseName = String(order.warehouseName || "").toLowerCase()
+      const itemsMatch = Array.isArray(order.items) && order.items.some((item) => {
+        if (!item) return false
+        const sku = String(item.sku || "").toLowerCase()
+        const barcode = String(item.barcode || "").toLowerCase()
+        const prodName = String(item.productName || "").toLowerCase()
+        return sku.includes(query) || barcode.includes(query) || prodName.includes(query)
+      })
+
+      const matchesSearch =
+        orderNumber.includes(query) ||
+        clientName.includes(query) ||
+        warehouseName.includes(query) ||
+        itemsMatch
+
+      return matchesTab && matchesSearch
+    })
+  }, [orders, activeTab, searchQuery])
 
   const readyCount = orders.filter((order) => order.status === "Ready").length
   const exceptionCount = orders.filter((order) => order.status === "Exception").length
@@ -238,12 +360,16 @@ export default function OrderOutwardPage() {
   const nextReadyOrderId = orders.find((order) => order.status === "Ready" || order.status === "Pending")?.id
 
   // Group orders by orderId
-  const groupedOrdersMap = new Map<number, OutwardOrder[]>()
-  filteredOrders.forEach((order) => {
-    const list = groupedOrdersMap.get(order.orderId || 0) || []
-    list.push(order)
-    groupedOrdersMap.set(order.orderId || 0, list)
-  })
+  const groupedOrdersMap = React.useMemo(() => {
+    const map = new Map<number | string, OutwardOrder[]>()
+    filteredOrders.forEach((order) => {
+      const key = order.orderId || order.id || `order-${Math.random()}`
+      const list = map.get(key) || []
+      list.push(order)
+      map.set(key, list)
+    })
+    return map
+  }, [filteredOrders])
 
   return (
     <div className="flex flex-col gap-6">
@@ -283,19 +409,23 @@ export default function OrderOutwardPage() {
         <DashboardStat title="Exceptions" value={String(exceptionCount)} description="Need warehouse review" icon={AlertCircle} />
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "all" | OutwardStatus)} className="w-full">
+      <div className="w-full">
         <div className="flex flex-col gap-4 border-b pb-4 lg:flex-row lg:items-center lg:justify-between">
-          <TabsList className="h-auto gap-6 bg-transparent p-0">
+          <div className="flex items-center gap-6">
             {tabFilters.map((tab) => (
-              <TabsTrigger
+              <button
                 key={tab.value}
-                value={tab.value}
-                className="rounded-none px-0 py-2 data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                onClick={() => setActiveTab(tab.value)}
+                className={`pb-2 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === tab.value
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
               >
                 {tab.label}
-              </TabsTrigger>
+              </button>
             ))}
-          </TabsList>
+          </div>
           <div className="flex items-center gap-2">
             <div className="relative w-full sm:w-[280px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -312,7 +442,7 @@ export default function OrderOutwardPage() {
           </div>
         </div>
 
-        <TabsContent value={activeTab} className="mt-6">
+        <div className="mt-6">
           <Card>
             <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between py-4">
               <div>
@@ -339,7 +469,16 @@ export default function OrderOutwardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.length === 0 ? (
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                        <div className="flex items-center justify-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                          Loading outward orders...
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredOrders.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                         No outward orders match the current filters.
@@ -361,7 +500,7 @@ export default function OrderOutwardPage() {
                                 {order.orderNumber} <span className="text-xs text-muted-foreground font-normal">(ID: {order.orderId})</span>
                               </div>
                               <div className="text-xs text-muted-foreground">
-                                {new Date(order.orderDate).toLocaleDateString("en-GB")}
+                                {formatDate(order.orderDate)}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -385,7 +524,7 @@ export default function OrderOutwardPage() {
                                 <span className="ml-auto text-sm text-muted-foreground tabular-nums">{progress.percent}%</span>
                               </Progress>
                             </TableCell>
-                            <TableCell>{new Date(order.promisedDate).toLocaleDateString("en-GB")}</TableCell>
+                            <TableCell>{formatDate(order.promisedDate)}</TableCell>
                             <TableCell>{getPriorityBadge(order.priority)}</TableCell>
                             <TableCell>{getStatusBadge(order.status)}</TableCell>
                             <TableCell className="text-right">
@@ -428,14 +567,14 @@ export default function OrderOutwardPage() {
                                     <ChevronRight className="h-4 w-4" />
                                   )}
                                 </Button>
-                                  <div>
-                                    <div className="font-semibold text-primary">
-                                      {representative.orderNumber} <span className="text-xs text-muted-foreground font-normal">(ID: {representative.orderId})</span>
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      {new Date(representative.orderDate).toLocaleDateString("en-GB")}
-                                    </div>
+                                <div>
+                                  <div className="font-semibold text-primary">
+                                    {representative.orderNumber} <span className="text-xs text-muted-foreground font-normal">(ID: {representative.orderId})</span>
                                   </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatDate(representative.orderDate)}
+                                  </div>
+                                </div>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -451,7 +590,7 @@ export default function OrderOutwardPage() {
                                 </Badge>
                               </div>
                             </TableCell>
-                            <TableCell>{new Date(representative.promisedDate).toLocaleDateString("en-GB")}</TableCell>
+                            <TableCell>{formatDate(representative.promisedDate)}</TableCell>
                             <TableCell>{getPriorityBadge(representative.priority)}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className="bg-background">Batch Group</Badge>
@@ -522,8 +661,8 @@ export default function OrderOutwardPage() {
               </Table>
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   )
 }

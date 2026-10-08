@@ -11,6 +11,7 @@ import {
   MapPin,
   Package,
   Printer,
+  RefreshCw,
   Save,
   Truck,
   Weight,
@@ -37,11 +38,14 @@ import {
 import {
   deliveryPartners,
   getDispatchReadiness,
+  getAllowedNextStatuses,
   mapOrderDispatchToApi,
   type DispatchStatus,
   type OrderDispatch,
 } from "../types"
 import { dispatchApi } from "@/lib/api"
+import { PrintLayout, executePrint } from "@/components/common/print"
+import { DEFAULT_TEJCO_COMPANY } from "@/components/common/print/company-config"
 
 interface DispatchDetailsViewProps {
   dispatch: OrderDispatch
@@ -77,6 +81,14 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
   const router = useNavigate()
   const [form, setForm] = React.useState<OrderDispatch>(() => cloneDispatch(dispatch))
   const readiness = getDispatchReadiness(form)
+  const printRef = React.useRef<HTMLDivElement>(null)
+
+  const handlePrint = () => {
+    executePrint(printRef.current, {
+      documentTitle: `Dispatch Slip - ${form.orderNumber}`,
+      pageOrientation: "portrait",
+    })
+  }
 
   function updateField<K extends keyof OrderDispatch>(key: K, value: OrderDispatch[K]) {
     setForm((current) => ({ ...current, [key]: value }))
@@ -94,8 +106,9 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
   }
 
   async function markDispatched() {
-    if (form.status === "Dispatched" || form.status === "In Transit" || form.status === "Delivered") {
-      toast.info("Order is already marked as Dispatched")
+    const allowed = getAllowedNextStatuses(form.status)
+    if (!allowed.includes("Dispatched")) {
+      toast.info(`Cannot mark as Dispatched from current status "${form.status}"`)
       return
     }
 
@@ -139,6 +152,12 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
   }
 
   async function updateStatus(status: DispatchStatus) {
+    const allowed = getAllowedNextStatuses(form.status)
+    if (!allowed.includes(status)) {
+      toast.error(`Transition from "${form.status}" to "${status}" is not allowed.`)
+      return
+    }
+
     try {
       let apiStatus = status as string
       if (status === "In Transit") apiStatus = "InTransit"
@@ -147,16 +166,20 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
       await dispatchApi.updateStatus(form.id, apiStatus, `Shipment status updated to ${status}`)
 
       // 2. Update local state
+      const description =
+        status === "Delivered"
+          ? "Delivery confirmation recorded."
+          : status === "Exception"
+            ? "Delivery exception reported for warehouse follow-up."
+            : status === "Ready"
+              ? "Dispatch returned to Ready status for re-processing."
+              : `Shipment status updated to ${status}.`
+
       const nextTimeline = [
         {
           id: `tl-${Date.now()}`,
           label: status,
-          description:
-            status === "Delivered"
-              ? "Delivery confirmation recorded."
-              : status === "Exception"
-                ? "Delivery exception reported for warehouse follow-up."
-                : `Shipment status updated to ${status}.`,
+          description,
           timestamp: new Date().toISOString(),
           status: status === "Exception" ? "exception" : "current",
         },
@@ -199,7 +222,7 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={() => window.print()}>
+          <Button variant="outline" className="gap-2" onClick={handlePrint}>
             <Printer className="h-4 w-4" />
             Print Slip
           </Button>
@@ -210,7 +233,7 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
           <Button
             className="gap-2"
             onClick={markDispatched}
-            disabled={form.status === "Dispatched" || form.status === "In Transit" || form.status === "Delivered"}
+            disabled={!getAllowedNextStatuses(form.status).includes("Dispatched")}
           >
             <Truck className="h-4 w-4" />
             Mark Dispatched
@@ -448,19 +471,86 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
                 ))}
               </div>
               <Separator className="my-5" />
-              <div className="grid gap-2">
-                <Button variant="outline" className="justify-start gap-2" onClick={() => updateStatus("In Transit")}>
-                  <Truck className="h-4 w-4" />
-                  Mark In Transit
-                </Button>
-                <Button variant="outline" className="justify-start gap-2" onClick={() => updateStatus("Delivered")}>
-                  <CheckCircle2 className="h-4 w-4" />
-                  Mark Delivered
-                </Button>
-                <Button variant="outline" className="justify-start gap-2 text-red-700" onClick={() => updateStatus("Exception")}>
-                  <AlertTriangle className="h-4 w-4" />
-                  Report Exception
-                </Button>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
+                  Allowed Next Actions
+                </div>
+                {getAllowedNextStatuses(form.status).length === 0 ? (
+                  <div className="rounded-md bg-slate-50 border border-slate-200 p-3 text-xs text-muted-foreground text-center">
+                    Order is delivered. No further status transitions allowed.
+                  </div>
+                ) : (
+                  <div className="grid gap-2">
+                    {getAllowedNextStatuses(form.status).map((nextStatus) => {
+                      if (nextStatus === "Dispatched") {
+                        return (
+                          <Button
+                            key={nextStatus}
+                            variant="outline"
+                            className="justify-start gap-2 text-indigo-700 hover:text-indigo-800 hover:bg-indigo-50"
+                            onClick={markDispatched}
+                          >
+                            <Truck className="h-4 w-4" />
+                            Mark Dispatched
+                          </Button>
+                        )
+                      }
+                      if (nextStatus === "In Transit") {
+                        return (
+                          <Button
+                            key={nextStatus}
+                            variant="outline"
+                            className="justify-start gap-2 text-sky-700 hover:text-sky-800 hover:bg-sky-50"
+                            onClick={() => updateStatus("In Transit")}
+                          >
+                            <Truck className="h-4 w-4" />
+                            Mark In Transit
+                          </Button>
+                        )
+                      }
+                      if (nextStatus === "Delivered") {
+                        return (
+                          <Button
+                            key={nextStatus}
+                            variant="outline"
+                            className="justify-start gap-2 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                            onClick={() => updateStatus("Delivered")}
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                            Mark Delivered
+                          </Button>
+                        )
+                      }
+                      if (nextStatus === "Exception") {
+                        return (
+                          <Button
+                            key={nextStatus}
+                            variant="outline"
+                            className="justify-start gap-2 text-red-700 hover:text-red-800 hover:bg-red-50"
+                            onClick={() => updateStatus("Exception")}
+                          >
+                            <AlertTriangle className="h-4 w-4" />
+                            Report Exception
+                          </Button>
+                        )
+                      }
+                      if (nextStatus === "Ready") {
+                        return (
+                          <Button
+                            key={nextStatus}
+                            variant="outline"
+                            className="justify-start gap-2 text-blue-700 hover:text-blue-800 hover:bg-blue-50"
+                            onClick={() => updateStatus("Ready")}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Reset to Ready
+                          </Button>
+                        )
+                      }
+                      return null
+                    })}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -511,122 +601,155 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
         </div>
       </div>
 
-      {/* Print Style Injector */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @media print {
-          body * {
-            visibility: hidden !important;
-          }
-          #dispatch-slip-print, #dispatch-slip-print * {
-            visibility: visible !important;
-          }
-          #dispatch-slip-print {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: block !important;
-            background: white !important;
-            color: black !important;
-          }
-        }
-      ` }} />
+      {/* Hidden printable template wrapped with Tejco PrintLayout */}
+      <div className="hidden">
+        <PrintLayout
+          containerRef={printRef}
+          documentTitle="WAREHOUSE DISPATCH SLIP"
+          documentSubtitle={`ORDER REF: ${form.orderNumber}`}
+          pageOrientation="portrait"
+          footerProps={{
+            documentNumber: form.orderNumber,
+            showBankDetails: false,
+            showComputerGeneratedDisclaimer: true,
+            terms: [
+              "Goods dispatched under this slip must be verified against the corresponding tax invoice/delivery challan.",
+              "The recipient / delivery carrier should examine packages and endorse condition upon receiving.",
+              "Any physical discrepancy, tampering, or shortage should be reported immediately to Tejco Global logistics desk.",
+            ],
+            customSignatures: (
+              <div className="pt-6 border-t border-slate-300 mt-4 text-xs font-sans">
+                <div className="grid grid-cols-3 gap-6 items-end text-center">
+                  <div>
+                    <div className="h-10 border-b border-slate-300 w-36 mx-auto mb-1" />
+                    <span className="text-[11px] text-slate-600 font-medium">Prepared By</span>
+                  </div>
+                  <div>
+                    <div className="h-10 border-b border-slate-300 w-36 mx-auto mb-1" />
+                    <span className="text-[11px] text-slate-600 font-medium">Verified By</span>
+                  </div>
+                  <div>
+                    <div className="h-10 border-b border-slate-300 w-36 mx-auto mb-1" />
+                    <span className="text-[11px] text-slate-700 font-semibold">
+                      Receiver's / Carrier Signature
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ),
+          }}
+        >
+          {/* Metadata Box */}
+          <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+            <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white">
+              {/* Left Column: Shipping Details */}
+              <div className="p-3 space-y-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                  Ship To (Consignee / Client):
+                </div>
+                <div className="font-bold text-sm text-slate-900">{form.clientName}</div>
+                {form.shippingAddress && (
+                  <div className="text-[11px] text-slate-600 whitespace-pre-line leading-relaxed">
+                    {form.shippingAddress}
+                  </div>
+                )}
+                {form.clientCity && (
+                  <div className="text-[11px] text-slate-500">
+                    City/State: <span className="font-medium text-slate-700">{form.clientCity}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-slate-100 text-[11px]">
+                  <span className="text-slate-500">Origin Facility: </span>
+                  <span className="font-semibold text-slate-800">
+                    {form.warehouseName} {form.warehouseCode ? `(${form.warehouseCode})` : ""}
+                  </span>
+                </div>
+              </div>
 
-      {/* Printable Dispatch Slip */}
-      <div id="dispatch-slip-print" className="hidden print:block p-8 font-sans bg-white text-black">
-        <div className="flex justify-between items-start border-b-2 border-black pb-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight uppercase">Tejco Logistics</h1>
-            <p className="text-xs text-gray-500 uppercase mt-0.5 font-semibold">Warehouse Dispatch Slip</p>
+              {/* Right Column: Logistics & Tracking Details */}
+              <div className="p-3 space-y-1.5 bg-slate-50/60">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Order / Slip No:</span>
+                  <span className="font-mono font-bold text-slate-900">{form.orderNumber}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Dispatch Date:</span>
+                  <span className="font-semibold text-slate-900">
+                    {form.dispatchDate ? new Date(form.dispatchDate).toLocaleDateString("en-GB") : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Logistics Partner:</span>
+                  <span className="font-semibold text-slate-900">{form.partnerName || "—"}</span>
+                </div>
+                {form.partnerService && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Service Type:</span>
+                    <span className="text-slate-800">{form.partnerService}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">AWB / Tracking No:</span>
+                  <span className="font-mono font-bold text-slate-900">{form.trackingNumber || "—"}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-600 font-medium">Packages / Gross Wt:</span>
+                  <span className="font-medium text-slate-900">
+                    {form.packageCount} pkg {form.grossWeightKg ? `| ${form.grossWeightKg} kg` : ""}
+                  </span>
+                </div>
+                {(form.vehicleNumber || form.driverName) && (
+                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
+                    <span className="text-slate-600 font-medium">Vehicle / Driver:</span>
+                    <span className="text-slate-800 font-medium">
+                      {[form.vehicleNumber, form.driverName].filter(Boolean).join(" - ")}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="text-right">
-            <div className="font-bold text-lg">{form.orderNumber}</div>
-            <div className="text-xs text-gray-500">Date: {new Date(form.dispatchDate || new Date()).toLocaleDateString("en-GB")}</div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
-          <div>
-            <h3 className="font-bold uppercase text-xs text-gray-500 border-b pb-1 mb-2">Ship To</h3>
-            <p className="font-bold">{form.clientName}</p>
-            <p className="text-xs text-gray-600 mt-1 whitespace-pre-line leading-relaxed">{form.shippingAddress}</p>
-          </div>
-          <div>
-            <h3 className="font-bold uppercase text-xs text-gray-500 border-b pb-1 mb-2">Dispatch Details</h3>
-            <table className="w-full text-xs">
-              <tbody>
-                <tr>
-                  <td className="text-gray-500 py-1">From Warehouse:</td>
-                  <td className="font-medium text-right py-1">{form.warehouseName} ({form.warehouseCode})</td>
+          {/* Remarks Banner if present */}
+          {form.remarks && (
+            <div className="text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-md text-slate-800">
+              <span className="font-bold text-slate-600 uppercase text-[10px] block mb-0.5">Special Instructions / Remarks:</span>
+              <p className="text-slate-700 leading-relaxed">{form.remarks}</p>
+            </div>
+          )}
+
+          {/* Packed Items Table */}
+          <div className="border border-slate-200 rounded-md overflow-hidden">
+            <table className="w-full border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-100/80 text-slate-800 font-semibold border-b border-slate-200">
+                  <th className="py-2 px-2 text-center w-10 border-r border-slate-200">#</th>
+                  <th className="py-2 px-3 text-left border-r border-slate-200">Item Name / Description</th>
+                  <th className="py-2 px-3 text-left border-r border-slate-200">SKU / Code</th>
+                  <th className="py-2 px-3 text-right w-24">Qty Dispatched</th>
                 </tr>
-                <tr>
-                  <td className="text-gray-500 py-1">Shipping Partner:</td>
-                  <td className="font-medium text-right py-1">{form.partnerName || "—"}</td>
-                </tr>
-                <tr>
-                  <td className="text-gray-500 py-1">Service Type:</td>
-                  <td className="font-medium text-right py-1">{form.partnerService || "—"}</td>
-                </tr>
-                <tr>
-                  <td className="text-gray-500 py-1">Tracking ID:</td>
-                  <td className="font-mono text-right py-1 font-bold">{form.trackingNumber || "—"}</td>
-                </tr>
-                <tr>
-                  <td className="text-gray-500 py-1">Package Count:</td>
-                  <td className="font-medium text-right py-1">{form.packageCount} pkg</td>
-                </tr>
-                <tr>
-                  <td className="text-gray-500 py-1">Gross Weight:</td>
-                  <td className="font-medium text-right py-1">{form.grossWeightKg ? `${form.grossWeightKg} kg` : "—"}</td>
-                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {form.items.map((item, idx) => (
+                  <tr key={item.id || idx} className="hover:bg-slate-50/50">
+                    <td className="py-2 px-2 text-center font-medium text-slate-500 border-r border-slate-100">
+                      {idx + 1}
+                    </td>
+                    <td className="py-2 px-3 border-r border-slate-100 font-medium text-slate-900">
+                      {item.productName}
+                    </td>
+                    <td className="py-2 px-3 border-r border-slate-100 font-mono text-slate-600">
+                      {item.sku || "—"}
+                    </td>
+                    <td className="py-2 px-3 text-right font-bold text-slate-900">
+                      {item.quantity}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        </div>
-
-        <h3 className="font-bold uppercase text-xs text-gray-500 border-b pb-1 mb-2">Packed Items</h3>
-        <table className="w-full text-left border-collapse text-xs mb-8">
-          <thead>
-            <tr className="border-b-2 border-gray-300">
-              <th className="py-2 w-12 text-center">S.No</th>
-              <th className="py-2">Item Name / Product</th>
-              <th className="py-2">SKU</th>
-              <th className="py-2 text-right w-24">Quantity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {form.items.map((item, index) => (
-              <tr key={item.id || index} className="border-b border-gray-200">
-                <td className="py-2 text-center">{index + 1}</td>
-                <td className="py-2 font-medium">{item.productName}</td>
-                <td className="py-2 font-mono text-gray-600">{item.sku}</td>
-                <td className="py-2 text-right font-bold">{item.quantity}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {form.remarks && (
-          <div className="mb-8 p-3 bg-gray-100 rounded text-xs border border-gray-200">
-            <span className="font-bold uppercase text-[10px] text-gray-500 block mb-1">Remarks / Special Instructions</span>
-            <p className="text-gray-700">{form.remarks}</p>
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-8 mt-16 text-center text-xs pt-8 border-t border-dashed border-gray-300">
-          <div>
-            <div className="h-12 border-b border-gray-400 mx-auto w-40"></div>
-            <p className="mt-2 text-gray-500 uppercase text-[10px] font-bold">Prepared By</p>
-          </div>
-          <div>
-            <div className="h-12 border-b border-gray-400 mx-auto w-40"></div>
-            <p className="mt-2 text-gray-500 uppercase text-[10px] font-bold">Verified By</p>
-          </div>
-          <div>
-            <div className="h-12 border-b border-gray-400 mx-auto w-40"></div>
-            <p className="mt-2 text-gray-500 uppercase text-[10px] font-bold">Receiver Signature</p>
-          </div>
-        </div>
+        </PrintLayout>
       </div>
     </div>
   )
