@@ -221,6 +221,22 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
 
   const printRef = React.useRef<HTMLDivElement>(null)
 
+  const [isSendingEmail, setIsSendingEmail] = React.useState(false)
+
+  const handleSendEmail = async () => {
+    try {
+      setIsSendingEmail(true)
+      const targetId = quotation.quotationId || quotation.id
+      await quotationsApi.sendEmail(targetId)
+      toast.success(`Email sent successfully for Quotation ${quotation.number || quotation.quotationNumber}`)
+    } catch (err: any) {
+      console.error("Failed to send email:", err)
+      toast.error(err?.message || "Failed to send email.")
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
   const handlePrint = () => {
     executePrint(printRef.current, {
       documentTitle: `Quotation - ${quotation.number || quotation.quotationNumber}`,
@@ -266,6 +282,22 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            className="gap-2 border-slate-200 shadow-sm"
+            onClick={handleSendEmail}
+            disabled={isSendingEmail}
+          >
+            {isSendingEmail ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin text-slate-600" /> Sending Email...
+              </>
+            ) : (
+              <>
+                <Mail className="h-4 w-4 text-slate-600" /> Send Email
+              </>
+            )}
+          </Button>
           <Button variant="outline" className="gap-2" onClick={handlePrint}>
             <Printer className="h-4 w-4" /> Print
           </Button>
@@ -580,8 +612,10 @@ export function QuotationDetailsView({ quotation: initialQuotation }: QuotationD
               <div className="p-3 space-y-1">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Quotation For:</div>
                 <div className="font-bold text-sm text-slate-900">{quotation.clientName}</div>
-                {quotation.doctorSpeciality && (
-                  <div className="text-xs text-slate-600 font-medium">{quotation.doctorSpeciality}</div>
+                {Boolean(quotation.doctorSpeciality) && (
+                  <div className="text-xs text-slate-600 font-medium">
+                    {Array.isArray(quotation.doctorSpeciality) ? quotation.doctorSpeciality.join(", ") : quotation.doctorSpeciality}
+                  </div>
                 )}
                 {quotation.billingAddress && (
                   <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">

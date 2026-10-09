@@ -869,8 +869,10 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
                   Billing Name &amp; Address:
                 </div>
                 <div className="font-bold text-sm text-slate-900">{proforma.clientName}</div>
-                {proforma.doctorSpeciality && (
-                  <div className="text-xs text-slate-600 font-medium">{proforma.doctorSpeciality}</div>
+                {Boolean(proforma.doctorSpeciality) && (
+                  <div className="text-xs text-slate-600 font-medium">
+                    {Array.isArray(proforma.doctorSpeciality) ? proforma.doctorSpeciality.join(", ") : proforma.doctorSpeciality}
+                  </div>
                 )}
                 {proforma.billingAddress && (
                   <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">

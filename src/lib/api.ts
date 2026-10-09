@@ -676,6 +676,9 @@ export const quotationsApi = {
   updateStatus: (id: string | number, newStatus: string, remarks?: string) =>
     apiClient.put<any>(`/api/Quotation/${id}/Status`, { newStatus, remarks: remarks || "" }),
 
+  /** POST /api/Quotation/{id}/SendEmail */
+  sendEmail: (id: string | number) => apiClient.post<any>(`/api/Quotation/${id}/SendEmail`),
+
   /** DELETE /api/Quotation/Delete/{id} */
   remove: (id: string) => apiClient.delete<void>(`/api/Quotation/Delete/${id}`),
 }

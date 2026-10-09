@@ -49,7 +49,7 @@ interface Category {
 }
 
 export default function AddProductPage() {
-  const navigate = useNavigate()
+    const navigate = useNavigate()
     const router = useNavigate()
     const [isLoading, setIsLoading] = React.useState(false)
     const [name, setName] = React.useState("")
@@ -95,6 +95,22 @@ export default function AddProductPage() {
     const [isImportOpen, setIsImportOpen] = React.useState(false)
     const [previewData, setPreviewData] = React.useState<any>(null)
 
+    const calculateSalesPrice = (basePrice: string | number, gst: string | number) => {
+        const bp = parseFloat(String(basePrice))
+        const gstRate = parseFloat(String(gst))
+        if (isNaN(bp) || bp < 0) return ""
+        const rate = isNaN(gstRate) || gstRate < 0 ? 0 : gstRate
+        return (bp * (1 + rate / 100)).toFixed(2)
+    }
+
+    const calculateBasePrice = (salesPrice: string | number, gst: string | number) => {
+        const sp = parseFloat(String(salesPrice))
+        const gstRate = parseFloat(String(gst))
+        if (isNaN(sp) || sp < 0) return ""
+        const rate = isNaN(gstRate) || gstRate < 0 ? 0 : gstRate
+        return (sp / (1 + rate / 100)).toFixed(2)
+    }
+
     const downloadTemplate = () => {
         const headers = [
             "Product Name",
@@ -110,6 +126,7 @@ export default function AddProductPage() {
             "Size",
             "SKU Suffix",
             "Cost Price (INR)",
+            "Base Price (INR)",
             "Sale Price IND (INR)",
             "Sale Price INTL (USD)",
             "GST %",
@@ -134,6 +151,7 @@ export default function AddProductPage() {
             "Standard",
             "-DEF",
             "59289",
+            "125000",
             "147500",
             "0",
             "18",
@@ -175,7 +193,7 @@ export default function AddProductPage() {
         let currentOptions: (Category | Subcategory)[] = categories
 
         for (const part of parts) {
-            const found = currentOptions.find(o => 
+            const found = currentOptions.find(o =>
                 ((o as any).subcategoryName || (o as any).categoryName).toLowerCase() === part.toLowerCase()
             )
             if (found) {
@@ -217,15 +235,26 @@ export default function AddProductPage() {
 
                 // Extract variants from all rows
                 const parsedVariants = rows.map((row: any, index: number) => {
+                    const gstPercentage = String(row["GST %"] || row["GST Percentage"] || row["GST"] || "18")
+                    let basePrice = String(row["Base Price (INR)"] || row["Base Price"] || "")
+                    let salesPrice = String(row["Sale Price IND (INR)"] || row["Sale Price IND"] || row["Sale Price"] || row["Selling Price"] || "")
+
+                    if (basePrice && !salesPrice) {
+                        salesPrice = calculateSalesPrice(basePrice, gstPercentage)
+                    } else if (salesPrice && !basePrice) {
+                        basePrice = calculateBasePrice(salesPrice, gstPercentage)
+                    }
+
                     return {
                         id: index + 1,
                         name: row["Variant Name"] || row["Variant"] || `Variant ${index + 1}`,
                         size: row["Size"] || row["Variant Size"] || "",
                         sku_suffix: row["SKU Suffix"] || row["Suffix"] || "",
                         hsnCode: row["HSN Code"] || row["HSN"] || hsnCode || "",
-                        salesPrice: String(row["Sale Price IND (INR)"] || row["Sale Price IND"] || row["Sale Price"] || row["Selling Price"] || ""),
+                        basePrice: basePrice,
+                        salesPrice: salesPrice,
                         exportSalesPrice: String(row["Sale Price INTL (USD)"] || row["Sale Price INTL"] || row["Export Price"] || row["USD Amount"] || ""),
-                        gstPercentage: String(row["GST %"] || row["GST Percentage"] || row["GST"] || "18"),
+                        gstPercentage: gstPercentage,
                         costPrice: String(row["Cost Price (INR)"] || row["Cost Price"] || ""),
                         stock: String(row["Initial Stock"] || row["Stock Quantity"] || row["Stock"] || row["Quantity"] || row["Qty"] || ""),
                         reservedQuantity: String(row["Reserved Quantity"] || row["Reserved Stock"] || "0"),
@@ -277,6 +306,7 @@ export default function AddProductPage() {
                 size: v.size || "",
                 sku_suffix: v.sku_suffix,
                 hsnCode: v.hsnCode || previewData.product.hsnCode || previewData.product.baseSKU || "",
+                basePrice: v.basePrice || "",
                 salesPrice: v.salesPrice,
                 exportSalesPrice: v.exportSalesPrice,
                 gstPercentage: v.gstPercentage,
@@ -332,10 +362,11 @@ export default function AddProductPage() {
             size: "",
             sku_suffix: "-DEF",
             hsnCode: "",
+            costPrice: "",
+            basePrice: "",
             salesPrice: "",
             exportSalesPrice: "",
             gstPercentage: "18",
-            costPrice: "",
             stock: "",
             reservedQuantity: "0",
             reorderLevel: "5",
@@ -355,13 +386,6 @@ export default function AddProductPage() {
         return `${c}${s}${p}${v}`
     }, [tempProdId])
 
-    const calculateBasePrice = (salesPrice: string, gst: string) => {
-        const price = parseFloat(salesPrice)
-        const gstRate = parseFloat(gst)
-        if (isNaN(price) || isNaN(gstRate)) return "0.00"
-        return (price / (1 + gstRate / 100)).toFixed(2)
-    }
-
     // Effect to auto-generate barcodes when category selection path changes
     React.useEffect(() => {
         setVariants(prev => prev.map((v, i) => ({
@@ -378,10 +402,11 @@ export default function AddProductPage() {
             size: "",
             sku_suffix: "",
             hsnCode: "",
+            costPrice: "",
+            basePrice: "",
             salesPrice: "",
             exportSalesPrice: "",
             gstPercentage: "18",
-            costPrice: "",
             stock: "",
             reservedQuantity: "0",
             reorderLevel: "5",
@@ -419,9 +444,25 @@ export default function AddProductPage() {
 
     const handleVariantChange = (id: number, field: string, value: string) => {
         const finalValue = field === "image" ? (getGoogleDrivePreviewUrl(value) || "") : value
-        setVariants(variants.map(v =>
-            v.id === id ? { ...v, [field]: finalValue } : v
-        ))
+        setVariants(variants.map(v => {
+            if (v.id !== id) return v
+
+            const updated = { ...v, [field]: finalValue }
+
+            if (field === "basePrice") {
+                updated.salesPrice = calculateSalesPrice(finalValue, updated.gstPercentage)
+            } else if (field === "gstPercentage") {
+                if (updated.basePrice) {
+                    updated.salesPrice = calculateSalesPrice(updated.basePrice, finalValue)
+                } else if (updated.salesPrice) {
+                    updated.basePrice = calculateBasePrice(updated.salesPrice, finalValue)
+                }
+            } else if (field === "salesPrice") {
+                updated.basePrice = calculateBasePrice(finalValue, updated.gstPercentage)
+            }
+
+            return updated
+        }))
     }
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -458,6 +499,8 @@ export default function AddProductPage() {
                 hsnCode: v.hsnCode || hsnCode || baseSKU || "",
                 HSNCode: v.hsnCode || hsnCode || baseSKU || "",
                 purchasePrice: parseFloat(v.costPrice) || 0,
+                basePrice: parseFloat(v.basePrice) || 0,
+                BasePrice: parseFloat(v.basePrice) || 0,
                 sellingPrice: parseFloat(v.salesPrice) || 0,
                 initialQuantity: parseInt(v.stock) || 0,
                 currentQuantity: parseInt(v.stock) || 0,
@@ -748,13 +791,14 @@ export default function AddProductPage() {
 
                                         {/* Column 2: Pricing & Breakdown */}
                                         <div className="md:col-span-4 grid gap-4 border-l pl-6">
-                                            <div className="grid grid-cols-2     gap-4">
+                                            <div className="grid grid-cols-2 gap-4">
                                                 <div className="grid gap-2">
                                                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cost Price (₹)</Label>
                                                     <div className="relative">
                                                         <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                                         <Input
                                                             type="number"
+                                                            step="any"
                                                             className="pl-8"
                                                             placeholder="0.00"
                                                             value={v.costPrice}
@@ -764,27 +808,27 @@ export default function AddProductPage() {
                                                     </div>
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold  uppercase tracking-wide text-muted-foreground">Sale Price (IND) (₹)</Label>
+                                                    <Label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Base Price (₹)</Label>
                                                     <div className="relative">
                                                         <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                                         <Input
                                                             type="number"
-                                                            className="pl-8"
+                                                            step="any"
+                                                            className="pl-8 font-medium"
                                                             placeholder="0.00"
-                                                            value={v.salesPrice}
-                                                            onChange={(e) => handleVariantChange(v.id, "salesPrice", e.target.value)}
+                                                            value={v.basePrice ?? ""}
+                                                            onChange={(e) => handleVariantChange(v.id, "basePrice", e.target.value)}
                                                             required
                                                         />
                                                     </div>
                                                 </div>
-
                                             </div>
                                             <div className="grid grid-cols-2 gap-4">
-
                                                 <div className="grid gap-2">
                                                     <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">GST %</Label>
                                                     <Input
                                                         type="number"
+                                                        step="any"
                                                         placeholder="18"
                                                         value={v.gstPercentage}
                                                         onChange={(e) => handleVariantChange(v.id, "gstPercentage", e.target.value)}
@@ -792,9 +836,20 @@ export default function AddProductPage() {
                                                     />
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Base Price</Label>
-                                                    <div className="h-10 flex items-center px-3 rounded-md bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
-                                                        ₹{parseFloat(calculateBasePrice(v.salesPrice, v.gstPercentage)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                                                        <span>Sale Price (₹)</span>
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                        <Input
+                                                            type="number"
+                                                            step="any"
+                                                            className="pl-8 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 font-semibold text-emerald-900 dark:text-emerald-200 cursor-default"
+                                                            placeholder="0.00"
+                                                            value={v.salesPrice}
+                                                            readOnly
+                                                            title="Auto-calculated: Base Price + GST"
+                                                        />
                                                     </div>
                                                 </div>
                                                 <div className="grid gap-2 col-span-2">
@@ -803,6 +858,7 @@ export default function AddProductPage() {
                                                         <span className="absolute left-3 top-2.5 text-sm font-semibold text-muted-foreground">$</span>
                                                         <Input
                                                             type="number"
+                                                            step="any"
                                                             className="pl-8"
                                                             placeholder="0.00"
                                                             value={v.exportSalesPrice}
@@ -812,7 +868,6 @@ export default function AddProductPage() {
                                                     </div>
                                                 </div>
                                             </div>
-
                                         </div>
 
                                         {/* Column 3: Inventory & Warehouse */}
@@ -1022,6 +1077,7 @@ export default function AddProductPage() {
                                                 <th className="p-2 font-semibold text-slate-600">Size</th>
                                                 <th className="p-2 font-semibold text-slate-600">SKU Suffix</th>
                                                 <th className="p-2 font-semibold text-slate-600 text-right">Cost Price</th>
+                                                <th className="p-2 font-semibold text-slate-600 text-right">Base Price</th>
                                                 <th className="p-2 font-semibold text-slate-600 text-right">Sale Price IND</th>
                                                 <th className="p-2 font-semibold text-slate-600 text-right">Sale Price INTL</th>
                                                 <th className="p-2 font-semibold text-slate-600 text-center">GST %</th>
@@ -1036,6 +1092,7 @@ export default function AddProductPage() {
                                                     <td className="p-2 text-slate-600">{v.size || "-"}</td>
                                                     <td className="p-2 text-slate-500 font-mono">{v.sku_suffix || "-"}</td>
                                                     <td className="p-2 text-slate-700 text-right font-mono">₹{v.costPrice || "0"}</td>
+                                                    <td className="p-2 text-slate-700 text-right font-mono">₹{v.basePrice || "0"}</td>
                                                     <td className="p-2 text-slate-700 text-right font-mono">₹{v.salesPrice || "0"}</td>
                                                     <td className="p-2 text-slate-700 text-right font-mono">${v.exportSalesPrice || "0"}</td>
                                                     <td className="p-2 text-slate-500 text-center font-mono">{v.gstPercentage}%</td>

@@ -74,11 +74,20 @@ export default function EditProductPage() {
     // Dynamic state for variants
     const [variants, setVariants] = React.useState<any[]>([])
 
-    const calculateBasePrice = (salesPrice: string, gst: string) => {
-        const price = parseFloat(salesPrice)
-        const gstRate = parseFloat(gst)
-        if (isNaN(price) || isNaN(gstRate)) return "0.00"
-        return (price / (1 + gstRate / 100)).toFixed(2)
+    const calculateSalesPrice = (basePrice: string | number, gst: string | number) => {
+        const bp = parseFloat(String(basePrice))
+        const gstRate = parseFloat(String(gst))
+        if (isNaN(bp) || bp < 0) return ""
+        const rate = isNaN(gstRate) || gstRate < 0 ? 0 : gstRate
+        return (bp * (1 + rate / 100)).toFixed(2)
+    }
+
+    const calculateBasePrice = (salesPrice: string | number, gst: string | number) => {
+        const sp = parseFloat(String(salesPrice))
+        const gstRate = parseFloat(String(gst))
+        if (isNaN(sp) || sp < 0) return ""
+        const rate = isNaN(gstRate) || gstRate < 0 ? 0 : gstRate
+        return (sp / (1 + rate / 100)).toFixed(2)
     }
 
     React.useEffect(() => {
@@ -123,26 +132,41 @@ export default function EditProductPage() {
                     setTaggingNo(p.productTaggingNo || "")
 
                     if (p.variants && p.variants.length > 0) {
-                        setVariants(p.variants.map((v: any) => ({
-                            id: v.variantId,
-                            productId: v.productId,
-                            name: v.variantName,
-                            size: v.size || v.Size || "",
-                            sku_suffix: v.skuSuffix,
-                            purchasePrice: v.purchasePrice?.toString() || "0",
-                            price: v.sellingPrice?.toString() || "0",
-                            exportPrice: v.usdAmount?.toString() || v.sellingPriceOutsideIndia?.toString() || v.exportSellingPrice?.toString() || "0",
-                            initialQuantity: v.initialQuantity?.toString() || "0",
-                            stock: v.currentQuantity?.toString() || "0",
-                            reorderLevel: v.reorderLevel?.toString() || "5",
-                            gstPercentage: v.gstPercentage?.toString() || "18",
-                            warehouseId: v.warehouseId?.toString() || "",
-                            rackLocation: v.rackLocation || "",
-                            barcode: v.barcodeNumber || "",
-                            image: getGoogleDrivePreviewUrl(v.variantImage) || null
-                        })))
+                        setVariants(p.variants.map((v: any) => {
+                            const gst = parseFloat(v.gstPercentage) || 0
+                            const sellingPrice = v.sellingPrice?.toString() || "0"
+                            const spNum = parseFloat(sellingPrice) || 0
+                            let bpStr = ""
+                            if (v.basePrice !== undefined && v.basePrice !== null && v.basePrice !== "") {
+                                bpStr = v.basePrice.toString()
+                            } else if (spNum > 0) {
+                                bpStr = (spNum / (1 + gst / 100)).toFixed(2)
+                            } else {
+                                bpStr = "0"
+                            }
+
+                            return {
+                                id: v.variantId,
+                                productId: v.productId,
+                                name: v.variantName,
+                                size: v.size || v.Size || "",
+                                sku_suffix: v.skuSuffix,
+                                purchasePrice: v.purchasePrice?.toString() || "0",
+                                basePrice: bpStr,
+                                price: sellingPrice,
+                                exportPrice: v.usdAmount?.toString() || v.sellingPriceOutsideIndia?.toString() || v.exportSellingPrice?.toString() || "0",
+                                initialQuantity: v.initialQuantity?.toString() || "0",
+                                stock: v.currentQuantity?.toString() || "0",
+                                reorderLevel: v.reorderLevel?.toString() || "5",
+                                gstPercentage: v.gstPercentage?.toString() || "18",
+                                warehouseId: v.warehouseId?.toString() || "",
+                                rackLocation: v.rackLocation || "",
+                                barcode: v.barcodeNumber || "",
+                                image: getGoogleDrivePreviewUrl(v.variantImage) || null
+                            }
+                        }))
                     } else {
-                        setVariants([{ id: 1, name: "Default", size: "", sku_suffix: "-DEF", purchasePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
+                        setVariants([{ id: 1, name: "Default", size: "", sku_suffix: "-DEF", purchasePrice: "0", basePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
                     }
                 } else {
                     setError(response.message || "Product not found")
@@ -159,7 +183,7 @@ export default function EditProductPage() {
     }, [params.id])
 
     const addVariant = () => {
-        setVariants([...variants, { id: Date.now(), name: "", size: "", sku_suffix: "", purchasePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
+        setVariants([...variants, { id: Date.now(), name: "", size: "", sku_suffix: "", purchasePrice: "0", basePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
     }
 
     const handleImageChange = (id: number, file: File) => {
@@ -188,9 +212,25 @@ export default function EditProductPage() {
 
     const handleVariantChange = (id: number, field: string, value: string) => {
         const finalValue = field === "image" ? (getGoogleDrivePreviewUrl(value) || "") : value
-        setVariants(variants.map(v =>
-            v.id === id ? { ...v, [field]: finalValue } : v
-        ))
+        setVariants(variants.map(v => {
+            if (v.id !== id) return v
+
+            const updated = { ...v, [field]: finalValue }
+
+            if (field === "basePrice") {
+                updated.price = calculateSalesPrice(finalValue, updated.gstPercentage)
+            } else if (field === "gstPercentage") {
+                if (updated.basePrice) {
+                    updated.price = calculateSalesPrice(updated.basePrice, finalValue)
+                } else if (updated.price) {
+                    updated.basePrice = calculateBasePrice(updated.price, finalValue)
+                }
+            } else if (field === "price") {
+                updated.basePrice = calculateBasePrice(finalValue, updated.gstPercentage)
+            }
+
+            return updated
+        }))
     }
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -225,6 +265,8 @@ export default function EditProductPage() {
                 size: v.size || "",
                 Size: v.size || "",
                 purchasePrice: parseFloat(v.purchasePrice) || 0,
+                basePrice: parseFloat(v.basePrice) || 0,
+                BasePrice: parseFloat(v.basePrice) || 0,
                 sellingPrice: parseFloat(v.price) || 0,
                 initialQuantity: parseInt(v.initialQuantity) || 0,
                 currentQuantity: parseInt(v.stock) || 0,
@@ -539,6 +581,7 @@ export default function EditProductPage() {
                                                             <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                                             <Input
                                                                 type="number"
+                                                                step="any"
                                                                 className="pl-8"
                                                                 placeholder="0.00"
                                                                 value={v.purchasePrice}
@@ -548,15 +591,16 @@ export default function EditProductPage() {
                                                         </div>
                                                     </div>
                                                     <div className="grid gap-2">
-                                                        <Label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Sale Price (IND) (₹)</Label>
+                                                        <Label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Base Price (₹)</Label>
                                                         <div className="relative">
                                                             <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                                             <Input
                                                                 type="number"
-                                                                className="pl-8"
+                                                                step="any"
+                                                                className="pl-8 font-medium"
                                                                 placeholder="0.00"
-                                                                value={v.price}
-                                                                onChange={(e) => handleVariantChange(v.id, "price", e.target.value)}
+                                                                value={v.basePrice ?? ""}
+                                                                onChange={(e) => handleVariantChange(v.id, "basePrice", e.target.value)}
                                                                 required
                                                             />
                                                         </div>
@@ -567,6 +611,7 @@ export default function EditProductPage() {
                                                         <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">GST %</Label>
                                                         <Input
                                                             type="number"
+                                                            step="any"
                                                             placeholder="18"
                                                             value={v.gstPercentage}
                                                             onChange={(e) => handleVariantChange(v.id, "gstPercentage", e.target.value)}
@@ -574,9 +619,21 @@ export default function EditProductPage() {
                                                         />
                                                     </div>
                                                     <div className="grid gap-2">
-                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Base Price</Label>
-                                                        <div className="h-10 flex items-center px-3 rounded-md bg-emerald-50 text-emerald-700 font-semibold border border-emerald-100">
-                                                            ₹{parseFloat(calculateBasePrice(v.price, v.gstPercentage)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                                                            <span>Sale Price (IND) (₹)</span>
+                                                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">Base + GST</span>
+                                                        </Label>
+                                                        <div className="relative">
+                                                            <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                            <Input
+                                                                type="number"
+                                                                step="any"
+                                                                className="pl-8 bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 font-semibold text-emerald-900 dark:text-emerald-200 cursor-default"
+                                                                placeholder="0.00"
+                                                                value={v.price}
+                                                                readOnly
+                                                                title="Auto-calculated: Base Price + GST"
+                                                            />
                                                         </div>
                                                     </div>
                                                     <div className="grid gap-2 col-span-2">
@@ -585,6 +642,7 @@ export default function EditProductPage() {
                                                             <span className="absolute left-3 top-2.5 text-sm font-semibold text-muted-foreground">$</span>
                                                             <Input
                                                                 type="number"
+                                                                step="any"
                                                                 className="pl-8"
                                                                 placeholder="0.00"
                                                                 value={v.exportPrice}

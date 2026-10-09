@@ -90,7 +90,9 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
       setForm({
         ...quotation,
         quotationId: quotation.quotationId || (quotation.id && !isNaN(Number(quotation.id)) ? Number(quotation.id) : 0),
-        doctorSpeciality: (quotation as any).doctorSpeciality || "",
+        doctorSpeciality: Array.isArray((quotation as any).doctorSpeciality)
+          ? (quotation as any).doctorSpeciality.join(", ")
+          : ((quotation as any).doctorSpeciality || ""),
         paymentType: (quotation as any).paymentType || "Domestic",
         currencyType: (quotation as any).currencyType || "INR",
         validityDays: quotation.validityDays || 7,
@@ -135,7 +137,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
               shippingAddress: prev.shippingAddress || serializeAddress(match.shippingAddress),
               clientMobileNo: prev.clientMobileNo || match.phone || "",
               gstinNo: prev.gstinNo || match.gstin || "",
-              doctorSpeciality: prev.doctorSpeciality || match.doctorSpeciality || (match as any).speciality || "",
+              doctorSpeciality: prev.doctorSpeciality || (Array.isArray(match.doctorSpeciality) ? match.doctorSpeciality.join(", ") : (match.doctorSpeciality || (match as any).speciality || "")),
             }))
           }
         } catch (err) {
@@ -332,25 +334,28 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
     setIsSaving(true)
 
     try {
-      const quotationIdNum = quotation?.id && !isNaN(parseInt(quotation.id))
-        ? parseInt(quotation.id)
-        : (form.quotationId && !isNaN(Number(form.quotationId)) ? Number(form.quotationId) : 0)
+      const quotationIdNum = quotation?.quotationId && !isNaN(Number(quotation.quotationId))
+        ? Number(quotation.quotationId)
+        : (quotation?.id && !isNaN(parseInt(quotation.id))
+          ? parseInt(quotation.id)
+          : (form.quotationId && !isNaN(Number(form.quotationId)) ? Number(form.quotationId) : 0))
 
       // Map frontend state to exact backend API payload
       const payload = {
         quotationId: quotationIdNum,
-        quotationNumber: form.number || form.quotationNumber || "",
-        quotationDate: new Date(form.date || form.quotationDate || new Date()).toISOString(),
-        clientId: form.clientId && !isNaN(Number(form.clientId)) ? Number(form.clientId) : 0,
+        quotationNumber: form.quotationNumber || form.number || "",
+        quotationDate: form.quotationDate
+          ? new Date(form.quotationDate).toISOString()
+          : (form.date ? new Date(form.date).toISOString() : new Date().toISOString()),
         clientName: form.clientName || "",
-        clientAddress: form.billingAddress || form.clientAddress || "",
+        clientAddress: form.clientAddress || form.billingAddress || form.shippingAddress || "",
         clientMobileNo: form.clientMobileNo || quotation?.clientMobileNo || "",
-        subject: form.subject || form.notes || "Quotation",
+        subject: form.subject || "",
         gstinNo: form.gstinNo || "",
-        validityDays: Number(form.validityDays) || 7,
-        deliveryTime: form.deliveryTime || "10-15 Working Days",
+        validityDays: Number(form.validityDays) || 0,
+        deliveryTime: form.deliveryTime || "",
         salesPersonId: form.salesPersonId && !isNaN(Number(form.salesPersonId)) ? Number(form.salesPersonId) : 0,
-        salesPersonName: form.salesPersonName || "Admin",
+        salesPersonName: form.salesPersonName || "",
         status: form.status || "Draft",
         salesPersonCell: form.salesPersonCell || "",
         createdAt: form.createdAt ? new Date(form.createdAt).toISOString() : new Date().toISOString(),
@@ -358,16 +363,25 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         totalAmount: Number(form.totalAmount) || 0,
         paymentType: form.paymentType || "Domestic",
         currencyType: form.currencyType || (form.paymentType === "Foreign" ? "USD" : "INR"),
-        doctorSpeciality: form.doctorSpeciality || (quotation as any)?.doctorSpeciality || "",
+        doctorSpeciality: (() => {
+          const spec = form.doctorSpeciality || (quotation as any)?.doctorSpeciality
+          if (Array.isArray(spec)) {
+            return spec.map(s => String(s).trim()).filter(Boolean)
+          }
+          if (typeof spec === "string" && spec.trim()) {
+            return spec.split(",").map(s => s.trim()).filter(Boolean)
+          }
+          return []
+        })(),
         items: (form.items || []).map(item => ({
           quotationItemId: (item as any).quotationItemId && !isNaN(Number((item as any).quotationItemId))
             ? Number((item as any).quotationItemId)
             : (!isNaN(parseInt(item.id)) ? parseInt(item.id) : 0),
           quotationId: quotationIdNum,
-          productId: !isNaN(parseInt(item.productId)) ? parseInt(item.productId) : 0,
+          productId: item.productId && !isNaN(parseInt(item.productId)) ? parseInt(item.productId) : 0,
           variantId: (item as any).variantId && !isNaN(Number((item as any).variantId)) ? Number((item as any).variantId) : 0,
           productName: item.productName || "",
-          itemName: item.name || (item as any).itemName || "",
+          itemName: (item as any).itemName || item.name || item.productName || "",
           imageUrl: (item as any).imageUrl || "",
           price: Number(item.unitPrice ?? (item as any).price) || 0,
           gstPercentage: Number(item.gstRate ?? (item as any).gstPercentage) || 0,
@@ -377,8 +391,9 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
         }))
       }
 
-      if (quotation?.id && !isNaN(parseInt(quotation.id))) {
-        await quotationsApi.update(quotation.id, payload)
+      if (quotationIdNum > 0 || (quotation?.id && !isNaN(parseInt(quotation.id)))) {
+        const updateId = quotation?.id || String(quotationIdNum)
+        await quotationsApi.update(updateId, payload)
         toast.success("Quotation updated successfully")
       } else {
         await quotationsApi.create(payload)
@@ -461,7 +476,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                     set("billingAddress", serializeAddress(c.billingAddress))
                     set("shippingAddress", serializeAddress(c.shippingAddress))
                     set("gstinNo", c.gstin)
-                    set("doctorSpeciality", c.doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || "")
+                    set("doctorSpeciality", Array.isArray(c.doctorSpeciality) ? c.doctorSpeciality.join(", ") : (c.doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || ""))
                   }}
                 />
               </div>

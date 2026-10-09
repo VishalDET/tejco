@@ -22,7 +22,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  Filter
+  Filter,
+  Mail
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -209,7 +210,7 @@ export default function QuotationsPage() {
       if (isSalesPerson && currentSalesPersonId) {
         // Fetch all quotations for this specific sales person
         const list = await quotationsApi.getBySalesPerson(currentSalesPersonId)
-        
+
         // Filter in-memory by status, search, and date if applied
         let filtered = list
         if (debouncedSearch) {
@@ -274,6 +275,22 @@ export default function QuotationsPage() {
   React.useEffect(() => {
     fetchQuotations()
   }, [fetchQuotations])
+
+  const [sendingEmailId, setSendingEmailId] = React.useState<string | number | null>(null)
+
+  const handleSendEmail = async (q: Quotation) => {
+    try {
+      setSendingEmailId(q.id)
+      const targetId = q.quotationId || q.id
+      await quotationsApi.sendEmail(targetId)
+      toast.success(`Email sent successfully for Quotation ${q.number || q.quotationNumber}`)
+    } catch (err: any) {
+      console.error("Failed to send email:", err)
+      toast.error(err?.message || "Failed to send email.")
+    } finally {
+      setSendingEmailId(null)
+    }
+  }
 
   const handleCreate = () => {
     setSelectedQuotation(null)
@@ -654,11 +671,10 @@ export default function QuotationsPage() {
                   type="button"
                   size="sm"
                   variant={active ? "default" : "outline"}
-                  className={`h-7 px-2.5 text-[11px] font-medium rounded-full transition-all ${
-                    active
+                  className={`h-7 px-2.5 text-[11px] font-medium rounded-full transition-all ${active
                       ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xs font-semibold"
                       : "text-muted-foreground hover:text-foreground bg-background"
-                  }`}
+                    }`}
                   onClick={() => {
                     setStatusFilter(id)
                     setPageNumber(1)
@@ -770,10 +786,10 @@ export default function QuotationsPage() {
                       <TableCell className="py-3 px-4 text-xs text-muted-foreground whitespace-nowrap font-medium">
                         {q.date
                           ? new Date(q.date).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric"
-                            })
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric"
+                          })
                           : "—"}
                       </TableCell>
 
@@ -871,17 +887,25 @@ export default function QuotationsPage() {
                                   </DropdownMenuItem>
                                 )}
                               <DropdownMenuItem
-                                onClick={() => navigate(`/sales/quotations/${q.id}`)}
                                 className="gap-2 cursor-pointer text-xs"
+                                onClick={() => handleSendEmail(q)}
+                                disabled={sendingEmailId === q.id}
                               >
-                                <FileDown className="h-3.5 w-3.5 text-muted-foreground" /> Export as PDF
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                {sendingEmailId === q.id ? "Sending Email..." : "Send Email"}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => navigate(`/sales/quotations/${q.id}`)}
                                 className="gap-2 cursor-pointer text-xs"
                               >
-                                <Printer className="h-3.5 w-3.5 text-muted-foreground" /> Print Document
+                                <FileDown className="h-3.5 w-3.5 text-muted-foreground" /> Export as PDF
                               </DropdownMenuItem>
+                              {/* <DropdownMenuItem
+                                onClick={() => navigate(`/sales/quotations/${q.id}`)}
+                                className="gap-2 cursor-pointer text-xs"
+                              >
+                                <Printer className="h-3.5 w-3.5 text-muted-foreground" /> Print Document
+                              </DropdownMenuItem> */}
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
                                 Update Status
@@ -1001,11 +1025,10 @@ export default function QuotationsPage() {
                         variant={isSelected ? "default" : "outline"}
                         size="sm"
                         disabled={isLoading}
-                        className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${
-                          isSelected
+                        className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${isSelected
                             ? "bg-indigo-600 text-white shadow-2xs font-semibold hover:bg-indigo-700"
                             : "hover:bg-muted"
-                        }`}
+                          }`}
                         onClick={() => setPageNumber(pageNum)}
                       >
                         {pageNum}

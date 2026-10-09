@@ -522,19 +522,18 @@ function ProductVariantsExpandedRow({
             ) : (
                 /* Variations Tabular View */
                 <div className="rounded-xl border bg-card/95 shadow-2xs overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader className="bg-muted/40">
-                                <TableRow className="hover:bg-transparent">
-                                    <TableHead className="w-[60px] text-center text-xs font-semibold">Image</TableHead>
-                                    <TableHead className="min-w-[220px] text-xs font-semibold">Variation</TableHead>
-                                    <TableHead className="min-w-[100px] text-xs font-semibold">Size</TableHead>
-                                    <TableHead className="min-w-[160px] text-xs font-semibold">Stock</TableHead>
-                                    <TableHead className="min-w-[150px] text-xs font-semibold">Restock Level</TableHead>
-                                    <TableHead className="min-w-[180px] text-xs font-semibold">Racks</TableHead>
-                                    <TableHead className="text-right w-[100px] text-xs font-semibold">Action</TableHead>
-                                </TableRow>
-                            </TableHeader>
+                    <Table containerClassName="max-h-[380px] overflow-auto border-0 rounded-none shadow-none scrollbar-thin">
+                        <TableHeader className="sticky top-0 z-20 bg-muted/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xs border-b border-border/80 [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-muted/95 dark:[&_th]:bg-slate-900/95 [&_th]:backdrop-blur-md">
+                            <TableRow className="hover:bg-transparent">
+                                <TableHead className="w-[60px] text-center text-xs font-semibold">Image</TableHead>
+                                <TableHead className="min-w-[220px] text-xs font-semibold">Variation</TableHead>
+                                <TableHead className="min-w-[100px] text-xs font-semibold">Size</TableHead>
+                                <TableHead className="min-w-[160px] text-xs font-semibold">Stock</TableHead>
+                                <TableHead className="min-w-[150px] text-xs font-semibold">Restock Level</TableHead>
+                                <TableHead className="min-w-[180px] text-xs font-semibold">Racks</TableHead>
+                                <TableHead className="text-right w-[100px] text-xs font-semibold">Action</TableHead>
+                            </TableRow>
+                        </TableHeader>
                             <TableBody>
                                 {variants.map((v, index) => {
                                     const fullSku = `${product.sku || ""}${v.skuSuffix || ""}`
@@ -642,7 +641,7 @@ function ProductVariantsExpandedRow({
                                                         <span className="font-semibold text-sm text-foreground">
                                                             {reorder} <span className="text-xs font-normal text-muted-foreground">units</span>
                                                         </span>
-                                                        {qty <= reorder && (
+                                                        {/* {qty <= reorder && (
                                                             <Badge
                                                                 variant="outline"
                                                                 className={`text-[10px] px-1.5 py-0 h-4.5 font-semibold ${qty <= 0
@@ -650,9 +649,9 @@ function ProductVariantsExpandedRow({
                                                                     : "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300"
                                                                     }`}
                                                             >
-                                                                {qty <= 0 ? "Depleted" : "Low Stock Alert"}
+                                                                {qty <= 0 ? "" : ""}
                                                             </Badge>
-                                                        )}
+                                                        )} */}
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -702,7 +701,6 @@ function ProductVariantsExpandedRow({
                                 })}
                             </TableBody>
                         </Table>
-                    </div>
                 </div>
             )}
 
@@ -1746,7 +1744,7 @@ export default function ProductListPage() {
                             </div>
                         )}
                     </div>
-                    <div className="rounded-xl border overflow-hidden">
+                    <div className="rounded-xl border overflow-hidden shadow-xs">
                         {error ? (
                             <div className="flex flex-col items-center justify-center p-8 text-center bg-destructive/5 border border-destructive/20 border-dashed">
                                 <AlertCircle className="h-10 w-10 text-destructive mb-3" />
@@ -1757,10 +1755,10 @@ export default function ProductListPage() {
                                 </Button>
                             </div>
                         ) : (
-                            <Table>
-                                <TableHeader className="bg-muted/40">
+                            <Table containerClassName="max-h-[calc(100vh-280px)] min-h-[380px] overflow-auto border-0 rounded-none shadow-none scrollbar-thin">
+                                <TableHeader className="sticky top-0 z-20 bg-muted/95 dark:bg-slate-900/95 backdrop-blur-md shadow-2xs border-b border-border/80 [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-muted/95 dark:[&_th]:bg-slate-900/95 [&_th]:backdrop-blur-md">
                                     {table.getHeaderGroups().map((headerGroup) => (
-                                        <TableRow key={headerGroup.id}>
+                                        <TableRow key={headerGroup.id} className="hover:bg-transparent">
                                             {headerGroup.headers.map((header) => {
                                                 return (
                                                     <TableHead key={header.id}>

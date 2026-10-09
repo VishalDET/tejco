@@ -35,7 +35,7 @@ export interface ApiProforma {
   subject?: string
   gstinNo?: string
   clientGSTIN?: string
-  doctorSpeciality?: string
+  doctorSpeciality?: string[] | string
   validityDays?: number
   deliveryTime?: string
   deliveryTerms?: string
@@ -66,6 +66,9 @@ export interface ProformaInvoiceItem extends SalesDocumentItem {
 export interface ProformaInvoice extends Omit<SalesDocument, 'items'> {
   proformaId: number
   proformaNumber: string
+  piNo?: string
+  piDate?: string
+  billingName?: string
   subject: string
   clientMobileNo: string
   validityDays: number
@@ -79,7 +82,10 @@ export interface ProformaInvoice extends Omit<SalesDocument, 'items'> {
   clientGSTIN?: string
   doctorSpeciality?: string
   sourceQuotationId?: string
+  linkedQuotationId?: number
   freight?: number
+  createdAt?: string
+  updatedAt?: string | null
   items: ProformaInvoiceItem[]
 }
 
@@ -197,11 +203,19 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     salesPersonId: raw.salesPersonId ? String(raw.salesPersonId) : "",
     gstinNo: raw.clientGSTIN || raw.gstinNo || "",
     clientGSTIN: raw.clientGSTIN || raw.gstinNo || "",
-    doctorSpeciality: (raw as any).doctorSpeciality || "",
+    doctorSpeciality: Array.isArray((raw as any).doctorSpeciality)
+      ? (raw as any).doctorSpeciality.join(", ")
+      : ((raw as any).doctorSpeciality || ""),
     sourceQuotationId: raw.sourceQuotationId
       || (raw.linkedQuotationId ? String(raw.linkedQuotationId) : undefined),
     freight: raw.freight ?? 0,
     paymentType: raw.paymentType || "Domestic",
     currencyType: raw.currencyType || "INR",
+    piNo: numberValue,
+    piDate: dateValue,
+    billingName: clientNameValue,
+    linkedQuotationId: raw.linkedQuotationId,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
   }
 }

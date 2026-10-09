@@ -35,7 +35,7 @@ export interface ApiQuotation {
   totalAmount?: number
   paymentType?: string
   currencyType?: string
-  doctorSpeciality?: string
+  doctorSpeciality?: string[] | string
   items: ApiQuotationItem[]
 }
 
@@ -151,6 +151,8 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     gstinNo: raw.gstinNo,
     paymentType: (raw as any).paymentType || "Domestic",
     currencyType: (raw as any).currencyType || "INR",
-    doctorSpeciality: (raw as any).doctorSpeciality || "",
+    doctorSpeciality: Array.isArray((raw as any).doctorSpeciality)
+      ? (raw as any).doctorSpeciality.join(", ")
+      : ((raw as any).doctorSpeciality || ""),
   }
 }

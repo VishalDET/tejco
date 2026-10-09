@@ -91,7 +91,9 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         date: proforma.date ? proforma.date.split("T")[0] : new Date().toISOString().split("T")[0],
         paymentType: (proforma as any).paymentType || "Domestic",
         currencyType: (proforma as any).currencyType || "INR",
-        doctorSpeciality: (proforma as any).doctorSpeciality || "",
+        doctorSpeciality: Array.isArray((proforma as any).doctorSpeciality)
+          ? (proforma as any).doctorSpeciality.join(", ")
+          : ((proforma as any).doctorSpeciality || ""),
         clientGSTIN: (proforma as any).clientGSTIN || proforma.gstinNo || "",
       })
     } else {
@@ -132,6 +134,8 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
               clientId: match.id,
               billingAddress: prev.billingAddress || serializeAddress(match.billingAddress),
               shippingAddress: prev.shippingAddress || serializeAddress(match.shippingAddress),
+              clientGSTIN: prev.clientGSTIN || match.gstin || "",
+              doctorSpeciality: prev.doctorSpeciality || (Array.isArray(match.doctorSpeciality) ? match.doctorSpeciality.join(", ") : (match.doctorSpeciality || (match as any).speciality || "")),
             }))
           }
         } catch (err) {
@@ -324,51 +328,68 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
     setIsSaving(true)
 
     try {
-      const existingId = proforma?.proformaId && !isNaN(proforma.proformaId) ? proforma.proformaId : 0
+      const existingId = (proforma?.proformaId && !isNaN(Number(proforma.proformaId)))
+        ? Number(proforma.proformaId)
+        : (proforma?.id && !isNaN(Number(proforma.id)) ? Number(proforma.id) : 0)
 
       const payload = {
         proformaInvoiceId: existingId,
-        piNo: form.number || form.proformaNumber || "",
-        piDate: form.date ? (form.date.includes("T") ? form.date : new Date(form.date).toISOString()) : new Date().toISOString(),
+        piNo: form.piNo || form.proformaNumber || form.number || "",
+        piDate: form.piDate
+          ? (form.piDate.includes("T") ? form.piDate : new Date(form.piDate).toISOString())
+          : (form.date ? (form.date.includes("T") ? form.date : new Date(form.date).toISOString()) : new Date().toISOString()),
         clientId: form.clientId && !isNaN(Number(form.clientId)) ? Number(form.clientId) : 0,
-        billingName: form.clientName || "",
+        billingName: form.billingName || form.clientName || "",
         billingAddress: form.billingAddress || "",
-        freight: form.freight || 0,
-        totalAmount: form.totalAmount || 0,
-        deliveryTerms: form.deliveryTerms || form.deliveryTime || "10-15 Working Days",
-        paymentTerms: form.paymentTerms || form.notes || "",
+        freight: Number(form.freight) || 0,
+        totalAmount: Number(form.totalAmount) || 0,
+        deliveryTerms: form.deliveryTerms || form.deliveryTime || "",
+        paymentTerms: form.paymentTerms || form.notes || form.subject || "",
         paymentType: form.paymentType || "Domestic",
-        currencyType: form.currencyType || "INR",
+        currencyType: form.currencyType || (form.paymentType === "Foreign" ? "USD" : "INR"),
         salesPersonId: form.salesPersonId && !isNaN(Number(form.salesPersonId)) ? Number(form.salesPersonId) : 0,
         salesPersonName: form.salesPersonName || "",
         salesPersonCell: form.salesPersonCell || "",
         status: form.status || "Draft",
-        linkedQuotationId: form.sourceQuotationId && !isNaN(Number(form.sourceQuotationId))
-          ? Number(form.sourceQuotationId)
-          : 0,
-        createdAt: proforma?.date && proforma.date.includes("T") ? proforma.date : new Date().toISOString(),
+        linkedQuotationId: form.linkedQuotationId && !isNaN(Number(form.linkedQuotationId))
+          ? Number(form.linkedQuotationId)
+          : (form.sourceQuotationId && !isNaN(Number(form.sourceQuotationId)) ? Number(form.sourceQuotationId) : 0),
+        createdAt: form.createdAt
+          ? (form.createdAt.includes("T") ? form.createdAt : new Date(form.createdAt).toISOString())
+          : (proforma?.date ? (proforma.date.includes("T") ? proforma.date : new Date(proforma.date).toISOString()) : new Date().toISOString()),
         updatedAt: new Date().toISOString(),
-        doctorSpeciality: form.doctorSpeciality || (proforma as any)?.doctorSpeciality || "",
+        doctorSpeciality: (() => {
+          const spec = form.doctorSpeciality || (proforma as any)?.doctorSpeciality
+          if (Array.isArray(spec)) {
+            return spec.map(s => String(s).trim()).filter(Boolean)
+          }
+          if (typeof spec === "string" && spec.trim()) {
+            return spec.split(",").map(s => s.trim()).filter(Boolean)
+          }
+          return []
+        })(),
         clientGSTIN: form.clientGSTIN || form.gstinNo || (proforma as any)?.clientGSTIN || (proforma as any)?.gstinNo || "",
         items: (form.items || []).map(item => {
-          const unitPrice = item.unitPrice || 0
-          const discPct = (item as any).discountPercentage || 0
-          const discAmt = (item as any).discountAmount !== undefined ? (item as any).discountAmount : (unitPrice * discPct / 100)
-          const qty = item.quantity || 0
-          const total = (unitPrice - discAmt) * qty
+          const unitPrice = Number(item.unitPrice ?? (item as any).rate ?? 0)
+          const qty = Number(item.quantity || 0)
+          const discPct = Number((item as any).discountPercentage || 0)
+          const discAmt = Number((item as any).discountAmount !== undefined ? (item as any).discountAmount : (unitPrice * discPct / 100))
+          const itemTotal = Number(item.total !== undefined ? item.total : (unitPrice - discAmt) * qty)
 
           return {
-            proformaInvoiceItemId: isNaN(Number(item.id)) ? 0 : Number(item.id),
+            proformaInvoiceItemId: (item as any).proformaInvoiceItemId && !isNaN(Number((item as any).proformaInvoiceItemId))
+              ? Number((item as any).proformaInvoiceItemId)
+              : (!isNaN(Number(item.id)) ? Number(item.id) : 0),
             proformaInvoiceId: existingId,
-            productId: isNaN(Number(item.productId)) ? 0 : Number(item.productId),
+            productId: item.productId && !isNaN(Number(item.productId)) ? Number(item.productId) : 0,
             variantId: (item as any).variantId && !isNaN(Number((item as any).variantId)) ? Number((item as any).variantId) : 0,
             productName: item.productName || item.name || "",
-            imageUrl: (item as any).imageUrl || "",
+            imageUrl: (item as any).imageUrl || (item as any).image || "",
             quantity: qty,
             rate: unitPrice,
             discountPercentage: discPct,
             discountAmount: discAmt,
-            total: total,
+            total: itemTotal,
           }
         }),
       }
@@ -435,7 +456,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                     set("shippingAddress", serializeAddress(c.shippingAddress))
                     set("gstinNo", c.gstin || "")
                     set("clientGSTIN", c.gstin || "")
-                    set("doctorSpeciality", (c as any).doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || "")
+                    set("doctorSpeciality", Array.isArray((c as any).doctorSpeciality) ? (c as any).doctorSpeciality.join(", ") : ((c as any).doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || ""))
                   }}
                 />
                 {form.clientName && <p className="text-xs text-muted-foreground truncate">Selected: <strong>{form.clientName}</strong></p>}
