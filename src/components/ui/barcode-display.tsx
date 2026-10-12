@@ -1,38 +1,33 @@
-
 import * as React from "react"
 import { Printer, Download, Copy, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import { encodeCode128B, generateCode128SvgMarkup } from "@/lib/barcode-utils"
 
 interface BarcodeDisplayProps {
     value: string
     label?: string
+    showControls?: boolean
+    height?: number
+    className?: string
 }
 
 /**
- * A simple Code 128 (Subset B) SVG Barcode Generator
- * Note: For production use, a library like react-barcode is recommended.
- * This is a lightweight implementation for demonstration.
+ * ISO/IEC 15417 Code 128 SVG Barcode Component
+ * Real scanner-readable barcode renderer with copy, SVG download, and instant print.
  */
-export function BarcodeDisplay({ value, label }: BarcodeDisplayProps) {
+export function BarcodeDisplay({
+    value,
+    label,
+    showControls = true,
+    height = 55,
+    className = ""
+}: BarcodeDisplayProps) {
     const [copied, setCopied] = React.useState(false)
 
-    // A very simplified barcode-like visual if no real encoding is provided
-    // In a real app, we'd use a proper encoding algorithm.
-    // For now, let's create a "barcode" look based on the string.
-    const generateBarcodePattern = (str: string) => {
-        const pattern = []
-        // Simple hash-based pattern for visual representation
-        for (let i = 0; i < str.length; i++) {
-            const charCode = str.charCodeAt(i)
-            pattern.push((charCode % 4) + 1) // Bar widths 1, 2, 3, or 4
-            pattern.push(1) // Space width 1
-        }
-        return pattern
-    }
-
-    const pattern = generateBarcodePattern(value || "000000000000")
-    const totalWidth = pattern.reduce((a, b) => a + b, 0) * 2
+    const encoded = React.useMemo(() => {
+        return encodeCode128B(value || "00000000")
+    }, [value])
 
     const handleCopy = () => {
         navigator.clipboard.writeText(value)
@@ -41,30 +36,76 @@ export function BarcodeDisplay({ value, label }: BarcodeDisplayProps) {
         setTimeout(() => setCopied(false), 2000)
     }
 
+    const handleDownloadSvg = () => {
+        const svgContent = generateCode128SvgMarkup(value, { height: 60, showText: true })
+        const blob = new Blob([svgContent], { type: "image/svg+xml" })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `barcode-${value}.svg`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success("Barcode SVG downloaded")
+    }
+
     const handlePrint = () => {
-        const printWindow = window.open('', '_blank')
+        const printWindow = window.open("", "_blank")
         if (printWindow) {
             printWindow.document.write(`
+                <!DOCTYPE html>
                 <html>
                     <head>
                         <title>Print Barcode - ${value}</title>
                         <style>
-                            body { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
-                            .barcode-container { border: 1px solid #eee; padding: 40px; text-align: center; }
-                            svg { width: 300px; height: 120px; }
-                            .label { margin-top: 10px; font-size: 18px; font-weight: bold; letter-spacing: 2px; }
-                            .product-name { margin-bottom: 20px; font-size: 20px; }
+                            @page {
+                                size: 50mm 25mm;
+                                margin: 0;
+                            }
+                            body {
+                                margin: 0;
+                                padding: 2mm;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                justify-content: center;
+                                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                                -webkit-print-color-adjust: exact;
+                                print-color-adjust: exact;
+                            }
+                            .label-box {
+                                width: 46mm;
+                                text-align: center;
+                            }
+                            .product-title {
+                                font-size: 8pt;
+                                font-weight: 700;
+                                white-space: nowrap;
+                                overflow: hidden;
+                                text-overflow: ellipsis;
+                                margin-bottom: 1.5mm;
+                            }
+                            svg {
+                                width: 100%;
+                                height: 12mm;
+                            }
+                            .code-text {
+                                font-family: monospace;
+                                font-size: 8pt;
+                                font-weight: 600;
+                                letter-spacing: 1px;
+                                margin-top: 1mm;
+                            }
                         </style>
                     </head>
                     <body>
-                        <div class="barcode-container">
-                            ${label ? `<div class="product-name">${label}</div>` : ''}
-                            <svg viewBox="0 0 ${totalWidth} 60" preserveAspectRatio="none">
-                                ${pattern.map((width, i) => (
-                i % 2 === 0 ? `<rect x="${pattern.slice(0, i).reduce((a, b) => a + b, 0) * 2}" y="0" width="${width * 2}" height="60" fill="black" />` : ''
-            )).join('')}
+                        <div class="label-box">
+                            ${label ? `<div class="product-title">${label}</div>` : ""}
+                            <svg viewBox="0 0 ${encoded.totalWidth} 50" preserveAspectRatio="none">
+                                ${encoded.bars.map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="50" fill="#000" />`).join("")}
                             </svg>
-                            <div class="label">${value}</div>
+                            <div class="code-text">${encoded.text}</div>
                         </div>
                         <script>
                             window.onload = () => { window.print(); window.close(); }
@@ -77,35 +118,47 @@ export function BarcodeDisplay({ value, label }: BarcodeDisplayProps) {
     }
 
     return (
-        <div className="flex flex-col items-center p-6 border rounded-xl bg-white shadow-sm border-dashed">
-            <div className="w-full max-w-[300px] h-[100px] bg-white flex items-center justify-center overflow-hidden">
-                <svg viewBox={`0 0 ${totalWidth} 60`} className="w-full h-full" preserveAspectRatio="none">
-                    {pattern.map((width, i) => {
-                        const x = pattern.slice(0, i).reduce((a, b) => a + b, 0) * 2
-                        return i % 2 === 0 ? (
-                            <rect key={i} x={x} y="0" width={width * 2} height="60" fill="black" />
-                        ) : null
-                    })}
+        <div className={`flex flex-col items-center p-5 border rounded-xl bg-white dark:bg-slate-900 shadow-xs border-dashed ${className}`}>
+            <div className="w-full max-w-[320px] bg-white p-2 rounded-lg flex items-center justify-center overflow-hidden">
+                <svg
+                    viewBox={`0 0 ${encoded.totalWidth} 50`}
+                    className="w-full"
+                    style={{ height: `${height}px` }}
+                    preserveAspectRatio="none"
+                >
+                    {encoded.bars.map((bar, i) => (
+                        <rect key={i} x={bar.x} y="0" width={bar.width} height="50" fill="black" />
+                    ))}
                 </svg>
             </div>
-            <div className="mt-4 text-center">
-                <p className="text-xl font-mono tracking-[0.3em] font-bold text-gray-800">{value || "---"}</p>
-                {label && <p className="text-sm text-muted-foreground mt-1">{label}</p>}
+
+            <div className="mt-3 text-center">
+                <p className="text-base font-mono tracking-[0.2em] font-bold text-slate-900 dark:text-slate-100">
+                    {encoded.text}
+                </p>
+                {label && (
+                    <p className="text-xs text-muted-foreground mt-0.5 max-w-[280px] truncate" title={label}>
+                        {label}
+                    </p>
+                )}
             </div>
-            <div className="flex gap-2 mt-6">
-                <Button variant="outline" size="sm" onClick={handleCopy} className="gap-2">
-                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {copied ? "Copied" : "Copy"}
-                </Button>
-                <Button variant="outline" size="sm" className="gap-2">
-                    <Download className="h-4 w-4" />
-                    SVG
-                </Button>
-                <Button onClick={handlePrint} size="sm" className="gap-2 bg-primary hover:bg-primary/90">
-                    <Printer className="h-4 w-4" />
-                    Print
-                </Button>
-            </div>
+
+            {showControls && (
+                <div className="flex gap-2 mt-5">
+                    <Button variant="outline" size="sm" onClick={handleCopy} className="gap-1.5 h-8 text-xs">
+                        {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                        {copied ? "Copied" : "Copy"}
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={handleDownloadSvg} className="gap-1.5 h-8 text-xs">
+                        <Download className="h-3.5 w-3.5" />
+                        SVG
+                    </Button>
+                    <Button onClick={handlePrint} size="sm" className="gap-1.5 h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white">
+                        <Printer className="h-3.5 w-3.5" />
+                        Print Label
+                    </Button>
+                </div>
+            )}
         </div>
     )
 }
