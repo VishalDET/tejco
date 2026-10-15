@@ -63,6 +63,7 @@ const data: { navMain: NavItem[] } = {
             items: [
                 { title: "Products", url: "/inventory/products", permission: ["Products.View", "Products.MaskedView", "Products.FullView"] },
                 { title: "Stock Inward", url: "/inventory/stock-inward", permission: ["StockInward.View", "Inventory.StockInward", "Inventory.View"] },
+                { title: "Physical Units & Barcodes", url: "/inventory/units", permission: ["Inventory.View", "Products.View"] },
                 { title: "Stock Transfer", url: "/inventory/stock-transfer", permission: ["Inventory.Transfer", "Inventory.View", "Warehouses.View"] },
                 { title: "Order Outward", url: "/inventory/order-outward", permission: ["OrderOutward.View", "Inventory.Dispatch", "Inventory.View"] },
                 { title: "Dispatch Orders", url: "/inventory/dispatch", permission: ["Dispatch.View", "Inventory.Dispatch", "Inventory.View"] },

@@ -626,6 +626,11 @@ export function PurchaseOrderPrintDocument({
                             Specification / Variant: <strong>{item.variantName}</strong>
                           </div>
                         )}
+                        {item.lotNumber && (
+                          <div style={{ fontSize: "9.5px", color: "#b45309", marginTop: "2px", fontFamily: "monospace" }}>
+                            Pre-allocated Lot/Batch: <strong>{item.lotNumber}</strong>
+                          </div>
+                        )}
                       </td>
                       <td
                         style={{

@@ -15,6 +15,7 @@ import {
   ScanBarcode,
   Truck,
   Warehouse,
+  X,
   XCircle,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -199,7 +200,8 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
           dispatchId: 0,
           productName: item.productName,
           sku: item.sku,
-          quantity: item.scannedQty
+          quantity: item.scannedQty,
+          scannedBarcodes: item.scannedBarcodes || []
         })),
         timeline: [
           {
@@ -258,12 +260,63 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     return "Scanning"
   }
 
+  function handleRemoveScannedBarcode(itemId: string, barcodeToRemove: string) {
+    setOutwardOrder((currentOrder) => {
+      const nextItems = currentOrder.items.map((item) => {
+        if (item.id !== itemId) return item
+        const updatedBarcodes = (item.scannedBarcodes || []).filter((b) => b !== barcodeToRemove)
+        return {
+          ...item,
+          scannedQty: Math.max(item.scannedQty - 1, 0),
+          scannedBarcodes: updatedBarcodes,
+        }
+      })
+
+      const event = addScanEvent({
+        barcode: barcodeToRemove,
+        message: `Removed barcode ${barcodeToRemove} from picked items`,
+        type: "warning",
+      })
+      toast.info(event.message)
+
+      const nextStatus = resolveStatus(currentOrder, nextItems, "warning")
+      return {
+        ...currentOrder,
+        status: nextStatus,
+        items: nextItems,
+        scanHistory: [event, ...currentOrder.scanHistory],
+      }
+    })
+  }
+
   async function handleScan(rawBarcode?: string) {
     const barcode = (rawBarcode ?? barcodeValue).trim()
     if (!barcode) return
 
-    // Check item index to register appropriate scan status to server
-    const itemIndex = outwardOrder.items.findIndex((item) => item.barcode === barcode)
+    // Prevent duplicate scan of the exact physical unit in this order
+    const isDuplicateUnit = outwardOrder.items.some((it) =>
+      (it.scannedBarcodes || []).includes(barcode)
+    )
+    if (isDuplicateUnit) {
+      const event = addScanEvent({
+        barcode,
+        message: `Unit barcode ${barcode} has already been scanned in this order!`,
+        type: "warning",
+      })
+      toast.warning(event.message)
+      setBarcodeValue("")
+      return
+    }
+
+    // Match by exact barcode, SKU, or serialized unit code prefix
+    const cleanBarcode = barcode.toUpperCase()
+    const itemIndex = outwardOrder.items.findIndex(
+      (item) =>
+        item.barcode === barcode ||
+        item.sku === barcode ||
+        cleanBarcode.startsWith(item.sku.toUpperCase()) ||
+        cleanBarcode.includes(item.sku.toUpperCase())
+    )
     const productName = itemIndex === -1 ? "" : outwardOrder.items[itemIndex].productName
 
     // Register scan event on server
@@ -273,7 +326,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
         scanId: 0,
         outwardOrderId: outwardOrder.outwardOrderId || parseInt(outwardOrder.id) || 0,
         barcode,
-        message: itemIndex === -1 ? "Barcode not found in this order" : "Product scanned successfully",
+        message: itemIndex === -1 ? "Barcode not found in this order" : "Product unit verified",
         scanType,
         productName,
         scannedAt: new Date().toISOString()
@@ -283,7 +336,13 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     }
 
     setOutwardOrder((currentOrder) => {
-      const idx = currentOrder.items.findIndex((item) => item.barcode === barcode)
+      const idx = currentOrder.items.findIndex(
+        (item) =>
+          item.barcode === barcode ||
+          item.sku === barcode ||
+          cleanBarcode.startsWith(item.sku.toUpperCase()) ||
+          cleanBarcode.includes(item.sku.toUpperCase())
+      )
 
       if (idx === -1) {
         const event = addScanEvent({
@@ -316,7 +375,11 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
 
       const nextItems = currentOrder.items.map((currentItem, index) =>
         index === idx
-          ? { ...currentItem, scannedQty: currentItem.scannedQty + 1 }
+          ? {
+              ...currentItem,
+              scannedQty: currentItem.scannedQty + 1,
+              scannedBarcodes: [...(currentItem.scannedBarcodes || []), barcode]
+            }
           : currentItem
       )
 
@@ -801,6 +864,27 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                         <TableCell>
                           <div className="font-medium">{item.productName}</div>
                           <div className="text-xs text-muted-foreground">{item.variantName}</div>
+                          {item.scannedBarcodes && item.scannedBarcodes.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              {item.scannedBarcodes.map((bc, bIdx) => (
+                                <span
+                                  key={bIdx}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-500/10 text-emerald-700 border border-emerald-500/30"
+                                >
+                                  <Check className="h-2.5 w-2.5" />
+                                  {bc}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveScannedBarcode(item.id, bc)}
+                                    className="hover:text-destructive ml-0.5 cursor-pointer"
+                                    title="Remove this scanned unit"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="text-sm font-medium">{item.sku}</div>

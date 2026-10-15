@@ -24,6 +24,7 @@ import {
   Warehouse as WarehouseIcon,
   Eye,
   ChevronDown,
+  Tag,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -351,6 +352,18 @@ export default function PurchaseOrderDetailsPage() {
             <span>Update Status</span>
           </Button>
 
+          {/* Direct CTA: Receive Stock into Warehouse */}
+          {["Approved", "Ordered", "Partially Received", "Delivered"].includes(order.orderStatus || "") && (
+            <Button
+              size="sm"
+              onClick={() => navigate(`/inventory/stock-inward/add?poId=${order.purchaseOrderId}`)}
+              className="h-9 gap-1.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-medium cursor-pointer"
+            >
+              <WarehouseIcon className="h-4 w-4" />
+              <span>Receive Stock (Inward)</span>
+            </Button>
+          )}
+
           <Link to={`/purchase/${order.purchaseOrderId}/edit`}>
             <Button
               size="sm"
@@ -433,6 +446,7 @@ export default function PurchaseOrderDetailsPage() {
                   <TableRow>
                     <TableHead className="text-xs font-semibold">Product / Description</TableHead>
                     <TableHead className="text-xs font-semibold">SKU</TableHead>
+                    <TableHead className="text-xs font-semibold">Pre-allocated Lot #</TableHead>
                     <TableHead className="text-right text-xs font-semibold">Quantity</TableHead>
                     <TableHead className="text-right text-xs font-semibold">Unit Price</TableHead>
                     <TableHead className="text-right text-xs font-semibold">Discount</TableHead>
@@ -455,6 +469,16 @@ export default function PurchaseOrderDetailsPage() {
                         </TableCell>
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {item.sku || "—"}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {item.lotNumber ? (
+                            <Badge variant="outline" className="font-mono text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300">
+                              <Tag className="mr-1 h-3 w-3 inline" />
+                              {item.lotNumber}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-[11px]">—</span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-medium text-xs">
                           {item.quantity}
@@ -479,7 +503,7 @@ export default function PurchaseOrderDetailsPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-xs py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center text-xs py-8 text-muted-foreground">
                         No line items recorded for this purchase order.
                       </TableCell>
                     </TableRow>

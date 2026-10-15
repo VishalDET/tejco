@@ -14,7 +14,11 @@ import {
   AlertCircle,
   Barcode,
   Save,
-  RotateCcw
+  RotateCcw,
+  Printer,
+  FileText,
+  ShieldCheck,
+  Tag
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -23,6 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Loader } from "@/components/ui/loader"
 import { toast } from "sonner"
+import { InwardBarcodePrintModal } from "@/components/inventory/inward-barcode-print-modal"
 
 export default function StockInwardDetailsPage() {
   const navigate = useNavigate()
@@ -33,6 +38,7 @@ export default function StockInwardDetailsPage() {
   const [barcodeInput, setBarcodeInput] = useState("")
   const [scanning, setScanning] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
+  const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false)
 
   const fetchOrderDetails = async () => {
     if (!id) return
@@ -64,7 +70,7 @@ export default function StockInwardDetailsPage() {
         scannedQuantity: 1
       }
       await stockInwardApi.scan(id, scanEvent)
-      toast.success(`Scanned barcode: ${barcodeInput}`)
+      toast.success(`Scanned & verified: ${barcodeInput}`)
       setBarcodeInput("")
       fetchOrderDetails()
     } catch (err: any) {
@@ -109,9 +115,11 @@ export default function StockInwardDetailsPage() {
   }
 
   const allItemsVerified = order.items?.every(item => (item.receivedQty ?? item.receivedQuantity ?? 0) >= (item.expectedQty ?? item.expectedQuantity ?? 0))
+  const totalExpected = order.items?.reduce((acc, i) => acc + (i.expectedQty ?? i.expectedQuantity ?? 0), 0) || 0
+  const totalReceived = order.items?.reduce((acc, i) => acc + (i.receivedQty ?? i.receivedQuantity ?? 0), 0) || 0
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-12">
+    <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-12 font-mono">
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -124,6 +132,11 @@ export default function StockInwardDetailsPage() {
                 Inward Order: {order.orderNumber || order.inwardNumber}
               </h1>
               <Badge variant="outline" className="font-mono">{order.status}</Badge>
+              {order.poNumber && (
+                <Badge className="font-mono text-[10px] bg-primary/10 text-primary border-primary/30">
+                  PO: {order.poNumber}
+                </Badge>
+              )}
             </div>
             <p className="text-xs text-muted-foreground font-mono">
               Inward Date: {order.orderDate || order.inwardDate ? new Date(order.orderDate || order.inwardDate || "").toLocaleDateString("en-IN") : "-"}
@@ -132,6 +145,17 @@ export default function StockInwardDetailsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Print Barcodes Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsBarcodeModalOpen(true)}
+            className="font-mono text-xs border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+          >
+            <Printer className="mr-1.5 h-3.5 w-3.5" />
+            Print Inward Barcodes
+          </Button>
+
           {order.status !== "Received" && (
             <Button
               size="sm"
@@ -143,6 +167,7 @@ export default function StockInwardDetailsPage() {
               Mark as Received & Add Stock
             </Button>
           )}
+
           <Button
             variant="outline"
             size="sm"
@@ -158,34 +183,45 @@ export default function StockInwardDetailsPage() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="shadow-xs border border-border">
           <CardHeader className="pb-1 pt-3 px-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Vendor Partner</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1.5">
+              <Building className="h-3.5 w-3.5 text-primary" />
+              Vendor Partner
+            </span>
           </CardHeader>
           <CardContent className="pb-3 px-4">
             <p className="text-sm font-bold font-mono text-foreground">{order.vendorName || `Vendor #${order.vendorId}`}</p>
-            <p className="text-[11px] text-muted-foreground font-mono">Ref PO: {order.referenceNumber || "N/A"}</p>
+            <p className="text-[11px] text-muted-foreground font-mono">
+              Ref PO: {order.poNumber || order.referenceNumber || "Direct Receipt"}
+            </p>
           </CardContent>
         </Card>
 
         <Card className="shadow-xs border border-border">
           <CardHeader className="pb-1 pt-3 px-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Destination Warehouse</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1.5">
+              <Warehouse className="h-3.5 w-3.5 text-primary" />
+              Destination Warehouse
+            </span>
           </CardHeader>
           <CardContent className="pb-3 px-4">
             <p className="text-sm font-bold font-mono text-foreground">{order.warehouseName || `Warehouse #${order.warehouseId}`}</p>
-            <p className="text-[11px] text-muted-foreground font-mono">Status: {order.status}</p>
+            <p className="text-[11px] text-muted-foreground font-mono">Code: {order.warehouseCode || `WH-${order.warehouseId}`}</p>
           </CardContent>
         </Card>
 
         <Card className="shadow-xs border border-border">
           <CardHeader className="pb-1 pt-3 px-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono">Verification Progress</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+              Verification Progress
+            </span>
           </CardHeader>
           <CardContent className="pb-3 px-4">
             <p className="text-sm font-bold font-mono text-foreground">
-              {order.items?.reduce((acc, i) => acc + (i.receivedQty ?? i.receivedQuantity ?? 0), 0)} / {order.items?.reduce((acc, i) => acc + (i.expectedQty ?? i.expectedQuantity ?? 0), 0)} Units Verified
+              {totalReceived} / {totalExpected} Units Received
             </p>
-            <p className="text-[11px] text-emerald-600 font-mono">
-              {allItemsVerified ? "All items fully verified" : "Pending barcode scans"}
+            <p className={`text-[11px] font-mono ${allItemsVerified ? "text-emerald-600 font-semibold" : "text-amber-600"}`}>
+              {allItemsVerified ? "All items fully verified" : `${Math.max(totalExpected - totalReceived, 0)} units pending verification`}
             </p>
           </CardContent>
         </Card>
@@ -199,7 +235,7 @@ export default function StockInwardDetailsPage() {
             Live Barcode & Serial Verification Console
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground font-mono">
-            Scan hardware serials or package barcodes to auto-increment received quantities.
+            Scan package barcodes or serial labels to auto-increment received quantities.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4 px-4">
@@ -218,13 +254,27 @@ export default function StockInwardDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* Items Verification Table */}
+      {/* Items & Variants Verification Table */}
       <Card className="shadow-xs border border-border">
-        <CardHeader className="pb-3 pt-4 px-4 border-b border-border">
-          <CardTitle className="text-sm font-bold font-mono text-foreground flex items-center gap-2">
-            <Package className="h-4 w-4 text-primary" />
-            Inbound Line Items & Quantities
-          </CardTitle>
+        <CardHeader className="pb-3 pt-4 px-4 border-b border-border flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm font-bold font-mono text-foreground flex items-center gap-2">
+              <Package className="h-4 w-4 text-primary" />
+              Inbound Line Items, Variants & QC Inspection
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground font-mono">
+              Review received items, variant specifications (size/bevel), lots, and verification statuses.
+            </CardDescription>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsBarcodeModalOpen(true)}
+            className="text-xs font-mono cursor-pointer"
+          >
+            <Printer className="mr-1.5 h-3.5 w-3.5" />
+            Print Stickers
+          </Button>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -232,10 +282,13 @@ export default function StockInwardDetailsPage() {
               <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase text-[10px]">
                 <tr>
                   <th className="py-2.5 px-4">Product / SKU</th>
-                  <th className="py-2.5 px-4">Expected Qty</th>
-                  <th className="py-2.5 px-4">Received Qty</th>
-                  <th className="py-2.5 px-4">Unit Price</th>
-                  <th className="py-2.5 px-4 text-right">Verification Status</th>
+                  <th className="py-2.5 px-4">Variant Spec</th>
+                  <th className="py-2.5 px-4">Lot / Batch</th>
+                  <th className="py-2.5 px-4 text-center">Expected</th>
+                  <th className="py-2.5 px-4 text-center">Received</th>
+                  <th className="py-2.5 px-4">Rack Location</th>
+                  <th className="py-2.5 px-4 text-right">Unit Price</th>
+                  <th className="py-2.5 px-4 text-right">QC Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -246,17 +299,36 @@ export default function StockInwardDetailsPage() {
                   return (
                     <tr key={idx} className="hover:bg-muted/30 transition-colors">
                       <td className="py-3 px-4 font-semibold text-foreground">
-                        {item.productName || `Product #${item.productId}`}
+                        <div>{item.productName || `Product #${item.productId}`}</div>
+                        <div className="text-[10px] text-muted-foreground">{item.sku || "-"}</div>
                       </td>
-                      <td className="py-3 px-4 font-bold">{expQty}</td>
-                      <td className="py-3 px-4 font-bold text-primary">{recQty}</td>
-                      <td className="py-3 px-4">₹{(item.unitPrice || 0).toLocaleString()}</td>
+                      <td className="py-3 px-4">
+                        {item.variantName ? (
+                          <Badge variant="outline" className="text-primary font-mono text-[10px]">
+                            {item.variantName}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {item.lotNumber || `LOT-${order.orderNumber?.slice(-5) || "01"}`}
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold">{expQty}</td>
+                      <td className="py-3 px-4 text-center font-bold text-primary">{recQty}</td>
+                      <td className="py-3 px-4 text-muted-foreground">
+                        {item.warehouseName && (
+                          <div className="text-[10px] text-primary font-semibold">{item.warehouseName}</div>
+                        )}
+                        <span>{item.locationCode || "RACK-A1"}</span>
+                      </td>
+                      <td className="py-3 px-4 text-right">₹{(item.unitPrice || 0).toLocaleString()}</td>
                       <td className="py-3 px-4 text-right">
                         {isComplete ? (
                           <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">Verified</Badge>
                         ) : (
                           <Badge variant="outline" className="text-amber-600 border-amber-500/30">
-                            {expQty - recQty} Units Pending
+                            {expQty - recQty} Pending
                           </Badge>
                         )}
                       </td>
@@ -268,6 +340,13 @@ export default function StockInwardDetailsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Inward Barcode Print Modal */}
+      <InwardBarcodePrintModal
+        open={isBarcodeModalOpen}
+        onOpenChange={setIsBarcodeModalOpen}
+        order={order}
+      />
     </div>
   )
 }

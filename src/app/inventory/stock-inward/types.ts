@@ -5,15 +5,29 @@ export interface InwardOrderItem {
   variantId?: number
   productName?: string
   variantName?: string
+  size?: string
+  bevel?: string
   sku?: string
   barcode?: string
   expectedQty: number
   receivedQty: number
+  acceptedQty?: number
+  rejectedQty?: number
+  rejectionReason?: string
+  lotId?: number
+  lotNumber?: string
+  lotBarcode?: string
+  expiryDate?: string
   locationCode?: string
+  warehouseId?: number
+  warehouseName?: string
+  unitPrice?: number
+  unitCost?: number
+  purchasePrice?: number
+  generatedBarcodes?: string[]
   // UI fallback props
   expectedQuantity?: number
   receivedQuantity?: number
-  unitPrice?: number
 }
 
 export interface ScanHistoryItem {
@@ -31,6 +45,9 @@ export interface InwardOrder {
   id?: number
   orderNumber?: string
   inwardNumber?: string
+  poId?: number
+  poNumber?: string
+  purchaseOrderId?: number
   vendorId: number
   vendorName?: string
   warehouseId: number
@@ -59,7 +76,9 @@ export interface InwardScanEvent {
 }
 
 export interface StatusUpdateDto {
-  id: number
-  status: string
+  id?: number
+  status?: string
+  newStatus: string
   comments?: string
+  remarks?: string
 }

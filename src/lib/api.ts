@@ -1314,9 +1314,19 @@ import type { InwardOrder, InwardScanEvent, StatusUpdateDto } from "@/app/invent
 export const stockInwardApi = {
   getAll: () => apiClient.get<InwardOrder[]>("/api/StockInward/GetAll"),
   getById: (id: number | string) => apiClient.get<InwardOrder>(`/api/StockInward/GetById/${id}`),
+  fromPurchaseOrder: (purchaseOrderId: number | string) =>
+    apiClient.get<any>(`/api/StockInward/FromPurchaseOrder/${purchaseOrderId}`),
   create: (data: Partial<InwardOrder>) => apiClient.post<InwardOrder>("/api/StockInward/Create", data),
   update: (id: number | string, data: Partial<InwardOrder>) => apiClient.put<InwardOrder>(`/api/StockInward/Update/${id}`, data),
-  updateStatus: (id: number | string, dto: StatusUpdateDto) => apiClient.put<void>(`/api/StockInward/${id}/Status`, dto),
+  updateStatus: (id: number | string, dto: StatusUpdateDto | { newStatus: string; status?: string; comments?: string; remarks?: string }) => {
+    const payload = {
+      newStatus: (dto as any).newStatus || (dto as any).status || "Completed",
+      status: (dto as any).newStatus || (dto as any).status || "Completed",
+      comments: dto.comments || (dto as any).remarks || "",
+      remarks: dto.comments || (dto as any).remarks || "",
+    }
+    return apiClient.put<void>(`/api/StockInward/${id}/Status`, payload)
+  },
   scan: (id: number | string, event: InwardScanEvent) => apiClient.post<void>(`/api/StockInward/${id}/Scan`, event),
   remove: (id: number | string) => apiClient.delete<void>(`/api/StockInward/Delete/${id}`),
 }
@@ -1629,6 +1639,147 @@ export const stockTransfersApi = {
   /** PATCH /api/Inventory/StockTransfers/{id}/status */
   updateStatus: async (id: number | string, status: string) => {
     return apiClient.patch<any>(`/api/Inventory/StockTransfers/${id}/status`, { status })
+  },
+}
+
+// ---------------------------------------------------------------------------
+// Inventory Lots & Batches  →  /api/Inventory/Lots
+// ---------------------------------------------------------------------------
+
+export interface ProductLot {
+  lotId: number
+  lotNumber: string
+  productId: number
+  productName: string
+  variantId: number
+  variantName: string
+  skuSuffix?: string
+  warehouseId: number
+  warehouseName: string
+  rackLocation: string
+  initialQuantity: number
+  currentQuantity: number
+  reservedQuantity: number
+  availableQuantity: number
+  inwardDate: string
+  purchasePrice?: number
+  lotBarcode: string
+  inwardOrderId?: number
+  inwardOrderItemId?: number
+  status: "Pending" | "Active" | "Depleted" | "Expired" | string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface LotsQueryParams {
+  pageNumber?: number
+  pageSize?: number
+  warehouseId?: number | string
+  productId?: number | string
+  variantId?: number | string
+  status?: string
+  searchTerm?: string
+}
+
+export interface InventoryApiResponse<T> {
+  statusCode: number
+  success: boolean
+  message: string
+  data: T
+  totalCount?: number | null
+  error?: string | null
+}
+
+export const inventoryLotsApi = {
+  /** GET /api/Inventory/Lots */
+  getAll: (params?: LotsQueryParams) => {
+    const query = new URLSearchParams()
+    if (params?.pageNumber) query.append("pageNumber", String(params.pageNumber))
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize))
+    if (params?.warehouseId && String(params.warehouseId) !== "all") query.append("warehouseId", String(params.warehouseId))
+    if (params?.productId) query.append("productId", String(params.productId))
+    if (params?.variantId) query.append("variantId", String(params.variantId))
+    if (params?.status && params.status !== "all") query.append("status", params.status)
+    if (params?.searchTerm?.trim()) query.append("searchTerm", params.searchTerm.trim())
+    const qStr = query.toString() ? `?${query.toString()}` : ""
+    return apiClient.get<InventoryApiResponse<ProductLot[]>>(`/api/Inventory/Lots${qStr}`)
+  },
+
+  /** GET /api/Inventory/Lots/{lotId} */
+  getById: (lotId: number | string) =>
+    apiClient.get<InventoryApiResponse<ProductLot>>(`/api/Inventory/Lots/${lotId}`),
+
+  /** GET /api/Inventory/Lots/ByVariant/{variantId} */
+  getByVariant: (variantId: number | string) =>
+    apiClient.get<InventoryApiResponse<ProductLot[]>>(`/api/Inventory/Lots/ByVariant/${variantId}`),
+
+  /** GET /api/Inventory/Lots/ByInwardOrder/{inwardOrderId} */
+  getByInwardOrder: (inwardOrderId: number | string) =>
+    apiClient.get<InventoryApiResponse<ProductLot[]>>(`/api/Inventory/Lots/ByInwardOrder/${inwardOrderId}`),
+
+  /** GET /api/Inventory/Lots/ByPurchaseOrder/{poId} */
+  getByPurchaseOrder: (poId: number | string) =>
+    apiClient.get<InventoryApiResponse<ProductLot[]>>(`/api/Inventory/Lots/ByPurchaseOrder/${poId}`),
+}
+
+// ---------------------------------------------------------------------------
+// Stock Movement Ledger Logs  →  /api/Inventory/StockLogs
+// ---------------------------------------------------------------------------
+
+export interface StockLog {
+  logId: number
+  transactionDate: string
+  transactionType: "INWARD" | "DISPATCH" | "TRANSFER_OUT" | "TRANSFER_IN" | "ADJUSTMENT" | "RETURN" | "OPENING_BALANCE" | string
+  productId: number
+  productName: string
+  variantId: number
+  variantName: string
+  skuSuffix?: string
+  lotId?: number
+  lotNumber?: string
+  warehouseId: number
+  warehouseName: string
+  quantityIn: number
+  quantityOut: number
+  quantityChange: number
+  balanceQuantity: number
+  referenceType: string
+  referenceId?: number
+  referenceNumber: string
+  unitPrice?: number
+  remarks?: string
+  createdBy?: number
+  createdByName?: string
+  createdAt?: string
+}
+
+export interface StockLogsQueryParams {
+  pageNumber?: number
+  pageSize?: number
+  warehouseId?: number | string
+  productId?: number | string
+  variantId?: number | string
+  lotId?: number | string
+  transactionType?: string
+  startDate?: string
+  endDate?: string
+}
+
+export const inventoryStockLogsApi = {
+  /** GET /api/Inventory/StockLogs */
+  getAll: (params?: StockLogsQueryParams) => {
+    const query = new URLSearchParams()
+    if (params?.pageNumber) query.append("pageNumber", String(params.pageNumber))
+    if (params?.pageSize) query.append("pageSize", String(params.pageSize))
+    if (params?.warehouseId && String(params.warehouseId) !== "all") query.append("warehouseId", String(params.warehouseId))
+    if (params?.productId) query.append("productId", String(params.productId))
+    if (params?.variantId) query.append("variantId", String(params.variantId))
+    if (params?.lotId) query.append("lotId", String(params.lotId))
+    if (params?.transactionType && params.transactionType !== "all") query.append("transactionType", params.transactionType)
+    if (params?.startDate) query.append("startDate", params.startDate)
+    if (params?.endDate) query.append("endDate", params.endDate)
+    const qStr = query.toString() ? `?${query.toString()}` : ""
+    return apiClient.get<InventoryApiResponse<StockLog[]>>(`/api/Inventory/StockLogs${qStr}`)
   },
 }
 

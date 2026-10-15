@@ -25,6 +25,8 @@ export interface OutwardOrderItem {
   barcode: string
   orderedQty: number
   scannedQty: number
+  availableQty?: number
+  scannedBarcodes?: string[]
   locationCode: string
 }
 

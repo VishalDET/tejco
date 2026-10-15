@@ -26,6 +26,9 @@ export interface PurchaseOrderItem {
   discountPercentage: number
   discountAmount: number
   totalPrice: number
+  lotId?: number
+  lotNumber?: string
+  lotBarcode?: string
 }
 
 export interface PurchaseOrder {

@@ -36,6 +36,7 @@ import StockTransferDetailsPage from "@/app/inventory/stock-transfer/[id]/page"
 import StockInwardPage from "@/app/inventory/stock-inward/page"
 import StockInwardFormPage from "@/app/inventory/stock-inward/add/page"
 import StockInwardDetailsPage from "@/app/inventory/stock-inward/[id]/page"
+import InventoryUnitsPage from "@/app/inventory/units/page"
 
 // Goods Return
 import GoodsReturnIndexPage from "@/app/goods-return/page"
@@ -146,6 +147,7 @@ export const router = createBrowserRouter([
       { path: "inventory/stock-inward/add", element: <ProtectedRoute permission={["StockInward.Create", "StockInward.View", "Inventory.StockInward"]}><StockInwardFormPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/:id", element: <ProtectedRoute permission={["StockInward.View", "Inventory.StockInward", "Inventory.View"]}><StockInwardDetailsPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/:id/edit", element: <ProtectedRoute permission={["StockInward.Edit", "StockInward.View", "Inventory.StockInward"]}><StockInwardFormPage /></ProtectedRoute> },
+      { path: "inventory/units", element: <ProtectedRoute permission={["Inventory.View", "Products.View"]}><InventoryUnitsPage /></ProtectedRoute> },
 
       // Goods Return & Credit Notes
       { path: "goods-return", element: <ProtectedRoute permission="GoodsReturn.View"><GoodsReturnIndexPage /></ProtectedRoute> },
