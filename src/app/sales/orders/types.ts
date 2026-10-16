@@ -5,7 +5,7 @@ export interface OrderItem {
   id: string
   orderItemId?: number
   productId: string
-  variantId?: number
+  variantId?: number | null
   productName: string
   name?: string
   sku: string
@@ -50,7 +50,7 @@ export interface ApiSalesOrderItem {
   orderItemId: number
   orderId: number
   productId: number
-  variantId?: number
+  variantId?: number | null
   productName?: string
   itemName?: string
   sku: string

@@ -26,8 +26,9 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
-import { categoriesApi, warehousesApi, vendorsApi } from "@/lib/api"
+import { productsApi, categoriesApi, warehousesApi, vendorsApi } from "@/lib/api"
 import type { Vendor } from "@/app/supply-chain/vendors/types"
+import { encodeCode128B, formatLocalVariantBarcode, parseVariantBarcodeSegments } from "@/lib/barcode-utils"
 
 interface Subcategory {
     subcategoryId: number
@@ -183,7 +184,47 @@ export default function EditProductPage() {
     }, [params.id])
 
     const addVariant = () => {
-        setVariants([...variants, { id: Date.now(), name: "", size: "", sku_suffix: "", purchasePrice: "0", basePrice: "0", price: "0", exportPrice: "0", initialQuantity: "0", stock: "0", reorderLevel: "5", gstPercentage: "18", warehouseId: "", rackLocation: "", barcode: "", image: null }])
+        const nextIdx = variants.length
+        const fallbackBarcode = formatLocalVariantBarcode(selectedCategoryIds, params.id || "0000", nextIdx)
+        const newVariantId = Date.now()
+
+        setVariants(prev => [
+            ...prev,
+            {
+                id: newVariantId,
+                name: "",
+                size: "",
+                sku_suffix: "",
+                purchasePrice: "0",
+                basePrice: "0",
+                price: "0",
+                exportPrice: "0",
+                initialQuantity: "0",
+                stock: "0",
+                reorderLevel: "5",
+                gstPercentage: "18",
+                warehouseId: "",
+                rackLocation: "",
+                barcode: fallbackBarcode,
+                image: null
+            }
+        ])
+
+        // Request authoritative backend barcode reconciliation
+        if (selectedCategoryIds.length > 0) {
+            productsApi.generateVariantBarcode({
+                categoryPath: selectedCategoryIds,
+                tempProdId: String(params.id || "0000").padStart(4, "0"),
+                index: nextIdx,
+                variantCount: 1
+            }).then(res => {
+                if (res.success && res.data?.barcode) {
+                    setVariants(prev => prev.map(v => v.id === newVariantId ? { ...v, barcode: res.data.barcode } : v))
+                }
+            }).catch(err => {
+                console.warn("Could not fetch remote barcode for new variant in edit mode, using fallback:", err)
+            })
+        }
     }
 
     const handleImageChange = (id: number, file: File) => {
@@ -762,21 +803,47 @@ export default function EditProductPage() {
                                                 </div>
 
                                                 {/* Barcode Display */}
-                                                {v.barcode && (
-                                                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-white border border-dashed gap-1">
-                                                        <div className="w-full h-10">
-                                                            <svg viewBox="0 0 100 40" className="w-full h-full" preserveAspectRatio="none">
-                                                                {/* Simple dummy barcode effect */}
-                                                                {Array.from({ length: 20 }).map((_, i) => (
-                                                                    <rect key={i} x={i * 5} y="0" width={((i * 7) % 3) + 1.5} height="40" fill="black" />
-                                                                ))}
-                                                            </svg>
+                                                {(() => {
+                                                    const currentBarcode = v.barcode || ""
+                                                    if (!currentBarcode) return null
+                                                    const encoded = encodeCode128B(currentBarcode)
+                                                    const segments = parseVariantBarcodeSegments(currentBarcode)
+                                                    return (
+                                                        <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-white border border-slate-200 shadow-sm gap-1">
+                                                            <div className="w-full h-9 flex items-center justify-center overflow-hidden">
+                                                                <svg
+                                                                    viewBox={`0 0 ${encoded.totalWidth} 40`}
+                                                                    className="w-full h-full max-h-9"
+                                                                    preserveAspectRatio="none"
+                                                                >
+                                                                    {encoded.bars.map((bar, bIdx) => (
+                                                                        <rect
+                                                                            key={bIdx}
+                                                                            x={bar.x}
+                                                                            y="0"
+                                                                            width={bar.width}
+                                                                            height="40"
+                                                                            fill="#0f172a"
+                                                                        />
+                                                                    ))}
+                                                                </svg>
+                                                            </div>
+                                                            <div className="flex items-center justify-between w-full px-0.5 gap-1">
+                                                                <span className="text-[10px] font-mono font-bold tracking-wider text-slate-800 truncate">
+                                                                    {currentBarcode}
+                                                                </span>
+                                                                {segments.rootCategoryId && (
+                                                                    <span
+                                                                        className="text-[9px] font-mono text-muted-foreground bg-slate-100 px-1 py-0.5 rounded border border-slate-200 shrink-0"
+                                                                        title={`Root: ${segments.rootCategoryId} | Subcat: ${segments.subcategoryId} | Prod: ${segments.productId} | Var: ${segments.variantIndex}`}
+                                                                    >
+                                                                        {segments.rootCategoryId}·{segments.subcategoryId}·{segments.productId}·{segments.variantIndex}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                        <p className="text-[9px] font-mono font-bold tracking-tighter truncate w-full text-center">
-                                                            {v.barcode}
-                                                        </p>
-                                                    </div>
-                                                )}
+                                                    )
+                                                })()}
                                             </div>
                                         </div>
                                     </div>

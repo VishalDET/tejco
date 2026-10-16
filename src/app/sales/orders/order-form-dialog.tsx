@@ -387,7 +387,11 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
     setIsSaving(true)
 
     try {
-      const existingOrderId = order?.orderId && !isNaN(Number(order.orderId)) ? Number(order.orderId) : (order?.id && !isNaN(Number(order.id)) ? Number(order.id) : 0)
+      const hasOrderId = order?.orderId !== undefined && order?.orderId !== null && Number(order.orderId) > 0
+      const isConversion = Boolean((form as any).proformaId || (form as any).linkedProformaInvoiceId || (form as any).quotationId || (form as any).linkedQuotationId)
+      const existingOrderId = hasOrderId
+        ? Number(order!.orderId)
+        : (!isConversion && order?.id && !isNaN(Number(order.id)) && Number(order.id) > 0 ? Number(order.id) : 0)
 
       const payload = {
         orderId: existingOrderId,
@@ -404,6 +408,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
         shippingAddress: form.shippingAddress || form.billingAddress || "",
         subtotal: form.subtotal || 0,
         gstAmount: form.taxAmount || 0,
+        freight: Number((form as any).freight || (order as any)?.freight || 0),
         totalAmount: form.totalAmount || 0,
         paymentType: form.paymentType || "Domestic",
         currencyType: form.currencyType || "INR",
@@ -411,13 +416,21 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
         linkedProformaInvoiceId: form.proformaId && !isNaN(parseInt(String(form.proformaId))) ? parseInt(String(form.proformaId)) : 0,
         linkedQuotationId: form.quotationId && !isNaN(parseInt(String(form.quotationId))) ? parseInt(String(form.quotationId)) : 0,
         parentOrderId: 0,
-        doctorSpeciality: form.doctorSpeciality || (order as any)?.doctorSpeciality || "",
+        doctorSpeciality: (() => {
+          const spec = form.doctorSpeciality || (order as any)?.doctorSpeciality
+          if (Array.isArray(spec)) return spec.map(s => String(s).trim()).filter(Boolean)
+          if (typeof spec === "string" && spec.trim()) return spec.split(",").map(s => s.trim()).filter(Boolean)
+          return []
+        })(),
+        doctorName: (form as any).doctorName || (order as any)?.doctorName || form.clientName || "",
         clientGSTIN: form.clientGSTIN || (order as any)?.clientGSTIN || (order as any)?.gstinNo || "",
         lineItems: (form.items || []).map(item => ({
           orderItemId: item.orderItemId && !isNaN(Number(item.orderItemId)) ? Number(item.orderItemId) : (isNaN(Number(item.id)) ? 0 : Number(item.id)),
           orderId: existingOrderId,
           productId: isNaN(parseInt(item.productId)) ? 0 : parseInt(item.productId),
+          productName: item.productName || item.name || "",
           variantId: (item as any).variantId && !isNaN(Number((item as any).variantId)) ? Number((item as any).variantId) : 0,
+          variantName: (item as any).variantName || item.name || item.productName || "",
           sku: item.sku || "",
           quantity: item.quantity || 0,
           unitPrice: item.unitPrice || 0,

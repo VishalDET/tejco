@@ -51,7 +51,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { SalesDocumentStatus } from "../types"
 import { ProformaInvoice } from "./types"
 import { ProformaFormDialog } from "./proforma-form-dialog"
-import { proformaApi, clientsApi, quotationsApi } from "@/lib/api"
+import { proformaApi, clientsApi, quotationsApi, salesOrderApi, productsApi } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
 import { SearchableDropdown, SearchableOption } from "@/components/common"
 import { toast } from "sonner"
@@ -314,11 +314,12 @@ export default function ProformaInvoicesPage() {
           const parsed = JSON.parse(sourceData)
           const prefilled: Partial<ProformaInvoice> = {
             ...parsed,
+            id: "",
             proformaId: 0,
             number: `PI-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
             date: new Date().toISOString().split("T")[0],
             status: "Draft",
-            sourceQuotationId: parsed.id || parsed.sourceId,
+            sourceQuotationId: parsed.quotationId || parsed.id || parsed.sourceId,
           }
           setSelectedProforma(prefilled as ProformaInvoice)
           setIsDialogOpen(true)
@@ -359,41 +360,49 @@ export default function ProformaInvoicesPage() {
   }
 
   const handleConvertToOrder = async (p: ProformaInvoice) => {
-    if (p.status?.toLowerCase() === "converted to sales order") return
+    if (p.status?.toLowerCase() === "converted to sales order" || p.status?.toLowerCase() === "converted to order") {
+      toast.info("This proforma invoice has already been converted to a Sales Order.")
+      return
+    }
     setConvertingId(p.id)
 
     try {
-      // 1. Resolve client ID directly or via fallback strategies
+      // 1. Fetch full proforma details if items are missing or clientId is zero
+      let sourceProforma = p
+      let sourceItems = p.items || []
       let resolvedClientId =
         p.clientId && !isNaN(Number(p.clientId)) && Number(p.clientId) > 0
           ? Number(p.clientId)
           : 0
+      let resolvedClientName = p.clientName || (p as any).billingName || ""
 
-      let resolvedClientName = p.clientName || ""
-      let fullProforma: ProformaInvoice | null = null
-
-      // Fetch full proforma details if clientId is missing or 0
-      if (!resolvedClientId) {
+      if ((!sourceItems || sourceItems.length === 0 || !resolvedClientId) && (p.proformaId || p.id)) {
         try {
-          fullProforma = await proformaApi.getById(String(p.proformaId || p.id))
-          const rawCId =
-            fullProforma?.clientId ||
-            (fullProforma as any)?.customerId ||
-            (fullProforma as any)?.customerMasterId ||
-            (fullProforma as any)?.clientMasterId
-          if (rawCId && !isNaN(Number(rawCId)) && Number(rawCId) > 0) {
-            resolvedClientId = Number(rawCId)
-          }
-          if (fullProforma?.clientName && !resolvedClientName) {
-            resolvedClientName = fullProforma.clientName
+          const full = await proformaApi.getById(String(p.proformaId || p.id))
+          if (full) {
+            sourceProforma = full
+            if (full.items && full.items.length > 0) {
+              sourceItems = full.items
+            }
+            const rawCId =
+              full.clientId ||
+              (full as any)?.customerId ||
+              (full as any)?.customerMasterId ||
+              (full as any)?.clientMasterId
+            if (rawCId && !isNaN(Number(rawCId)) && Number(rawCId) > 0) {
+              resolvedClientId = Number(rawCId)
+            }
+            if (full.clientName && !resolvedClientName) {
+              resolvedClientName = full.clientName
+            }
           }
         } catch (e) {
-          console.error("Failed to fetch detailed proforma for client ID:", e)
+          console.error("Failed to fetch detailed proforma for client/items:", e)
         }
       }
 
-      // 2. Check local clientsList by name / company
-      const targetClientName = (resolvedClientName || (p as any)?.billingName || "").trim()
+      // 2. Resolve client ID via clientsList and name lookups
+      const targetClientName = (resolvedClientName || sourceProforma.clientName || (sourceProforma as any).billingName || (p as any).billingName || "").trim()
       if (!resolvedClientId && targetClientName) {
         const lowerName = targetClientName.toLowerCase()
         const match = clientsList.find(c =>
@@ -406,7 +415,7 @@ export default function ProformaInvoicesPage() {
         }
       }
 
-      // 3. Search clients via API by client name using searchBy="ClientName"
+      // Search clients via API by client name
       if (!resolvedClientId && targetClientName) {
         const searchTerms = [
           targetClientName,
@@ -440,10 +449,28 @@ export default function ProformaInvoicesPage() {
             console.error("Failed to query clients API with searchBy=ClientName:", e)
           }
         }
+
+        if (!resolvedClientId) {
+          try {
+            const allClientsRes = await clientsApi.getAll({ pageSize: 100 })
+            const allList = allClientsRes.clients || []
+            const lowerTarget = targetClientName.toLowerCase()
+            const match =
+              allList.find(c => c.name?.trim().toLowerCase() === lowerTarget) ||
+              allList.find(c => lowerTarget.includes(c.name?.trim().toLowerCase())) ||
+              allList.find(c => c.name?.trim().toLowerCase().includes(lowerTarget))
+            if (match && match.id && !isNaN(Number(match.id)) && Number(match.id) > 0) {
+              resolvedClientId = Number(match.id)
+              resolvedClientName = match.name || resolvedClientName
+            }
+          } catch (e) {
+            console.error("Fallback all-clients lookup failed:", e)
+          }
+        }
       }
 
-      // 4. Check linked quotation for clientId
-      const quoteId = p.sourceQuotationId || fullProforma?.sourceQuotationId || (p as any).linkedQuotationId
+      // Check linked quotation for clientId
+      const quoteId = p.sourceQuotationId || sourceProforma.sourceQuotationId || (p as any).linkedQuotationId || (sourceProforma as any).linkedQuotationId
       if (!resolvedClientId && quoteId) {
         try {
           const quote = await quotationsApi.getById(String(quoteId))
@@ -456,62 +483,138 @@ export default function ProformaInvoicesPage() {
         }
       }
 
+      // 3. Process line items and resolve variant information
+      const processedLineItems = await Promise.all(
+        (sourceItems || []).map(async (item) => {
+          const unitPrice = Number(item.unitPrice ?? (item as any).price ?? (item as any).rate ?? 0)
+          const qty = Number(item.quantity || 0)
+          const discPct = Number((item as any).discountPercentage || 0)
+          const discAmt = Number((item as any).discountAmount !== undefined ? (item as any).discountAmount : (unitPrice * discPct / 100))
+          const itemTotal = Number(item.total !== undefined ? item.total : (unitPrice - discAmt) * qty)
+
+          let rawVariantId = (item as any).variantId !== undefined ? (item as any).variantId : (item as any).variant_id
+          let parsedVariantId = rawVariantId !== null && rawVariantId !== undefined && !isNaN(Number(rawVariantId)) ? Number(rawVariantId) : 0
+          let variantName = (item as any).variantName || ""
+
+          if ((!parsedVariantId || parsedVariantId <= 0) && item.productId && !isNaN(Number(item.productId))) {
+            try {
+              const resp = await productsApi.getById(item.productId)
+              const prodData = resp?.data || resp
+              const variants = Array.isArray(prodData?.variants) ? prodData.variants : []
+              if (variants.length > 0) {
+                const match =
+                  variants.find((v: any) => v.variantName && item.name && v.variantName.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
+                  variants.find((v: any) => v.skuSuffix && item.sku && item.sku.endsWith(v.skuSuffix)) ||
+                  (variants.length === 1 ? variants[0] : null)
+                if (match) {
+                  const resolvedVid = match.variantId ?? match.id
+                  if (resolvedVid && !isNaN(Number(resolvedVid)) && Number(resolvedVid) > 0) {
+                    parsedVariantId = Number(resolvedVid)
+                  }
+                  if (match.variantName) {
+                    variantName = match.variantName
+                  }
+                }
+              }
+            } catch (err) {
+              console.warn(`Could not fetch product ${item.productId} for variant resolution:`, err)
+            }
+          }
+
+          const prodName = item.productName || item.name || ""
+          return {
+            orderItemId: 0,
+            orderId: 0,
+            productId: item.productId && !isNaN(Number(item.productId)) ? Number(item.productId) : 0,
+            productName: prodName,
+            variantId: parsedVariantId > 0 ? parsedVariantId : 0,
+            variantName: variantName || prodName,
+            sku: item.sku || (item as any).skuSuffix || prodName || "",
+            quantity: qty,
+            unitPrice: unitPrice,
+            discountPercentage: discPct,
+            discountAmount: discAmt,
+            totalPrice: itemTotal,
+          }
+        })
+      )
+
+      const year = new Date().getFullYear()
+      const random = Math.floor(1000 + Math.random() * 9000)
+      const linkedProformaIdNum = Number(p.proformaId || p.id) || 0
+      const quoteIdNum = Number(quoteId) || 0
+
+      const subtotalVal = Number(sourceProforma.subtotal ?? p.subtotal ?? 0)
+      const gstVal = Number(sourceProforma.taxAmount ?? (sourceProforma as any).gstAmount ?? p.taxAmount ?? 0)
+      const freightVal = Number((sourceProforma as any).freight ?? (p as any).freight ?? 0)
+      const totalVal = Number(sourceProforma.totalAmount ?? p.totalAmount ?? (subtotalVal + gstVal + freightVal))
+
       const salesPersonIdNum = (p.salesPersonId && !isNaN(Number(p.salesPersonId)))
         ? Number(p.salesPersonId)
-        : (fullProforma?.salesPersonId && !isNaN(Number(fullProforma.salesPersonId)))
-        ? Number(fullProforma.salesPersonId)
-        : 0
+        : ((sourceProforma?.salesPersonId && !isNaN(Number(sourceProforma.salesPersonId))) ? Number(sourceProforma.salesPersonId) : 0)
 
-      const payload = {
-        clientId: resolvedClientId,
-        ClientId: resolvedClientId,
-        salesPersonId: salesPersonIdNum,
-        SalesPersonId: salesPersonIdNum,
-        targetDeliveryDate: p.validUntil || fullProforma?.validUntil
-          ? new Date(p.validUntil || fullProforma?.validUntil || "").toISOString()
+      // 4. Construct exact payload for POST /api/SalesOrder/Create
+      const orderPayload = {
+        orderId: 0,
+        orderNumber: `SO-${year}-${random}`,
+        orderDate: new Date().toISOString(),
+        targetDeliveryDate: p.validUntil || (sourceProforma as any).validUntil
+          ? new Date(p.validUntil || (sourceProforma as any).validUntil).toISOString()
           : new Date().toISOString(),
-        orderNotes: p.notes || fullProforma?.notes || p.paymentTerms || p.subject || "",
-      }
-
-      try {
-        await proformaApi.convertToSalesOrder(p.proformaId, payload)
-        setProformas(prev =>
-          prev.map(o =>
-            o.id === p.id
-              ? ({
-                  ...o,
-                  clientId: resolvedClientId ? String(resolvedClientId) : o.clientId,
-                  clientName: resolvedClientName || o.clientName,
-                  status: "Converted to Sales Order",
-                } as ProformaInvoice)
-              : o
-          )
-        )
-        toast.success("Proforma invoice converted to Sales Order successfully.")
-      } catch (apiErr: any) {
-        console.error("convertToSalesOrder API warning:", apiErr)
-      }
-
-      if (!resolvedClientId) {
-        toast.info("Please confirm or select the client on the Sales Order form.")
-      }
-
-      const mergedData = {
-        ...p,
-        ...(fullProforma || {}),
-        clientId: resolvedClientId ? String(resolvedClientId) : "",
-        clientName: resolvedClientName || p.clientName || "",
-        sourceId: p.id,
-        proformaId: p.proformaId,
-        quotationId: quoteId ? parseInt(String(quoteId)) : 0,
-        number: "",
-        status: "Pending",
+        clientId: resolvedClientId,
+        clientName: resolvedClientName || p.clientName || targetClientName,
+        orderStatus: "Pending",
         paymentStatus: "Unpaid",
-        date: new Date().toISOString().split("T")[0],
+        salesPersonId: salesPersonIdNum,
+        billingAddress: sourceProforma.billingAddress || (sourceProforma as any).clientAddress || p.billingAddress || (p as any).clientAddress || "",
+        status: "Pending",
+        shippingAddress: sourceProforma.shippingAddress || sourceProforma.billingAddress || (sourceProforma as any).clientAddress || p.shippingAddress || p.billingAddress || (p as any).clientAddress || "",
+        subtotal: subtotalVal,
+        gstAmount: gstVal,
+        freight: freightVal,
+        totalAmount: totalVal,
+        paymentType: sourceProforma.paymentType || p.paymentType || "Domestic",
+        currencyType: sourceProforma.currencyType || p.currencyType || "INR",
+        orderNotes: sourceProforma.notes || (sourceProforma as any).paymentTerms || p.notes || (p as any).paymentTerms || p.subject || "",
+        linkedProformaInvoiceId: linkedProformaIdNum,
+        linkedQuotationId: quoteIdNum,
+        parentOrderId: 0,
+        doctorSpeciality: (() => {
+          const spec = (sourceProforma as any).doctorSpeciality || (p as any).doctorSpeciality
+          if (Array.isArray(spec)) return spec.map((s: any) => String(s).trim()).filter(Boolean)
+          if (typeof spec === "string" && spec.trim()) return spec.split(",").map((s: any) => s.trim()).filter(Boolean)
+          return []
+        })(),
+        doctorName: (sourceProforma as any).doctorName || (p as any).doctorName || resolvedClientName || p.clientName || "",
+        clientGSTIN: sourceProforma.gstinNo || (sourceProforma as any).clientGSTIN || p.gstinNo || (p as any).clientGSTIN || "",
+        lineItems: processedLineItems,
       }
 
-      localStorage.setItem("convert_source_data", JSON.stringify(mergedData))
-      navigate("/sales/orders?convert=true")
+      // 5. Call POST /api/SalesOrder/Create
+      await salesOrderApi.create(orderPayload)
+
+      // 6. Update proforma invoice status
+      try {
+        await proformaApi.updateStatus(linkedProformaIdNum, "Converted to Sales Order")
+      } catch (statusErr) {
+        console.warn("Failed to update proforma invoice status:", statusErr)
+      }
+
+      setProformas(prev =>
+        prev.map(o =>
+          o.id === p.id
+            ? ({
+                ...o,
+                clientId: resolvedClientId ? String(resolvedClientId) : o.clientId,
+                clientName: resolvedClientName || o.clientName,
+                status: "Converted to Sales Order",
+              } as ProformaInvoice)
+            : o
+        )
+      )
+
+      toast.success("Proforma Invoice converted to Sales Order successfully!")
+      navigate("/sales/orders")
     } catch (err: any) {
       console.error("Failed to convert proforma to sales order:", err)
       toast.error(err?.message || "Failed to convert proforma to sales order.")

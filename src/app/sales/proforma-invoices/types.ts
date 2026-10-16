@@ -6,7 +6,7 @@ export interface ApiProformaItem {
   proformaInvoiceId?: number
   proformaId?: number
   productId: number
-  variantId?: number
+  variantId?: number | null
   productName: string
   itemName?: string
   imageUrl?: string
@@ -36,6 +36,7 @@ export interface ApiProforma {
   gstinNo?: string
   clientGSTIN?: string
   doctorSpeciality?: string[] | string
+  doctorName?: string
   validityDays?: number
   deliveryTime?: string
   deliveryTerms?: string
@@ -56,7 +57,7 @@ export interface ApiProforma {
 }
 
 export interface ProformaInvoiceItem extends SalesDocumentItem {
-  variantId?: number
+  variantId?: number | null
   discountPercentage?: number
   discountAmount?: number
   discountedUnitPrice?: number
@@ -81,6 +82,7 @@ export interface ProformaInvoice extends Omit<SalesDocument, 'items'> {
   gstinNo?: string
   clientGSTIN?: string
   doctorSpeciality?: string
+  doctorName?: string
   sourceQuotationId?: string
   linkedQuotationId?: number
   freight?: number
@@ -111,10 +113,14 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     const finalUnitPrice = gstRate > 0 ? discountedBase * (1 + gstRate / 100) : discountedBase
     const itemTotal = parseFloat((finalUnitPrice * quantity).toFixed(2))
 
+    const rawVid = item.variantId
+    const parsedVid = rawVid !== null && rawVid !== undefined && !isNaN(Number(rawVid)) ? Number(rawVid) : null
+    const finalVid = parsedVid !== null && parsedVid > 0 ? parsedVid : null
+
     return {
       id: String(itemId),
       productId: String(item.productId || itemId),
-      variantId: item.variantId || 0,
+      variantId: finalVid,
       productName: item.productName || "",
       name: item.itemName || item.productName || "",
       sku: item.itemName || item.productName || "",
@@ -206,6 +212,7 @@ export function mapApiProforma(raw: ApiProforma): ProformaInvoice {
     doctorSpeciality: Array.isArray((raw as any).doctorSpeciality)
       ? (raw as any).doctorSpeciality.join(", ")
       : ((raw as any).doctorSpeciality || ""),
+    doctorName: raw.doctorName || (raw as any).doctor_name || "",
     sourceQuotationId: raw.sourceQuotationId
       || (raw.linkedQuotationId ? String(raw.linkedQuotationId) : undefined),
     freight: raw.freight ?? 0,

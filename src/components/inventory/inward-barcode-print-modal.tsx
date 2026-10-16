@@ -94,7 +94,10 @@ export function InwardBarcodePrintModal({
 
       for (let i = 1; i <= qty; i++) {
         const seq = String(i).padStart(3, "0")
-        const unitBarcode = `${cleanSku}-${cleanInwardNum}-${seq}`
+        const baseBarcode = item.barcode || item.lotBarcode || item.lotNumber
+        const unitBarcode = qty === 1 && baseBarcode
+          ? baseBarcode
+          : (baseBarcode ? `${baseBarcode}-${seq}` : `${cleanSku}-${cleanInwardNum}-${seq}`)
         const serialNumber = `SN-${cleanInwardNum}-${String(itemIdx + 1).padStart(2, "0")}${seq}`
 
         labels.push({
@@ -223,13 +226,13 @@ export function InwardBarcodePrintModal({
         </head>
         <body>
           ${unitLabels.map((lbl) => {
-            const encoded = encodeCode128B(lbl.unitBarcode)
-            const rects = encoded.bars
-              .map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="35" fill="#000" />`)
-              .join("")
-            const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${encoded.totalWidth} 35" preserveAspectRatio="none">${rects}</svg>`
+      const encoded = encodeCode128B(lbl.unitBarcode)
+      const rects = encoded.bars
+        .map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="35" fill="#000" />`)
+        .join("")
+      const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${encoded.totalWidth} 35" preserveAspectRatio="none">${rects}</svg>`
 
-            return `
+      return `
               <div class="label-page">
                 ${includeCompany ? `<div class="comp-name">${companyName}</div>` : ""}
                 ${includeProductName ? `<div class="prod-title">${lbl.productName}</div>` : ""}
@@ -244,7 +247,7 @@ export function InwardBarcodePrintModal({
                 </div>
               </div>
             `
-          }).join("")}
+    }).join("")}
           <script>
             window.onload = function() {
               window.print();
@@ -279,7 +282,7 @@ export function InwardBarcodePrintModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-6 font-mono">
+      <DialogContent className="w-[96vw] sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1500px] h-[92vh] max-h-[94vh] flex flex-col p-6 font-mono">
         <DialogHeader className="border-b border-border pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-primary">
@@ -297,9 +300,9 @@ export function InwardBarcodePrintModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 my-2 flex-1 overflow-y-auto">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 my-2 flex-1 overflow-y-auto">
           {/* Left Column: Preset & Formatting Controls */}
-          <div className="md:col-span-5 space-y-4 pr-1">
+          <div className="lg:col-span-5 space-y-4 pr-1">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Label Sheet / Roll Preset</Label>
               <Select value={selectedPresetId} onValueChange={(val: any) => setSelectedPresetId(String(val || "thermal_50x25"))}>
@@ -387,11 +390,10 @@ export function InwardBarcodePrintModal({
                   <div
                     key={idx}
                     onClick={() => setPreviewIndex(idx)}
-                    className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${
-                      previewIndex === idx
+                    className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition-colors ${previewIndex === idx
                         ? "bg-primary/10 border border-primary/30 font-bold"
                         : "hover:bg-muted/60"
-                    }`}
+                      }`}
                   >
                     <span className="truncate max-w-[170px]">{lbl.unitBarcode}</span>
                     <button
@@ -415,7 +417,7 @@ export function InwardBarcodePrintModal({
           </div>
 
           {/* Right Column: Live Thermal Sticker Preview */}
-          <div className="md:col-span-7 flex flex-col items-center justify-center p-6 border border-border rounded-lg bg-muted/10">
+          <div className="lg:col-span-7 flex flex-col items-center justify-center p-6 border border-border rounded-lg bg-muted/10">
             <div className="flex items-center justify-between w-full max-w-sm mb-3">
               <span className="text-xs font-bold text-muted-foreground uppercase">
                 Sticker Live Preview

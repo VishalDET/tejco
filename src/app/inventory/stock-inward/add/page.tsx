@@ -1,6 +1,6 @@
 import * as React from "react"
-import { useState, useEffect } from "react"
-import { useNavigate, useParams } from "react-router-dom"
+import { useState, useEffect, useCallback } from "react"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { stockInwardApi, vendorsApi, warehousesApi, productsApi } from "@/lib/api"
 import type { InwardOrder, InwardOrderItem } from "../types"
 import {
@@ -15,6 +15,7 @@ import {
   X,
   Layers,
   Sparkles,
+  Tag,
   Warehouse as WarehouseIcon
 } from "lucide-react"
 
@@ -31,8 +32,10 @@ export default function StockInwardFormPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const isEdit = Boolean(id)
+  const [searchParams] = useSearchParams()
+  const poIdParam = searchParams.get("poId")
 
-  const [loading, setLoading] = useState(isEdit)
+  const [loading, setLoading] = useState(isEdit || Boolean(poIdParam))
   const [submitting, setSubmitting] = useState(false)
   const [vendors, setVendors] = useState<any[]>([])
   const [warehouses, setWarehouses] = useState<any[]>([])
@@ -58,30 +61,83 @@ export default function StockInwardFormPage() {
     scanHistory: []
   })
 
+  const applyDraftFromPo = useCallback((poDraft: any, poIdValue?: string | number, currentVendors = vendors, currentWarehouses = warehouses, currentProducts = productsList) => {
+    const vId = Number(poDraft.vendorId || 0)
+    const matchedVendor = currentVendors.find(v => Number(v.vendorId || v.id || 0) === vId)
+    const targetWhId = Number(poDraft.warehouseId || (currentWarehouses[0]?.warehouseId || Number(currentWarehouses[0]?.id) || 0))
+    const matchedWarehouse = currentWarehouses.find(w => Number(w.warehouseId || w.id || 0) === targetWhId)
+    const targetWhName = poDraft.warehouseName || matchedWarehouse?.name || matchedWarehouse?.warehouseName || ""
+
+    const draftItems: InwardOrderItem[] = (poDraft.items || []).map((line: any) => {
+      const prodId = Number(line.productId || 0)
+      const varId = Number(line.variantId || 0)
+      const matchedProd = currentProducts.find(p => Number(p.productId || p.id || 0) === prodId)
+      const matchedVar = matchedProd?.variants?.find((v: any) => Number(v.variantId || v.id || 0) === varId)
+
+      return {
+        inwardOrderItemId: 0,
+        inwardOrderId: isEdit ? parseInt(id || "0") : 0,
+        productId: prodId,
+        variantId: varId,
+        productName: line.productName || matchedProd?.productName || matchedProd?.name || `Product #${prodId}`,
+        variantName: line.variantName || matchedVar?.variantName || matchedVar?.name || (matchedVar?.size ? `${matchedVar.size} ${matchedVar.bevel || ""}`.trim() : "Default"),
+        sku: line.sku || matchedVar?.sku || `SKU-${prodId}`,
+        barcode: line.barcode || line.lotBarcode || matchedVar?.barcode || line.sku || `BAR-${prodId}`,
+        expectedQty: Number(line.expectedQty ?? line.quantity ?? 1),
+        receivedQty: Number(line.receivedQty ?? line.expectedQty ?? line.quantity ?? 0),
+        acceptedQty: Number(line.acceptedQty ?? line.expectedQty ?? line.quantity ?? 1),
+        rejectedQty: 0,
+        unitPrice: Number(line.purchasePrice ?? line.unitPrice ?? 0),
+        purchasePrice: Number(line.purchasePrice ?? line.unitPrice ?? 0),
+        warehouseId: targetWhId,
+        warehouseName: targetWhName,
+        locationCode: line.locationCode || "RACK-A1",
+        lotId: line.lotId,
+        lotNumber: line.lotNumber || "",
+        lotBarcode: line.lotBarcode || line.lotNumber || ""
+      }
+    })
+
+    setForm(prev => ({
+      ...prev,
+      orderNumber: poDraft.orderNumber || prev.orderNumber,
+      vendorId: vId || prev.vendorId,
+      vendorName: poDraft.vendorName || matchedVendor?.vendorName || matchedVendor?.name || prev.vendorName || "",
+      warehouseId: targetWhId || prev.warehouseId,
+      warehouseName: targetWhName || prev.warehouseName,
+      warehouseCode: matchedWarehouse?.code || prev.warehouseCode || "",
+      referenceNumber: poDraft.orderNumber || String(poIdValue || ""),
+      poId: Number(poDraft.purchaseOrderId || poIdValue || prev.poId || 0),
+      poNumber: poDraft.orderNumber || prev.poNumber || `PO #${poIdValue}`,
+      items: draftItems
+    }))
+  }, [id, isEdit, vendors, warehouses, productsList])
+
   useEffect(() => {
-    const fetchMasterData = async () => {
+    let isMounted = true
+
+    const fetchMasterAndRecord = async () => {
       try {
         const [vRes, wRes, pRes] = await Promise.all([
           vendorsApi.getAll().catch(() => []),
           warehousesApi.getAll().catch(() => []),
           productsApi.getAll().catch(() => [])
         ])
-        setVendors(Array.isArray(vRes) ? vRes : (vRes as any)?.data || [])
-        setWarehouses(Array.isArray(wRes) ? wRes : (wRes as any)?.data || [])
-        setProductsList(Array.isArray(pRes) ? pRes : (pRes as any)?.data || [])
-      } catch (err: any) {
-        console.error("Failed to load master options", err)
-      }
-    }
 
-    fetchMasterData()
+        const loadedVendors = Array.isArray(vRes) ? vRes : (vRes as any)?.data || []
+        const loadedWarehouses = Array.isArray(wRes) ? wRes : (wRes as any)?.data || []
+        const loadedProducts = Array.isArray(pRes) ? pRes : (pRes as any)?.data || []
 
-    if (isEdit && id) {
-      const fetchRecord = async () => {
-        try {
+        if (!isMounted) return
+        setVendors(loadedVendors)
+        setWarehouses(loadedWarehouses)
+        setProductsList(loadedProducts)
+
+        // If editing existing inward order
+        if (isEdit && id) {
           const res = await stockInwardApi.getById(id)
           const data = (res as any)?.data || res
-          if (data) {
+          if (data && isMounted) {
             setForm({
               ...data,
               orderDate: data.orderDate || data.inwardDate || new Date().toISOString(),
@@ -93,15 +149,34 @@ export default function StockInwardFormPage() {
               }))
             })
           }
-        } catch (err: any) {
-          toast.error(err?.message || "Failed to load Stock Inward order details")
-        } finally {
-          setLoading(false)
+        } else if (poIdParam) {
+          // Pre-populate from PO
+          try {
+            const poRes = await stockInwardApi.fromPurchaseOrder(poIdParam)
+            const poDraft = (poRes as any)?.data || poRes
+            if (poDraft && isMounted) {
+              applyDraftFromPo(poDraft, poIdParam, loadedVendors, loadedWarehouses, loadedProducts)
+              toast.success(`Draft pre-populated from Purchase Order #${poIdParam}`)
+            }
+          } catch (err: any) {
+            console.error("Failed to load PO draft:", err)
+            toast.error("Could not auto-populate from PO #" + poIdParam)
+          }
         }
+      } catch (err: any) {
+        console.error("Failed to load master options or record", err)
+        toast.error(err?.message || "Failed to load master data")
+      } finally {
+        if (isMounted) setLoading(false)
       }
-      fetchRecord()
     }
-  }, [id, isEdit])
+
+    fetchMasterAndRecord()
+
+    return () => {
+      isMounted = false
+    }
+  }, [id, isEdit, poIdParam, applyDraftFromPo])
 
   // Get available rack / bin codes for a specific warehouse
   const getWarehouseRacks = (whId?: number): string[] => {
@@ -248,7 +323,19 @@ export default function StockInwardFormPage() {
   }
 
   // Handle PO Import from Modal
-  const handleSelectPo = (po: PurchaseOrder) => {
+  const handleSelectPo = async (po: PurchaseOrder) => {
+    try {
+      const res = await stockInwardApi.fromPurchaseOrder(po.purchaseOrderId)
+      const data = (res as any)?.data || res
+      if (data && Array.isArray(data.items) && data.items.length > 0) {
+        applyDraftFromPo(data, po.purchaseOrderId)
+        toast.success(`Imported ${data.items.length} items from PO: ${po.orderNumber}`)
+        return
+      }
+    } catch (err) {
+      console.warn("Backend fromPurchaseOrder call failed, falling back to client mapping:", err)
+    }
+
     const matchedVendor = vendors.find(v => (v.vendorId || v.id) === po.vendorId)
     const matchedWarehouse = warehouses.find(w => Number(w.warehouseId || w.id || 0) === po.warehouseId)
 
@@ -269,16 +356,19 @@ export default function StockInwardFormPage() {
         productName: line.productName || matchedProd?.name || matchedProd?.productName || `Product #${line.productId}`,
         variantName: line.variantName || matchedVar?.variantName || matchedVar?.name || "Default",
         sku: line.sku || matchedVar?.sku || `SKU-${line.productId}`,
-        barcode: line.sku || matchedVar?.barcode || `BAR-${line.productId}`,
+        barcode: line.lotBarcode || line.sku || matchedVar?.barcode || `BAR-${line.productId}`,
         expectedQty: line.quantity || 1,
         receivedQty: 0,
         acceptedQty: line.quantity || 1,
         rejectedQty: 0,
         unitPrice: line.unitPrice || 0,
+        purchasePrice: line.unitPrice || 0,
         warehouseId: targetWhId,
         warehouseName: targetWhName,
         locationCode: "RACK-A1",
-        lotNumber: `LOT-${(po.orderNumber || "").replace(/[^0-9]/g, "") || Date.now().toString().slice(-6)}`
+        lotId: line.lotId,
+        lotNumber: line.lotNumber || `LOT-${(po.orderNumber || "").replace(/[^0-9]/g, "") || Date.now().toString().slice(-6)}`,
+        lotBarcode: line.lotBarcode || line.lotNumber || ""
       }
     })
 
@@ -348,15 +438,18 @@ export default function StockInwardFormPage() {
         productName: i.productName || "",
         variantName: i.variantName || "Default",
         sku: i.sku || `SKU-${i.productId}`,
-        barcode: i.barcode || `BAR-${i.productId}`,
+        barcode: i.barcode || i.lotBarcode || `BAR-${i.productId}`,
         expectedQty: i.expectedQty || i.expectedQuantity || 1,
         receivedQty: i.receivedQty || i.receivedQuantity || 0,
         acceptedQty: i.acceptedQty || i.expectedQty || 1,
         rejectedQty: i.rejectedQty || 0,
-        unitPrice: i.unitPrice || 0,
+        unitPrice: i.unitPrice || i.purchasePrice || 0,
+        purchasePrice: i.purchasePrice || i.unitPrice || 0,
         warehouseId: i.warehouseId || form.warehouseId || 0,
         warehouseName: i.warehouseName || form.warehouseName || "",
+        lotId: i.lotId,
         lotNumber: i.lotNumber || "",
+        lotBarcode: i.lotBarcode || i.lotNumber || "",
         locationCode: i.locationCode || "RACK-A1"
       })),
       scanHistory: form.scanHistory || []
@@ -678,12 +771,20 @@ export default function StockInwardFormPage() {
 
                           {/* Lot / Batch */}
                           <td className="py-2 px-4">
-                            <Input
-                              value={item.lotNumber || ""}
-                              onChange={(e) => handleItemChange(idx, "lotNumber", e.target.value)}
-                              placeholder="LOT-..."
-                              className="h-8 text-xs font-mono bg-background"
-                            />
+                            <div className="flex flex-col gap-1">
+                              <Input
+                                value={item.lotNumber || ""}
+                                onChange={(e) => handleItemChange(idx, "lotNumber", e.target.value)}
+                                placeholder="LOT-..."
+                                className="h-8 text-xs font-mono bg-background"
+                              />
+                              {item.lotNumber && (
+                                <Badge variant="outline" className="text-[9px] font-mono border-amber-300 text-amber-700 dark:text-amber-300 bg-amber-500/10 truncate max-w-[130px] flex items-center gap-1">
+                                  <Tag className="h-2.5 w-2.5 shrink-0" />
+                                  <span>{item.lotId ? "Pre-allocated Lot" : "Batch"}</span>
+                                </Badge>
+                              )}
+                            </div>
                           </td>
 
                           {/* Warehouse Selection */}

@@ -36,8 +36,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Loader } from "@/components/ui/loader"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from "@/components/ui/dialog"
 import { toast } from "sonner"
-import { productsApi, stockInwardApi, warehousesApi } from "@/lib/api"
+import { productsApi, stockInwardApi, warehousesApi, inventoryLotsApi, ProductLot } from "@/lib/api"
 import { encodeCode128B } from "@/lib/barcode-utils"
 
 interface VariantRecord {
@@ -97,6 +104,29 @@ export default function InventoryUnitsPage() {
   const [scannerInput, setScannerInput] = useState("")
   const [scannedResult, setScannedResult] = useState<VariantRecord | SerializedUnit | null>(null)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
+
+  // Variant FIFO Lots Modal State
+  const [selectedVariantForLots, setSelectedVariantForLots] = useState<VariantRecord | null>(null)
+  const [variantLots, setVariantLots] = useState<ProductLot[]>([])
+  const [loadingVariantLots, setLoadingVariantLots] = useState(false)
+  const [isVariantLotsModalOpen, setIsVariantLotsModalOpen] = useState(false)
+
+  const handleViewVariantLots = async (v: VariantRecord) => {
+    setSelectedVariantForLots(v)
+    setIsVariantLotsModalOpen(true)
+    setLoadingVariantLots(true)
+    try {
+      const res = await inventoryLotsApi.getByVariant(v.variantId)
+      const data = res?.data || []
+      setVariantLots(Array.isArray(data) ? data : [])
+    } catch (err: any) {
+      console.error("Failed to load lots for variant:", err)
+      toast.error("Failed to load lots for this variant")
+      setVariantLots([])
+    } finally {
+      setLoadingVariantLots(false)
+    }
+  }
 
   const fetchData = async () => {
     setLoading(true)
@@ -371,7 +401,8 @@ export default function InventoryUnitsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+
           <Button
             variant="outline"
             size="sm"
@@ -381,6 +412,7 @@ export default function InventoryUnitsPage() {
             <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
             Refresh Stock
           </Button>
+
           <Button
             size="sm"
             onClick={() => navigate("/purchase/create")}
@@ -727,6 +759,17 @@ export default function InventoryUnitsPage() {
                                       <Button
                                         variant="ghost"
                                         size="sm"
+                                        onClick={() => handleViewVariantLots(v)}
+                                        className="h-7 px-2 text-xs font-mono hover:bg-primary/10 hover:text-primary cursor-pointer text-muted-foreground"
+                                        title="View Active FIFO Lots"
+                                      >
+                                        <Layers className="h-3 w-3 mr-1" />
+                                        Lots
+                                      </Button>
+
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
                                         onClick={() => handlePrintLabel(product.productName, v.variantName, v.barcode)}
                                         className="h-7 px-2 text-xs font-mono hover:bg-primary/10 hover:text-primary cursor-pointer"
                                         title="Print Barcode Label"
@@ -875,6 +918,82 @@ export default function InventoryUnitsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Variant Active Lots Modal */}
+      <Dialog open={isVariantLotsModalOpen} onOpenChange={setIsVariantLotsModalOpen}>
+        <DialogContent className="sm:max-w-xl font-mono">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <Layers className="h-4 w-4 text-primary" />
+              Active FIFO Lots for {selectedVariantForLots?.variantName || "Variant"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {selectedVariantForLots?.productName} • SKU: {selectedVariantForLots?.sku}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            {loadingVariantLots ? (
+              <div className="py-8 flex justify-center">
+                <Loader layout="container" size="sm" text="Fetching active lots for variant..." />
+              </div>
+            ) : variantLots.length === 0 ? (
+              <div className="py-8 text-center text-muted-foreground text-xs">
+                No active lots currently found for this variant.
+              </div>
+            ) : (
+              <div className="overflow-x-auto max-h-80 border rounded-md">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-muted/50 border-b text-muted-foreground uppercase text-[10px]">
+                    <tr>
+                      <th className="py-2 px-3">Lot Number</th>
+                      <th className="py-2 px-3 text-center">Available Qty</th>
+                      <th className="py-2 px-3">Warehouse & Rack</th>
+                      <th className="py-2 px-3">Inward Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {variantLots.map((lot) => (
+                      <tr key={lot.lotId} className="hover:bg-muted/20">
+                        <td className="py-2 px-3 font-semibold text-foreground">
+                          <div className="flex items-center gap-1">
+                            <Tag className="h-3 w-3 text-amber-600 shrink-0" />
+                            <span>{lot.lotNumber}</span>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3 text-center font-bold text-emerald-600">
+                          {lot.availableQuantity ?? lot.currentQuantity} Units
+                        </td>
+                        <td className="py-2 px-3">
+                          <div>{lot.warehouseName}</div>
+                          <div className="text-[10px] text-primary">{lot.rackLocation || "RACK-A1"}</div>
+                        </td>
+                        <td className="py-2 px-3 text-muted-foreground">
+                          {lot.inwardDate ? new Date(lot.inwardDate).toLocaleDateString("en-IN") : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between pt-2 border-t text-xs">
+            <span className="text-muted-foreground">
+              Total Batches: {variantLots.length}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsVariantLotsModalOpen(false)}
+              className="text-xs font-mono cursor-pointer"
+            >
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

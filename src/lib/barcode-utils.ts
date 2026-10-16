@@ -207,3 +207,51 @@ export const LABEL_PRESETS: LabelPreset[] = [
     description: "Compact mini label sheet (38mm × 21.2mm)"
   }
 ]
+
+/**
+ * Synchronous client-side fallback matching the standard ERP catalog scheme:
+ * Format: c + sss + pppp + vv (10 characters total)
+ * - c: Root Category ID (categoryPath[0] or "0")
+ * - sss: Deepest subcategory ID zero-padded to 3 digits (e.g. 7 -> "007")
+ * - pppp: Product ID or temporary placeholder zero-padded to 4 digits (e.g. 1 -> "0001", "0000")
+ * - vv: 1-based variant index zero-padded to 2 digits (e.g. 1st -> "01", 2nd -> "02")
+ */
+export function formatLocalVariantBarcode(
+  categoryPath: number[] = [],
+  productIdOrTemp: string | number = "0000",
+  index: number = 0
+): string {
+  const c = categoryPath[0] ? String(categoryPath[0]) : "0"
+  const s = categoryPath.length > 0 && categoryPath[categoryPath.length - 1]
+    ? String(categoryPath[categoryPath.length - 1]).padStart(3, "0")
+    : "000"
+  const p = String(productIdOrTemp || "0000").padStart(4, "0")
+  const v = (index + 1).toString().padStart(2, "0")
+  return `${c}${s}${p}${v}`
+}
+
+/**
+ * Parses a standard 10-digit catalog variant barcode into its 4 architectural segments.
+ */
+export function parseVariantBarcodeSegments(barcode: string) {
+  if (!barcode || barcode.length < 10) {
+    return {
+      rootCategoryId: "",
+      subcategoryId: "",
+      productId: "",
+      variantIndex: ""
+    }
+  }
+  const len = barcode.length
+  const vv = barcode.slice(len - 2)
+  const pppp = barcode.slice(len - 6, len - 2)
+  const sss = barcode.slice(len - 9, len - 6)
+  const c = barcode.slice(0, len - 9)
+  return {
+    rootCategoryId: c,
+    subcategoryId: sss,
+    productId: pppp,
+    variantIndex: vv
+  }
+}
+

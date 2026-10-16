@@ -30,6 +30,7 @@ import { warehousesApi, productsApi, categoriesApi, vendorsApi } from "@/lib/api
 import type { Warehouse } from "@/app/supply-chain/warehouse/types"
 import type { Vendor } from "@/app/supply-chain/vendors/types"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
+import { encodeCode128B, formatLocalVariantBarcode, parseVariantBarcodeSegments } from "@/lib/barcode-utils"
 
 interface Subcategory {
     subcategoryId: number;
@@ -315,7 +316,7 @@ export default function AddProductPage() {
                 reservedQuantity: v.reservedQuantity || "0",
                 reorderLevel: v.reorderLevel || "5",
                 status: true,
-                barcode: generateVariantBarcode(index, activePath),
+                barcode: formatLocalVariantBarcode(activePath, tempProdId, index),
                 warehouseId: wId,
                 rackLocation: v.rackLocation,
                 image: v.image
@@ -326,6 +327,22 @@ export default function AddProductPage() {
         setIsImportOpen(false)
         setPreviewData(null)
         toast.success("Imported details successfully loaded into the form.")
+
+        // Sync batch barcodes with backend API
+        productsApi.generateVariantBarcode({
+            categoryPath: activePath,
+            tempProdId,
+            index: 0,
+            variantCount: mappedVariants.length
+        }).then(res => {
+            const barcodes = res?.data?.barcodes
+            if (Array.isArray(barcodes) && barcodes.length > 0) {
+                setVariants(prev => prev.map((v, i) => ({
+                    ...v,
+                    barcode: barcodes[i] || v.barcode
+                })))
+            }
+        }).catch(() => {})
     }
 
     // Generate a random product ID only on the client to avoid hydration mismatch
@@ -378,26 +395,53 @@ export default function AddProductPage() {
         }
     ])
 
-    const generateVariantBarcode = React.useCallback((index: number, path: number[]) => {
-        const c = path[0] ? String(path[0]) : "0"
-        const s = path[path.length - 1] ? String(path[path.length - 1]).padStart(3, '0') : "000"
-        const p = tempProdId
-        const v = (index + 1).toString().padStart(2, '0')
-        return `${c}${s}${p}${v}`
-    }, [tempProdId])
+    const generateVariantBarcode = React.useCallback((index: number, path: number[] = selectedCategoryIds) => {
+        return formatLocalVariantBarcode(path, tempProdId, index)
+    }, [selectedCategoryIds, tempProdId])
 
     // Effect to auto-generate barcodes when category selection path changes
     React.useEffect(() => {
+        if (variants.length === 0) return
+
+        let isCancelled = false
+
+        // 1. Optimistic update with local matching format
         setVariants(prev => prev.map((v, i) => ({
             ...v,
-            barcode: generateVariantBarcode(i, selectedCategoryIds)
+            barcode: formatLocalVariantBarcode(selectedCategoryIds, tempProdId, i)
         })))
-    }, [selectedCategoryIds, generateVariantBarcode])
+
+        // 2. Authoritative backend generation
+        productsApi.generateVariantBarcode({
+            categoryPath: selectedCategoryIds,
+            tempProdId,
+            index: 0,
+            variantCount: variants.length
+        }).then(res => {
+            if (isCancelled) return
+            const barcodes = res?.data?.barcodes
+            if (Array.isArray(barcodes) && barcodes.length > 0) {
+                setVariants(prev => prev.map((v, i) => ({
+                    ...v,
+                    barcode: barcodes[i] || v.barcode
+                })))
+            }
+        }).catch(err => {
+            console.warn("Backend variant barcode generation API unreachable, kept client fallback:", err)
+        })
+
+        return () => {
+            isCancelled = true
+        }
+    }, [selectedCategoryIds, tempProdId, variants.length])
 
     const addVariant = () => {
         const newIndex = variants.length
-        setVariants([...variants, {
-            id: Date.now(),
+        const fallbackBarcode = formatLocalVariantBarcode(selectedCategoryIds, tempProdId, newIndex)
+        const newVarId = Date.now()
+
+        setVariants(prev => [...prev, {
+            id: newVarId,
             name: "",
             size: "",
             sku_suffix: "",
@@ -411,11 +455,24 @@ export default function AddProductPage() {
             reservedQuantity: "0",
             reorderLevel: "5",
             status: true,
-            barcode: generateVariantBarcode(newIndex, selectedCategoryIds),
+            barcode: fallbackBarcode,
             warehouseId: "",
             rackLocation: "",
             image: null as string | null
         }])
+
+        // Request authoritative barcode from API for the new variant
+        productsApi.generateVariantBarcode({
+            categoryPath: selectedCategoryIds,
+            tempProdId,
+            index: newIndex,
+            variantCount: 1
+        }).then(res => {
+            const confirmedBarcode = res?.data?.barcode || res?.data?.barcodes?.[0]
+            if (confirmedBarcode) {
+                setVariants(prev => prev.map(v => v.id === newVarId ? { ...v, barcode: confirmedBarcode } : v))
+            }
+        }).catch(() => {})
     }
 
     const handleImageChange = (id: number, file: File) => {
@@ -965,19 +1022,45 @@ export default function AddProductPage() {
                                             </div>
 
                                             {/* Barcode Display */}
-                                            <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-white border border-dashed gap-1">
-                                                <div className="w-full h-10">
-                                                    <svg viewBox="0 0 100 40" className="w-full h-full" preserveAspectRatio="none">
-                                                        {/* Simple dummy barcode effect */}
-                                                        {Array.from({ length: 20 }).map((_, i) => (
-                                                            <rect key={i} x={i * 5} y="0" width={((i * 7) % 3) + 1.5} height="40" fill="black" />
-                                                        ))}
-                                                    </svg>
-                                                </div>
-                                                <p className="text-[9px] font-mono font-bold tracking-tighter truncate w-full text-center">
-                                                    {v.barcode}
-                                                </p>
-                                            </div>
+                                            {(() => {
+                                                const encoded = encodeCode128B(v.barcode || "0000000000")
+                                                const segments = parseVariantBarcodeSegments(v.barcode || "")
+                                                return (
+                                                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-white border border-slate-200 shadow-sm gap-1">
+                                                        <div className="w-full h-9 flex items-center justify-center overflow-hidden">
+                                                            <svg
+                                                                viewBox={`0 0 ${encoded.totalWidth} 40`}
+                                                                className="w-full h-full max-h-9"
+                                                                preserveAspectRatio="none"
+                                                            >
+                                                                {encoded.bars.map((bar, bIdx) => (
+                                                                    <rect
+                                                                        key={bIdx}
+                                                                        x={bar.x}
+                                                                        y="0"
+                                                                        width={bar.width}
+                                                                        height="40"
+                                                                        fill="#0f172a"
+                                                                    />
+                                                                ))}
+                                                            </svg>
+                                                        </div>
+                                                        <div className="flex items-center justify-between w-full px-0.5 gap-1">
+                                                            <span className="text-[10px] font-mono font-bold tracking-wider text-slate-800 truncate">
+                                                                {v.barcode || "—"}
+                                                            </span>
+                                                            {segments.rootCategoryId && (
+                                                                <span
+                                                                    className="text-[9px] font-mono text-muted-foreground bg-slate-100 px-1 py-0.5 rounded border border-slate-200 shrink-0"
+                                                                    title={`Root: ${segments.rootCategoryId} | Subcat: ${segments.subcategoryId} | Prod: ${segments.productId} | Var: ${segments.variantIndex}`}
+                                                                >
+                                                                    {segments.rootCategoryId}·{segments.subcategoryId}·{segments.productId}·{segments.variantIndex}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })()}
                                         </div>
                                     </div>
                                 </div>

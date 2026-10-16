@@ -431,6 +431,42 @@ export const vendorsApi = {
 // ---------------------------------------------------------------------------
 // TODO: import Product type from inventory module once types are defined
 
+export interface GenerateVariantBarcodeDto {
+  categoryPath: number[]
+  tempProdId?: string
+  index?: number
+  variantCount?: number
+}
+
+export interface GenerateVariantBarcodeQueryParams {
+  rootCategoryId?: number | string
+  subcategoryId?: number | string
+  productId?: number | string
+  variantIndex?: number | string
+}
+
+export interface VariantBarcodeSegments {
+  rootCategoryId: string
+  subcategoryId: string
+  productId: string
+  variantIndex: string
+}
+
+export interface VariantBarcodeData {
+  barcode: string
+  barcodes: string[]
+  segments: VariantBarcodeSegments
+}
+
+export interface GenerateVariantBarcodeResponse {
+  statusCode: number
+  success: boolean
+  message: string
+  data: VariantBarcodeData
+  totalCount?: number | null
+  error?: string | null
+}
+
 export const productsApi = {
   /** GET /api/Product/GetAll */
   getAll: () => apiClient.get<any>("/api/Product/GetAll"),
@@ -450,6 +486,20 @@ export const productsApi = {
 
   /** DELETE /api/Products/{id} */
   remove: (id: string) => apiClient.delete<void>(`/api/Products/${id}`),
+
+  /** POST /api/Product/GenerateVariantBarcode */
+  generateVariantBarcode: (dto: GenerateVariantBarcodeDto) =>
+    apiClient.post<GenerateVariantBarcodeResponse>("/api/Product/GenerateVariantBarcode", dto),
+
+  /** GET /api/Product/GenerateVariantBarcode */
+  getVariantBarcode: (params: GenerateVariantBarcodeQueryParams) => {
+    const q = new URLSearchParams()
+    if (params.rootCategoryId !== undefined) q.append("rootCategoryId", String(params.rootCategoryId))
+    if (params.subcategoryId !== undefined) q.append("subcategoryId", String(params.subcategoryId))
+    if (params.productId !== undefined) q.append("productId", String(params.productId))
+    if (params.variantIndex !== undefined) q.append("variantIndex", String(params.variantIndex))
+    return apiClient.get<GenerateVariantBarcodeResponse>(`/api/Product/GenerateVariantBarcode?${q.toString()}`)
+  },
 }
 
 // ---------------------------------------------------------------------------

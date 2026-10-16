@@ -26,7 +26,6 @@ import ProductsPage from "@/app/inventory/products/page"
 import ProductDetailsPage from "@/app/inventory/products/[id]/page"
 import AddProductPage from "@/app/inventory/products/add/page"
 import ViewProductPage from "@/app/inventory/products/view/[id]/page"
-import RawMaterialsPage from "@/app/inventory/raw-materials/page"
 import DispatchPage from "@/app/inventory/dispatch/page"
 import DispatchDetailsPage from "@/app/inventory/dispatch/[id]/page"
 import OrderOutwardPage from "@/app/inventory/order-outward/page"
@@ -136,7 +135,6 @@ export const router = createBrowserRouter([
       { path: "inventory/products/add", element: <ProtectedRoute permission="Products.Create"><AddProductPage /></ProtectedRoute> },
       { path: "inventory/products/:id", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView", "Products.FullView"]}><ProductDetailsPage /></ProtectedRoute> },
       { path: "inventory/products/view/:id", element: <ProtectedRoute permission={["Products.View", "Products.MaskedView", "Products.FullView"]}><ViewProductPage /></ProtectedRoute> },
-      { path: "inventory/raw-materials", element: <ProtectedRoute permission="Inventory.View"><RawMaterialsPage /></ProtectedRoute> },
       { path: "inventory/dispatch", element: <ProtectedRoute permission={["Dispatch.View", "Inventory.Dispatch", "Inventory.View"]}><DispatchPage /></ProtectedRoute> },
       { path: "inventory/dispatch/:id", element: <ProtectedRoute permission={["Dispatch.View", "Inventory.Dispatch", "Inventory.View"]}><DispatchDetailsPage /></ProtectedRoute> },
       { path: "inventory/order-outward", element: <ProtectedRoute permission={["OrderOutward.View", "Inventory.Dispatch", "Inventory.View"]}><OrderOutwardPage /></ProtectedRoute> },

@@ -36,6 +36,7 @@ export interface ApiQuotation {
   paymentType?: string
   currencyType?: string
   doctorSpeciality?: string[] | string
+  doctorName?: string
   items: ApiQuotationItem[]
 }
 
@@ -58,6 +59,7 @@ export interface Quotation extends SalesDocument {
   paymentType?: string
   currencyType?: string
   doctorSpeciality?: string
+  doctorName?: string
 }
 
 export function mapApiQuotation(raw: ApiQuotation): Quotation {
@@ -129,7 +131,7 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     quotationId: raw.quotationId,
     number: raw.quotationNumber,
     quotationNumber: raw.quotationNumber,
-    clientId: "", // Not provided in the list API directly, but we have clientName
+    clientId: (raw as any).clientId ? String((raw as any).clientId) : "",
     clientName: raw.clientName,
     date: raw.quotationDate,
     validUntil: new Date(new Date(raw.quotationDate).getTime() + raw.validityDays * 24 * 60 * 60 * 1000).toISOString(),
@@ -154,5 +156,6 @@ export function mapApiQuotation(raw: ApiQuotation): Quotation {
     doctorSpeciality: Array.isArray((raw as any).doctorSpeciality)
       ? (raw as any).doctorSpeciality.join(", ")
       : ((raw as any).doctorSpeciality || ""),
+    doctorName: (raw as any).doctorName || "",
   }
 }
