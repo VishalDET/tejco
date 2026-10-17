@@ -114,6 +114,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
           ? (proforma as any).doctorSpeciality.join(", ")
           : ((proforma as any).doctorSpeciality || ""),
         clientGSTIN: (proforma as any).clientGSTIN || proforma.gstinNo || "",
+        freight: Number((proforma as any).freight) || 0,
       })
     } else {
       const year = new Date().getFullYear()
@@ -125,6 +126,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         items: [],
         subtotal: 0,
         taxAmount: 0,
+        freight: 0,
         totalAmount: 0,
         validityDays: 7,
         deliveryTime: "10-15 Working Days",
@@ -447,6 +449,31 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
     setForm(prev => ({ ...prev, items: newItems, ...calculateTotals(newItems) }))
   }
 
+  const handleFreightChange = (value: string) => {
+    const val = value === "" ? 0 : Math.max(0, parseFloat(value) || 0)
+    setForm(prev => {
+      const subtotal = prev.subtotal || 0
+      const taxAmount = prev.taxAmount || 0
+      return {
+        ...prev,
+        freight: val,
+        totalAmount: parseFloat((subtotal + taxAmount + val).toFixed(2))
+      }
+    })
+  }
+
+  const isConversion = Boolean(
+    form.sourceQuotationId ||
+    (proforma as any)?.sourceQuotationId ||
+    (proforma as any)?.linkedQuotationId ||
+    form.linkedQuotationId
+  )
+  const hasProformaId = proforma?.proformaId !== undefined && proforma?.proformaId !== null && Number(proforma.proformaId) > 0
+  const existingId = hasProformaId
+    ? Number(proforma!.proformaId)
+    : (!isConversion && proforma?.id && !isNaN(Number(proforma.id)) && Number(proforma.id) > 0 ? Number(proforma.id) : 0)
+  const isEdit = existingId > 0
+
   const handleSave = async () => {
     if ((!form.clientId && !form.clientName && !form.billingName) || (form.items || []).length === 0) {
       toast.error("Please select a client and add at least one item.")
@@ -459,11 +486,6 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
     setIsSaving(true)
 
     try {
-      const hasProformaId = proforma?.proformaId !== undefined && proforma?.proformaId !== null && Number(proforma.proformaId) > 0
-      const isConversion = Boolean(form.sourceQuotationId || (proforma as any)?.sourceQuotationId || (proforma as any)?.linkedQuotationId)
-      const existingId = hasProformaId
-        ? Number(proforma!.proformaId)
-        : (!isConversion && proforma?.id && !isNaN(Number(proforma.id)) && Number(proforma.id) > 0 ? Number(proforma.id) : 0)
 
       // 1. Resolve client ID if missing or 0
       let resolvedClientId = form.clientId && !isNaN(Number(form.clientId)) && Number(form.clientId) > 0
@@ -547,14 +569,16 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
             }
           }
 
-          // Rule: If variantId is 0 (or null/undefined/<=0), send null in payload. Otherwise send the positive number.
-          const finalVariantId = (parsedVariantId !== null && parsedVariantId > 0) ? Number(parsedVariantId) : null
+          // In backend Swagger: variantId is a number (0 when no variant)
+          const finalVariantId = (parsedVariantId !== null && parsedVariantId > 0) ? Number(parsedVariantId) : 0
+
+          const itemId = (existingId > 0 && (item as any).proformaInvoiceItemId && !isNaN(Number((item as any).proformaInvoiceItemId)))
+            ? Number((item as any).proformaInvoiceItemId)
+            : 0
 
           return {
-            proformaInvoiceItemId: (item as any).proformaInvoiceItemId && !isNaN(Number((item as any).proformaInvoiceItemId))
-              ? Number((item as any).proformaInvoiceItemId)
-              : (!isNaN(Number(item.id)) ? Number(item.id) : 0),
-            proformaInvoiceId: existingId,
+            proformaInvoiceItemId: itemId,
+            proformaInvoiceId: existingId > 0 ? existingId : 0,
             productId: item.productId && !isNaN(Number(item.productId)) ? Number(item.productId) : 0,
             variantId: finalVariantId,
             productName: item.productName || item.name || "",
@@ -568,18 +592,25 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         })
       )
 
+      const resolvedBillingAddress = typeof form.billingAddress === "object"
+        ? serializeAddress(form.billingAddress)
+        : (typeof form.billingAddress === "string" ? form.billingAddress : "")
+
+      const year = new Date().getFullYear()
+      const random = Math.floor(1000 + Math.random() * 9000)
+
       const payload = {
-        proformaInvoiceId: existingId,
-        piNo: form.piNo || form.proformaNumber || form.number || "",
+        proformaInvoiceId: existingId > 0 ? existingId : 0,
+        piNo: form.piNo || form.proformaNumber || form.number || `PI-${year}-${random}`,
         piDate: form.piDate
           ? (form.piDate.includes("T") ? form.piDate : new Date(form.piDate).toISOString())
           : (form.date ? (form.date.includes("T") ? form.date : new Date(form.date).toISOString()) : new Date().toISOString()),
         clientId: resolvedClientId,
-        billingName: form.billingName || form.clientName || targetClientName,
-        billingAddress: form.billingAddress || "",
+        billingName: form.billingName || form.clientName || targetClientName || "",
+        billingAddress: resolvedBillingAddress,
         freight: Number(form.freight) || 0,
         totalAmount: Number(form.totalAmount) || 0,
-        deliveryTerms: form.deliveryTerms || form.deliveryTime || "",
+        deliveryTerms: form.deliveryTerms || form.deliveryTime || "10-15 Working Days",
         paymentTerms: form.paymentTerms || form.notes || form.subject || "",
         paymentType: form.paymentType || "Domestic",
         currencyType: form.currencyType || (form.paymentType === "Foreign" ? "USD" : "INR"),
@@ -590,9 +621,9 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         linkedQuotationId: form.linkedQuotationId && !isNaN(Number(form.linkedQuotationId))
           ? Number(form.linkedQuotationId)
           : (form.sourceQuotationId && !isNaN(Number(form.sourceQuotationId)) ? Number(form.sourceQuotationId) : 0),
-        createdAt: form.createdAt
+        createdAt: (existingId > 0 && form.createdAt)
           ? (form.createdAt.includes("T") ? form.createdAt : new Date(form.createdAt).toISOString())
-          : (proforma?.date ? (proforma.date.includes("T") ? proforma.date : new Date(proforma.date).toISOString()) : new Date().toISOString()),
+          : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         doctorSpeciality: (() => {
           const spec = form.doctorSpeciality || (proforma as any)?.doctorSpeciality
@@ -640,7 +671,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         <DialogHeader className="p-6 border-b bg-muted/20">
           <DialogTitle className="text-xl flex items-center gap-2">
             <Receipt className="h-5 w-5 text-primary" />
-            {proforma ? "Edit Proforma Invoice" : "Create Proforma Invoice"}
+            {isConversion ? "Convert Quotation to Proforma Invoice" : (isEdit ? "Edit Proforma Invoice" : "Create Proforma Invoice")}
           </DialogTitle>
         </DialogHeader>
 
@@ -1018,13 +1049,22 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                   </>
                 )}
 
-                {/* 5. Freight Charges if any */}
-                {form.freight !== undefined && form.freight > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Freight Charges</span>
-                    <span className="font-medium text-slate-800">+ {getCurrencySymbol(form.currencyType)}{Number(form.freight).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                {/* 5. Freight Charges */}
+                <div className="flex items-center justify-between text-sm py-0.5">
+                  <span className="text-muted-foreground font-medium">Freight Charges</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-muted-foreground">{getCurrencySymbol(form.currencyType)}</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      placeholder="0.00"
+                      value={form.freight !== undefined && form.freight !== 0 ? form.freight : ""}
+                      onChange={(e) => handleFreightChange(e.target.value)}
+                      className="h-8 w-28 text-right font-semibold border-slate-200 bg-white"
+                    />
                   </div>
-                )}
+                </div>
 
                 <Separator />
                 <div className="flex justify-between font-bold text-xl items-baseline">
@@ -1059,7 +1099,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
             {isSaving ? (
               <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…</>
             ) : (
-              proforma ? "Update Proforma" : "Save Proforma"
+              isEdit ? "Update Proforma" : "Create Proforma"
             )}
           </Button>
         </DialogFooter>

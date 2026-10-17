@@ -373,6 +373,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
           }
           return []
         })(),
+        doctorName: form.doctorName || (quotation as any)?.doctorName || form.clientName || "",
         items: (form.items || []).map(item => ({
           quotationItemId: (item as any).quotationItemId && !isNaN(Number((item as any).quotationItemId))
             ? Number((item as any).quotationItemId)
@@ -477,6 +478,7 @@ export function QuotationFormDialog({ open, onOpenChange, quotation, onSave }: Q
                     set("shippingAddress", serializeAddress(c.shippingAddress))
                     set("gstinNo", c.gstin)
                     set("doctorSpeciality", Array.isArray(c.doctorSpeciality) ? c.doctorSpeciality.join(", ") : (c.doctorSpeciality || (c as any).speciality || (c as any).clientType || form.doctorSpeciality || ""))
+                    set("doctorName", (c as any).doctorName || c.contactPerson || (c.clientType === "Doctor" ? c.name : form.doctorName || ""))
                   }}
                 />
               </div>

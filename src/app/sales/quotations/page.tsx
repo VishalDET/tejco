@@ -54,11 +54,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { quotationsApi, proformaApi, clientsApi, productsApi } from "@/lib/api"
+import { quotationsApi, proformaApi, clientsApi, productsApi, serializeAddress } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
 import { SalesDocumentStatus } from "../types"
 import { Quotation } from "./types"
 import { QuotationFormDialog } from "./quotation-form-dialog"
+import { ProformaFormDialog } from "../proforma-invoices/proforma-form-dialog"
+import { ProformaInvoice } from "../proforma-invoices/types"
 import { toast } from "sonner"
 
 function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
@@ -171,7 +173,136 @@ export default function QuotationsPage() {
   const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [selectedQuotation, setSelectedQuotation] = React.useState<Quotation | null>(null)
+  const [isProformaDialogOpen, setIsProformaDialogOpen] = React.useState(false)
+  const [proformaFormData, setProformaFormData] = React.useState<ProformaInvoice | null>(null)
+  const [convertingQuotation, setConvertingQuotation] = React.useState<Quotation | null>(null)
   const [convertingId, setConvertingId] = React.useState<string | null>(null)
+
+  const openConvertDialog = async (q: Quotation) => {
+    if (q.status?.toLowerCase() === "converted to proforma" || q.status?.toLowerCase() === "converted to pi") {
+      toast.info("This quotation has already been converted to a Proforma Invoice.")
+      return
+    }
+
+    setConvertingId(q.id)
+
+    try {
+      let sourceQuotation = q
+      let sourceItems = q.items || []
+      if (sourceItems.length === 0 && (q.quotationId || q.id)) {
+        try {
+          const fullQ = await quotationsApi.getById(String(q.quotationId || q.id))
+          if (fullQ) {
+            sourceQuotation = fullQ
+            sourceItems = fullQ.items || []
+          }
+        } catch (fetchErr) {
+          console.warn("Could not fetch full quotation details:", fetchErr)
+        }
+      }
+
+      const quotationIdNum = Number(sourceQuotation.quotationId || sourceQuotation.id || q.quotationId || q.id) || 0
+      const year = new Date().getFullYear()
+      const random = Math.floor(1000 + Math.random() * 9000)
+
+      const mappedItems = (sourceItems || []).map((item, idx) => {
+        const unitPrice = Number(item.unitPrice ?? (item as any).price ?? (item as any).rate ?? 0)
+        const qty = Number(item.quantity || 0)
+        const discPct = Number((item as any).discountPercentage || 0)
+        const discAmt = Number(
+          (item as any).discountAmount !== undefined && (item as any).discountAmount !== null
+            ? (item as any).discountAmount
+            : (unitPrice * discPct / 100)
+        )
+        const itemTotal = Number(
+          item.total !== undefined && item.total !== null
+            ? item.total
+            : (unitPrice - discAmt) * qty
+        )
+
+        return {
+          id: `item-${Date.now()}-${idx}`,
+          productId: String(item.productId || ""),
+          variantId: (item as any).variantId && Number((item as any).variantId) > 0 ? Number((item as any).variantId) : null,
+          productName: item.productName || item.name || (item as any).itemName || "",
+          name: item.name || item.productName || (item as any).itemName || "",
+          sku: item.sku || (item as any).itemName || "",
+          imageUrl: (item as any).imageUrl || (item as any).image || "",
+          quantity: qty,
+          unitPrice: unitPrice,
+          rate: unitPrice,
+          sellingPrice: unitPrice,
+          discountPercentage: discPct,
+          discountAmount: discAmt,
+          gstRate: Number(item.gstRate ?? (item as any).gstPercentage) || 0,
+          total: itemTotal,
+        } as any
+      })
+
+      const prefilledProforma: any = {
+        id: "",
+        proformaInvoiceId: 0,
+        number: `PI-${year}-${random}`,
+        piNo: `PI-${year}-${random}`,
+        date: new Date().toISOString().split("T")[0],
+        piDate: new Date().toISOString(),
+        clientId: sourceQuotation.clientId ? String(sourceQuotation.clientId) : (q.clientId ? String(q.clientId) : ""),
+        clientName: sourceQuotation.clientName || q.clientName || (sourceQuotation as any).billingName || (q as any).billingName || "",
+        billingName: sourceQuotation.clientName || q.clientName || (sourceQuotation as any).billingName || (q as any).billingName || "",
+        billingAddress: sourceQuotation.billingAddress || (sourceQuotation as any).clientAddress || q.billingAddress || (q as any).clientAddress || "",
+        shippingAddress: sourceQuotation.shippingAddress || q.shippingAddress || "",
+        clientMobileNo: sourceQuotation.clientMobileNo || q.clientMobileNo || "",
+        gstinNo: sourceQuotation.gstinNo || (sourceQuotation as any).clientGSTIN || q.gstinNo || "",
+        clientGSTIN: sourceQuotation.gstinNo || (sourceQuotation as any).clientGSTIN || q.gstinNo || "",
+        doctorSpeciality: (sourceQuotation as any).doctorSpeciality || (q as any).doctorSpeciality || "",
+        doctorName: (sourceQuotation as any).doctorName || (q as any).doctorName || sourceQuotation.clientName || q.clientName || "",
+        salesPersonId: sourceQuotation.salesPersonId ? String(sourceQuotation.salesPersonId) : (q.salesPersonId ? String(q.salesPersonId) : ""),
+        salesPersonName: sourceQuotation.salesPersonName || q.salesPersonName || "",
+        salesPersonCell: sourceQuotation.salesPersonCell || q.salesPersonCell || "",
+        deliveryTerms: sourceQuotation.deliveryTime || q.deliveryTime || "10-15 Working Days",
+        deliveryTime: sourceQuotation.deliveryTime || q.deliveryTime || "10-15 Working Days",
+        paymentTerms: sourceQuotation.subject || sourceQuotation.notes || q.subject || q.notes || "",
+        notes: sourceQuotation.notes || q.notes || "",
+        subject: sourceQuotation.subject || q.subject || "",
+        paymentType: sourceQuotation.paymentType || q.paymentType || "Domestic",
+        currencyType: sourceQuotation.currencyType || q.currencyType || "INR",
+        status: "Draft",
+        linkedQuotationId: quotationIdNum,
+        sourceQuotationId: String(quotationIdNum),
+        freight: Number((sourceQuotation as any).freight ?? (q as any).freight) || 0,
+        subtotal: sourceQuotation.subtotal || 0,
+        taxAmount: sourceQuotation.taxAmount || 0,
+        totalAmount: Number(sourceQuotation.totalAmount || q.totalAmount) || 0,
+        validityDays: sourceQuotation.validityDays || q.validityDays || 7,
+        items: mappedItems,
+      }
+
+      setConvertingQuotation(q)
+      setProformaFormData(prefilledProforma as ProformaInvoice)
+      setIsProformaDialogOpen(true)
+    } catch (err: any) {
+      console.error("Failed to prepare proforma conversion form:", err)
+      toast.error(err?.message || "Failed to prepare proforma form.")
+    } finally {
+      setConvertingId(null)
+    }
+  }
+
+  const handleProformaSaved = async () => {
+    if (convertingQuotation) {
+      try {
+        await quotationsApi.updateStatus(convertingQuotation.quotationId || convertingQuotation.id, "Converted to Proforma")
+      } catch (statusErr) {
+        console.warn("Failed to update quotation status to Converted to Proforma:", statusErr)
+      }
+      setQuotations((prev) =>
+        prev.map((o) => (o.id === convertingQuotation.id ? ({ ...o, status: "Converted to Proforma" } as Quotation) : o))
+      )
+      setConvertingQuotation(null)
+      setIsProformaDialogOpen(false)
+      navigate("/sales/proforma-invoices")
+    }
+  }
 
   // Server Filter States
   const [searchTerm, setSearchTerm] = React.useState("")
@@ -298,198 +429,8 @@ export default function QuotationsPage() {
     setIsDialogOpen(true)
   }
 
-  const handleConvertToProforma = async (q: Quotation) => {
-    if (q.status?.toLowerCase() === "converted to proforma" || q.status?.toLowerCase() === "converted to pi") {
-      toast.info("This quotation has already been converted to a Proforma Invoice.")
-      return
-    }
 
-    setConvertingId(q.id)
 
-    try {
-      // 1. Fetch full quotation details if items are missing or empty
-      let sourceQuotation = q
-      let sourceItems = q.items || []
-      if (sourceItems.length === 0 && (q.quotationId || q.id)) {
-        try {
-          const fullQ = await quotationsApi.getById(String(q.quotationId || q.id))
-          if (fullQ) {
-            sourceQuotation = fullQ
-            sourceItems = fullQ.items || []
-          }
-        } catch (fetchErr) {
-          console.warn("Could not fetch full quotation details:", fetchErr)
-        }
-      }
-
-      // 2. Resolve client ID directly or via API lookup
-      let resolvedClientId =
-        sourceQuotation.clientId && !isNaN(Number(sourceQuotation.clientId)) && Number(sourceQuotation.clientId) > 0
-          ? Number(sourceQuotation.clientId)
-          : (q.clientId && !isNaN(Number(q.clientId)) && Number(q.clientId) > 0 ? Number(q.clientId) : 0)
-
-      const targetClientName = (sourceQuotation.clientName || q.clientName || (sourceQuotation as any).billingName || (q as any).billingName || "").trim()
-
-      if (!resolvedClientId && targetClientName) {
-        try {
-          const searchTerms = [
-            targetClientName,
-            targetClientName.split(/[-–—(]/)[0].trim(),
-            targetClientName.split(/\s+/).slice(0, 3).join(" ").trim(),
-          ].filter(Boolean)
-
-          for (const term of searchTerms) {
-            if (resolvedClientId) break
-            if (!term || term.length < 2) continue
-            const clientRes = await clientsApi.getAll({
-              search: term,
-              searchBy: "ClientName",
-              pageSize: 20,
-            })
-            const list = clientRes.clients || []
-            const lowerTarget = targetClientName.toLowerCase()
-            const match =
-              list.find((c: any) => c.name?.trim().toLowerCase() === lowerTarget) ||
-              list.find((c: any) => lowerTarget.includes(c.name?.trim().toLowerCase())) ||
-              list.find((c: any) => c.name?.trim().toLowerCase().includes(lowerTarget)) ||
-              (list.length === 1 ? list[0] : null)
-
-            if (match && match.id && !isNaN(Number(match.id)) && Number(match.id) > 0) {
-              resolvedClientId = Number(match.id)
-              break
-            }
-          }
-
-          if (!resolvedClientId) {
-            const allClientsRes = await clientsApi.getAll({ pageSize: 100 })
-            const allList = allClientsRes.clients || []
-            const lowerTarget = targetClientName.toLowerCase()
-            const match =
-              allList.find((c: any) => c.name?.trim().toLowerCase() === lowerTarget) ||
-              allList.find((c: any) => lowerTarget.includes(c.name?.trim().toLowerCase())) ||
-              allList.find((c: any) => c.name?.trim().toLowerCase().includes(lowerTarget))
-            if (match && match.id && !isNaN(Number(match.id)) && Number(match.id) > 0) {
-              resolvedClientId = Number(match.id)
-            }
-          }
-        } catch (e) {
-          console.error("Failed to query clients API for conversion:", e)
-        }
-      }
-
-      // 3. Prepare items, resolving missing variant IDs where possible
-      const processedItems = await Promise.all(
-        sourceItems.map(async (item) => {
-          const unitPrice = Number(item.unitPrice ?? (item as any).price ?? (item as any).rate ?? 0)
-          const qty = Number(item.quantity || 0)
-          const discPct = Number((item as any).discountPercentage || 0)
-          const discAmt = Number((item as any).discountAmount !== undefined ? (item as any).discountAmount : (unitPrice * discPct / 100))
-          const itemTotal = Number(item.total !== undefined ? item.total : (unitPrice - discAmt) * qty)
-
-          let rawVariantId = (item as any).variantId !== undefined ? (item as any).variantId : (item as any).variant_id
-          let parsedVariantId = rawVariantId !== null && rawVariantId !== undefined && !isNaN(Number(rawVariantId)) ? Number(rawVariantId) : null
-
-          if ((!parsedVariantId || parsedVariantId <= 0) && item.productId && !isNaN(Number(item.productId))) {
-            try {
-              const resp = await productsApi.getById(item.productId)
-              const prodData = resp?.data || resp
-              const variants = Array.isArray(prodData?.variants) ? prodData.variants : []
-              if (variants.length > 0) {
-                const match =
-                  variants.find((v: any) => v.variantName && item.name && v.variantName.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
-                  variants.find((v: any) => v.skuSuffix && item.sku && item.sku.endsWith(v.skuSuffix)) ||
-                  (variants.length === 1 ? variants[0] : null)
-                if (match) {
-                  const resolvedVid = match.variantId ?? match.id
-                  if (resolvedVid && !isNaN(Number(resolvedVid)) && Number(resolvedVid) > 0) {
-                    parsedVariantId = Number(resolvedVid)
-                  }
-                }
-              }
-            } catch (err) {
-              console.warn(`Could not fetch product ${item.productId} for variant resolution:`, err)
-            }
-          }
-
-          const finalVariantId = (parsedVariantId !== null && parsedVariantId > 0) ? Number(parsedVariantId) : null
-
-          return {
-            proformaInvoiceItemId: 0,
-            proformaInvoiceId: 0,
-            productId: item.productId && !isNaN(Number(item.productId)) ? Number(item.productId) : 0,
-            variantId: finalVariantId,
-            productName: item.productName || item.name || "",
-            imageUrl: (item as any).imageUrl || "",
-            quantity: qty,
-            rate: unitPrice,
-            discountPercentage: discPct,
-            discountAmount: discAmt,
-            total: itemTotal,
-          }
-        })
-      )
-
-      const quotationIdNum = Number(sourceQuotation.quotationId || sourceQuotation.id || q.quotationId || q.id) || 0
-      const year = new Date().getFullYear()
-      const random = Math.floor(1000 + Math.random() * 9000)
-
-      // 4. Construct the exact ProformaInvoice creation payload (POST /api/ProformaInvoice/Create)
-      const proformaPayload = {
-        proformaInvoiceId: 0,
-        piNo: `PI-${year}-${random}`,
-        piDate: new Date().toISOString(),
-        clientId: resolvedClientId,
-        billingName: sourceQuotation.clientName || q.clientName || targetClientName,
-        billingAddress: sourceQuotation.billingAddress || (sourceQuotation as any).clientAddress || q.billingAddress || (q as any).clientAddress || "",
-        freight: Number((sourceQuotation as any).freight || (q as any).freight) || 0,
-        totalAmount: Number(sourceQuotation.totalAmount || q.totalAmount) || 0,
-        deliveryTerms: sourceQuotation.deliveryTime || q.deliveryTime || "10-15 Working Days",
-        paymentTerms: sourceQuotation.subject || sourceQuotation.notes || q.subject || q.notes || "",
-        paymentType: sourceQuotation.paymentType || q.paymentType || "Domestic",
-        currencyType: sourceQuotation.currencyType || q.currencyType || "INR",
-        salesPersonId: (sourceQuotation.salesPersonId && !isNaN(Number(sourceQuotation.salesPersonId)))
-          ? Number(sourceQuotation.salesPersonId)
-          : (q.salesPersonId && !isNaN(Number(q.salesPersonId)) ? Number(q.salesPersonId) : 0),
-        salesPersonName: sourceQuotation.salesPersonName || q.salesPersonName || "",
-        salesPersonCell: sourceQuotation.salesPersonCell || q.salesPersonCell || "",
-        status: "Draft",
-        linkedQuotationId: quotationIdNum,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        doctorSpeciality: (() => {
-          const spec = (sourceQuotation as any).doctorSpeciality || (q as any).doctorSpeciality
-          if (Array.isArray(spec)) return spec.map((s: any) => String(s).trim()).filter(Boolean)
-          if (typeof spec === "string" && spec.trim()) return spec.split(",").map((s: any) => s.trim()).filter(Boolean)
-          return []
-        })(),
-        doctorName: (sourceQuotation as any).doctorName || (q as any).doctorName || targetClientName || "",
-        clientGSTIN: sourceQuotation.gstinNo || (sourceQuotation as any).clientGSTIN || q.gstinNo || (q as any).clientGSTIN || "",
-        items: processedItems,
-      }
-
-      // 5. Call POST /api/ProformaInvoice/Create
-      await proformaApi.create(proformaPayload)
-
-      // 5. Update quotation status to "Converted to Proforma"
-      try {
-        await quotationsApi.updateStatus(q.quotationId || q.id, "Converted to Proforma")
-      } catch (statusErr) {
-        console.warn("Failed to update quotation status to Converted to Proforma:", statusErr)
-      }
-
-      setQuotations((prev) =>
-        prev.map((o) => (o.id === q.id ? ({ ...o, status: "Converted to Proforma" } as Quotation) : o))
-      )
-
-      toast.success("Quotation converted to Proforma Invoice successfully!")
-      navigate("/sales/proforma-invoices")
-    } catch (err: any) {
-      console.error("Failed to convert quotation to proforma:", err)
-      toast.error(err?.message || "Failed to convert quotation to proforma invoice.")
-    } finally {
-      setConvertingId(null)
-    }
-  }
 
   const handleStatusUpdate = async (q: Quotation, newStatus: string, remarks?: string) => {
     try {
@@ -1018,7 +959,7 @@ export default function QuotationsPage() {
                                 q.status?.toLowerCase() !== "converted to pi" && (
                                   <DropdownMenuItem
                                     className="gap-2 text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer text-xs"
-                                    onClick={() => handleConvertToProforma(q)}
+                                    onClick={() => openConvertDialog(q)}
                                     disabled={convertingId === q.id}
                                   >
                                     {convertingId === q.id ? (
@@ -1215,6 +1156,20 @@ export default function QuotationsPage() {
         onOpenChange={setIsDialogOpen}
         quotation={selectedQuotation}
         onSave={handleSave}
+      />
+
+      {/* Full Proforma Form Dialog for Conversion */}
+      <ProformaFormDialog
+        open={isProformaDialogOpen}
+        onOpenChange={(open) => {
+          setIsProformaDialogOpen(open)
+          if (!open) {
+            setConvertingQuotation(null)
+            setProformaFormData(null)
+          }
+        }}
+        proforma={proformaFormData}
+        onSave={handleProformaSaved}
       />
     </div>
   )

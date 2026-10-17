@@ -37,7 +37,7 @@ import { InwardBarcodePrintModal } from "@/components/inventory/inward-barcode-p
 export default function StockInwardDetailsPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  
+
   const [order, setOrder] = useState<InwardOrder | null>(null)
   const [loading, setLoading] = useState(true)
   const [barcodeInput, setBarcodeInput] = useState("")
@@ -199,62 +199,92 @@ export default function StockInwardDetailsPage() {
 
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto pb-12 font-mono">
+    <div className="flex flex-col gap-6 max-w-6xl mx-auto pb-12 font-mono">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={() => navigate("/inventory/stock-inward")} className="h-8 w-8 cursor-pointer">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        {/* Left: Back button + Title & Badges + Subtitle */}
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate("/inventory/stock-inward")}
+            className="h-9 w-9 shrink-0 mt-0.5 rounded-lg border-border/80 hover:bg-muted cursor-pointer transition-colors shadow-2xs"
+            title="Back to Stock Inward List"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
+
+          <div className="space-y-1.5 min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-bold font-mono tracking-tight text-foreground">
+              <h1 className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-foreground">
                 Inward Order: {order.orderNumber || order.inwardNumber}
               </h1>
-              <Badge
-                variant={isCompleted ? "default" : "outline"}
-                className={`font-mono text-xs ${
-                  isCompleted 
-                    ? "bg-emerald-600 text-white hover:bg-emerald-600" 
-                    : order.status === "Pending" 
-                    ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
-                    : ""
-                }`}
-              >
-                {order.status}
-              </Badge>
-              {order.priority && (
-                <Badge variant="outline" className="font-mono text-[10px] uppercase text-muted-foreground">
-                  {order.priority} Priority
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge
+                  variant={isCompleted ? "default" : "outline"}
+                  className={`font-mono text-xs font-semibold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${isCompleted
+                    ? "bg-emerald-600 text-white hover:bg-emerald-600"
+                    : order.status === "Pending"
+                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                      : "bg-muted text-muted-foreground border-border"
+                    }`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : (
+                    <Clock className="h-3 w-3" />
+                  )}
+                  {order.status}
                 </Badge>
-              )}
-              {(order.poNumber || (order.orderNumber?.includes("PO-") ? order.orderNumber.replace(/^INW-/, "") : null)) && (
-                <Badge className="font-mono text-[10px] bg-primary/10 text-primary border-primary/30">
-                  PO: {order.poNumber || order.orderNumber?.replace(/^INW-/, "")}
-                </Badge>
-              )}
+                {/* {order.priority && (
+                  <Badge variant="outline" className="font-mono text-[10px] uppercase font-semibold text-muted-foreground">
+                    {order.priority} Priority
+                  </Badge>
+                )} */}
+                {(order.poNumber || (order.orderNumber?.includes("PO-") ? order.orderNumber.replace(/^INW-/, "") : null)) && (
+                  <Badge className="font-mono text-[10px] font-semibold bg-primary/10 text-primary border-primary/30">
+                    PO: {order.poNumber || order.orderNumber?.replace(/^INW-/, "")}
+                  </Badge>
+                )}
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground font-mono mt-0.5">
-              Inward Date: {order.orderDate || order.inwardDate ? new Date(order.orderDate || order.inwardDate || "").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
-              {order.receiverName && (
-                <span className="ml-2 pl-2 border-l border-border">
-                  Received By: <span className="font-semibold text-foreground">{order.receiverName}</span>
+
+            <p className="text-xs text-muted-foreground font-mono flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <span>
+                Inward Date:{" "}
+                <span className="font-semibold text-foreground">
+                  {order.orderDate || order.inwardDate
+                    ? new Date(order.orderDate || order.inwardDate || "").toLocaleDateString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric"
+                    })
+                    : "—"}
                 </span>
+              </span>
+              {order.receiverName && (
+                <>
+                  <span className="text-muted-foreground/40">•</span>
+                  <span>
+                    Received By: <span className="font-semibold text-foreground">{order.receiverName}</span>
+                  </span>
+                </>
               )}
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Right: Actions */}
+        <div className="flex flex-wrap items-center gap-2 shrink-0 md:self-start md:mt-0.5">
           {/* Print Barcodes Button */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => setIsBarcodeModalOpen(true)}
-            className="font-mono text-xs border-primary/40 text-primary hover:bg-primary/10 cursor-pointer"
+            className="h-9 font-mono text-xs border-primary/40 text-primary hover:bg-primary/10 cursor-pointer shadow-2xs gap-1.5"
           >
-            <Printer className="mr-1.5 h-3.5 w-3.5" />
-            Print Inward Barcodes
+            <Printer className="h-3.5 w-3.5" />
+            <span>Print Barcodes</span>
           </Button>
 
           {!isCompleted && (
@@ -262,12 +292,13 @@ export default function StockInwardDetailsPage() {
               size="sm"
               disabled={statusUpdating}
               onClick={() => handleStatusChange("Completed")}
-              className={`font-mono text-xs text-white cursor-pointer shadow-xs font-semibold ${
-                allItemsVerified ? "bg-emerald-600 hover:bg-emerald-500 ring-2 ring-emerald-500/30" : "bg-emerald-700 hover:bg-emerald-600"
-              }`}
+              className={`h-9 font-mono text-xs text-white cursor-pointer shadow-xs font-semibold gap-1.5 ${allItemsVerified
+                ? "bg-emerald-600 hover:bg-emerald-500 ring-2 ring-emerald-500/30"
+                : "bg-emerald-700 hover:bg-emerald-600"
+                }`}
             >
-              <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-              Complete Inward & Activate Lots
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Complete Inward</span>
             </Button>
           )}
 
@@ -276,7 +307,7 @@ export default function StockInwardDetailsPage() {
               variant="outline"
               size="sm"
               onClick={() => navigate(`/inventory/stock-inward/${id}/edit`)}
-              className="font-mono text-xs cursor-pointer"
+              className="h-9 font-mono text-xs cursor-pointer shadow-2xs"
             >
               Edit Order
             </Button>
@@ -286,7 +317,7 @@ export default function StockInwardDetailsPage() {
               size="sm"
               disabled
               title="Cannot edit an inward order that is already Completed"
-              className="font-mono text-xs opacity-50 cursor-not-allowed"
+              className="h-9 font-mono text-xs opacity-50 cursor-not-allowed shadow-2xs"
             >
               Order Locked
             </Button>
@@ -410,11 +441,10 @@ export default function StockInwardDetailsPage() {
       </div>
 
       {/* Live Barcode Scanning Console */}
-      <Card className={`shadow-xs border transition-all ${
-        isScanningRestricted 
-          ? "border-emerald-500/40 bg-emerald-500/5" 
-          : "border-primary/30 bg-primary/5"
-      }`}>
+      <Card className={`shadow-xs border transition-all ${isScanningRestricted
+        ? "border-emerald-500/40 bg-emerald-500/5"
+        : "border-primary/30 bg-primary/5"
+        }`}>
         <CardHeader className="pb-2 pt-4 px-4 border-b border-border/60 flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-sm font-bold font-mono flex items-center gap-2 text-foreground">
@@ -686,11 +716,10 @@ export default function StockInwardDetailsPage() {
                     return (
                       <tr
                         key={scan.scanId || idx}
-                        className={`transition-colors ${
-                          isFlagged
-                            ? "bg-rose-500/[0.04] hover:bg-rose-500/[0.08]"
-                            : "hover:bg-muted/30"
-                        }`}
+                        className={`transition-colors ${isFlagged
+                          ? "bg-rose-500/[0.04] hover:bg-rose-500/[0.08]"
+                          : "hover:bg-muted/30"
+                          }`}
                       >
                         <td className="py-2.5 px-4 text-muted-foreground">
                           {scan.scanId ? `#${scan.scanId}` : idx + 1}
@@ -727,12 +756,12 @@ export default function StockInwardDetailsPage() {
                         <td className="py-2.5 px-4 text-muted-foreground">
                           {scan.scannedAt
                             ? new Date(scan.scannedAt).toLocaleString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit"
-                              })
+                              day: "2-digit",
+                              month: "short",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit"
+                            })
                             : "-"}
                         </td>
                         <td className="py-2.5 px-4 text-right">
