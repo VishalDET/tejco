@@ -17,7 +17,8 @@ import {
   Clock,
   AlertTriangle,
   RefreshCw,
-  MoreVertical
+  MoreVertical,
+  Receipt
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -83,11 +84,17 @@ export default function StockInwardPage() {
 
   const filteredOrders = inwardOrders.filter(order => {
     const num = order.orderNumber || order.inwardNumber || ""
+    const invNum = order.invoiceNumber || order.referenceNumber || ""
+    const term = searchTerm.toLowerCase().trim()
     const matchesSearch =
-      num.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.vendorName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.warehouseName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.referenceNumber?.toLowerCase().includes(searchTerm.toLowerCase())
+      !term ||
+      num.toLowerCase().includes(term) ||
+      invNum.toLowerCase().includes(term) ||
+      order.vendorName?.toLowerCase().includes(term) ||
+      order.vendorPrefix?.toLowerCase().includes(term) ||
+      order.warehouseName?.toLowerCase().includes(term) ||
+      order.poNumber?.toLowerCase().includes(term) ||
+      order.items?.some(i => (i.lotNumber || "").toLowerCase().includes(term) || (i.sku || "").toLowerCase().includes(term))
 
     const matchesStatus = statusFilter === "all" || order.status?.toLowerCase() === statusFilter.toLowerCase()
 
@@ -217,11 +224,11 @@ export default function StockInwardPage() {
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase text-[10px]">
                   <tr>
-                    <th className="py-3 px-4">Inward #</th>
+                    <th className="py-3 px-4">Inward & Invoice #</th>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Vendor</th>
                     <th className="py-3 px-4">Warehouse</th>
-                    <th className="py-3 px-4">Items</th>
+                    <th className="py-3 px-4">Lots / SKUs</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -231,15 +238,44 @@ export default function StockInwardPage() {
                     const recId = order.inwardOrderId || order.id || 0
                     const orderNum = order.orderNumber || order.inwardNumber || `INW-${recId}`
                     const oDate = order.orderDate || order.inwardDate
+                    const invNum = order.invoiceNumber || order.referenceNumber
+                    const lotsCount = order.items?.length || 0
+
                     return (
                       <tr key={recId} className="hover:bg-muted/30 transition-colors">
-                        <td className="py-3 px-4 font-bold text-primary">{orderNum}</td>
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-primary">{orderNum}</div>
+                          {invNum && (
+                            <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 font-mono mt-0.5">
+                              <Receipt className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate max-w-[140px]" title={`Invoice: ${invNum}`}>
+                                Inv: {invNum}
+                              </span>
+                            </div>
+                          )}
+                        </td>
                         <td className="py-3 px-4 text-muted-foreground">
                           {oDate ? new Date(oDate).toLocaleDateString("en-IN") : "-"}
                         </td>
-                        <td className="py-3 px-4 font-medium text-foreground">{order.vendorName || `Vendor #${order.vendorId}`}</td>
+                        <td className="py-3 px-4 font-medium text-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <span>{order.vendorName || `Vendor #${order.vendorId}`}</span>
+                            {order.vendorPrefix && (
+                              <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 bg-primary/10 text-primary border-primary/30">
+                                {order.vendorPrefix}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-muted-foreground">{order.warehouseName || `Warehouse #${order.warehouseId}`}</td>
-                        <td className="py-3 px-4">{order.items?.length || 0} SKUs</td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="font-mono text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300">
+                              {lotsCount} {lotsCount === 1 ? "Lot" : "Lots"}
+                            </Badge>
+                            <span className="text-muted-foreground text-[11px]">({order.items?.length || 0} SKUs)</span>
+                          </div>
+                        </td>
                         <td className="py-3 px-4">{getStatusBadge(order.status || "Draft")}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">

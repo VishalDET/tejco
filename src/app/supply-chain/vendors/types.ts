@@ -31,6 +31,7 @@ export interface Vendor {
   address: string;
   gstin: string;
   status: 'Active' | 'Inactive';
+  vendorPrefix?: string;
   products: VendorProduct[];
   purchaseHistory: PurchaseHistory[];
   payments: Payment[];

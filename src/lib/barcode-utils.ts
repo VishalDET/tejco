@@ -255,3 +255,103 @@ export function parseVariantBarcodeSegments(barcode: string) {
   }
 }
 
+export interface Phase1LotParams {
+  vendorPrefix?: string
+  invoiceNumber?: string
+  productId?: number | string
+  variantId?: number | string
+  date?: string
+  sequence?: number
+}
+
+/**
+ * Phase 1 Dynamic Lot Number Generator:
+ * Formula: {VendorPrefix}-{InvoiceNumber}-{ProductId}[-{VariantId}]-{DateCode}[-{Sequence}]
+ * Example: VK-INV1042-144-352-261022
+ */
+export function generatePhase1LotNumber(params: Phase1LotParams): string {
+  const prefix = (params.vendorPrefix || "GEN")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase() || "GEN"
+
+  const cleanInv = (params.invoiceNumber || "INV")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase() || "INV"
+
+  const pId = params.productId ? String(params.productId) : "0"
+  const vId = params.variantId && Number(params.variantId) > 0 ? String(params.variantId) : ""
+
+  const dateObj = params.date ? new Date(params.date) : new Date()
+  const validDate = isNaN(dateObj.getTime()) ? new Date() : dateObj
+  const yy = String(validDate.getFullYear()).slice(-2)
+  const mm = String(validDate.getMonth() + 1).padStart(2, "0")
+  const dd = String(validDate.getDate()).padStart(2, "0")
+  const dateCode = `${yy}${mm}${dd}`
+
+  const seqStr = params.sequence !== undefined && params.sequence > 1 ? `-${String(params.sequence).padStart(2, "0")}` : ""
+
+  if (vId) {
+    return `${prefix}-${cleanInv}-${pId}-${vId}-${dateCode}${seqStr}`
+  }
+  return `${prefix}-${cleanInv}-${pId}-${dateCode}${seqStr}`
+}
+
+/**
+ * Legacy Phase 0 lot generator, now defaults to Phase 1 format
+ */
+export function generateInvoiceLotNumber(
+  invoiceNumber: string = "",
+  skuOrVariant: string = "",
+  index: number = 0
+): string {
+  return generatePhase1LotNumber({
+    vendorPrefix: "GEN",
+    invoiceNumber: invoiceNumber,
+    productId: skuOrVariant,
+    sequence: index + 1
+  })
+}
+
+/**
+ * Calculates a default ISO date (YYYY-MM-DD) given an offset in years from now.
+ */
+export function getDefaultExpiryDate(yearsToAdd: number): string {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() + yearsToAdd)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * Evaluates the shelf life status of an expiry date.
+ */
+export function getExpiryStatus(expiryDate?: string): {
+  status: "valid" | "expiring-soon" | "expired" | "none"
+  label: string
+  monthsRemaining?: number
+} {
+  if (!expiryDate) return { status: "none", label: "No Expiry" }
+  const exp = new Date(expiryDate)
+  if (isNaN(exp.getTime())) return { status: "none", label: "Invalid Date" }
+
+  const now = new Date()
+  const diffTime = exp.getTime() - now.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  const monthsRemaining = Math.round(diffDays / 30.4)
+
+  if (diffDays < 0) {
+    return { status: "expired", label: "Expired", monthsRemaining }
+  } else if (monthsRemaining <= 6) {
+    return {
+      status: "expiring-soon",
+      label: `Expiring Soon (${monthsRemaining}m)`,
+      monthsRemaining,
+    }
+  } else {
+    return {
+      status: "valid",
+      label: `${monthsRemaining}m valid`,
+      monthsRemaining,
+    }
+  }
+}
+

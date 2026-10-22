@@ -3,6 +3,7 @@ import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { stockInwardApi } from "@/lib/api"
 import type { InwardOrder, InwardScanEvent } from "../types"
+import { getExpiryStatus } from "@/lib/barcode-utils"
 import {
   ArrowLeft,
   QrCode,
@@ -23,7 +24,11 @@ import {
   History,
   Lock,
   AlertTriangle,
-  XCircle
+  XCircle,
+  Receipt,
+  Copy,
+  Calendar,
+  Check
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -246,6 +251,17 @@ export default function StockInwardDetailsPage() {
                     PO: {order.poNumber || order.orderNumber?.replace(/^INW-/, "")}
                   </Badge>
                 )}
+                {order.vendorPrefix && (
+                  <Badge variant="outline" className="font-mono text-[10px] font-semibold bg-primary/10 text-primary border-primary/30">
+                    Prefix: {order.vendorPrefix}
+                  </Badge>
+                )}
+                {(order.invoiceNumber || order.referenceNumber) && (
+                  <Badge variant="outline" className="font-mono text-[10px] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300 flex items-center gap-1">
+                    <Receipt className="h-3 w-3" />
+                    Inv: {order.invoiceNumber || order.referenceNumber}
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -262,6 +278,23 @@ export default function StockInwardDetailsPage() {
                     : "—"}
                 </span>
               </span>
+              {(order.invoiceDate || order.invoiceNumber) && (
+                <>
+                  <span className="text-muted-foreground/40">•</span>
+                  <span>
+                    Invoice Date:{" "}
+                    <span className="font-semibold text-foreground">
+                      {order.invoiceDate
+                        ? new Date(order.invoiceDate).toLocaleDateString("en-IN", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric"
+                        })
+                        : "—"}
+                    </span>
+                  </span>
+                </>
+              )}
               {order.receiverName && (
                 <>
                   <span className="text-muted-foreground/40">•</span>
@@ -379,11 +412,53 @@ export default function StockInwardDetailsPage() {
             </span>
           </CardHeader>
           <CardContent className="pb-3 px-4">
-            <p className="text-sm font-bold font-mono text-foreground truncate" title={order.vendorName}>
-              {order.vendorName || `Vendor #${order.vendorId}`}
-            </p>
+            <div className="flex items-center justify-between gap-1">
+              <p className="text-sm font-bold font-mono text-foreground truncate" title={order.vendorName}>
+                {order.vendorName || `Vendor #${order.vendorId}`}
+              </p>
+              {order.vendorPrefix && (
+                <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30 shrink-0">
+                  {order.vendorPrefix}
+                </Badge>
+              )}
+            </div>
             <p className="text-[11px] text-muted-foreground font-mono truncate">
-              Ref: {order.poNumber || order.referenceNumber || (order.orderNumber?.includes("PO-") ? order.orderNumber.replace(/^INW-/, "") : "Direct Receipt")}
+              PO: {order.poNumber || (order.orderNumber?.includes("PO-") ? order.orderNumber.replace(/^INW-/, "") : "Direct Receipt")}
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Vendor Invoice Card */}
+        <Card className="shadow-xs border border-amber-300/60 bg-amber-500/[0.03]">
+          <CardHeader className="pb-1 pt-3 px-4">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 font-mono flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Receipt className="h-3.5 w-3.5 text-amber-600" />
+                Vendor Invoice / Bill
+              </span>
+              {(order.invoiceNumber || order.referenceNumber) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(order.invoiceNumber || order.referenceNumber || "")
+                    toast.success("Copied Invoice Number")
+                  }}
+                  className="text-muted-foreground hover:text-foreground cursor-pointer"
+                  title="Copy Invoice #"
+                >
+                  <Copy className="h-3 w-3" />
+                </button>
+              )}
+            </span>
+          </CardHeader>
+          <CardContent className="pb-3 px-4">
+            <p className="text-sm font-bold font-mono text-foreground truncate">
+              {order.invoiceNumber || order.referenceNumber || "No Invoice Recorded"}
+            </p>
+            <p className="text-[11px] text-muted-foreground font-mono">
+              Bill Date: {order.invoiceDate
+                ? new Date(order.invoiceDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+                : "—"}
             </p>
           </CardContent>
         </Card>
@@ -407,26 +482,14 @@ export default function StockInwardDetailsPage() {
 
         <Card className="shadow-xs border border-border">
           <CardHeader className="pb-1 pt-3 px-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-primary" />
-              Receiver & Priority
-            </span>
-          </CardHeader>
-          <CardContent className="pb-3 px-4">
-            <p className="text-sm font-bold font-mono text-foreground truncate">
-              {order.receiverName || "Admin Staff"}
-            </p>
-            <p className="text-[11px] text-muted-foreground font-mono">
-              Priority: <span className="font-semibold text-foreground">{order.priority || "Normal"}</span>
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-xs border border-border">
-          <CardHeader className="pb-1 pt-3 px-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1.5">
-              <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-              Verification Progress
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                QC & Multi-Lot Status
+              </span>
+              <Badge variant="outline" className="text-[9px] font-mono border-amber-300 text-amber-700 dark:text-amber-300 bg-amber-500/10">
+                {order.items?.length || 0} Lots
+              </Badge>
             </span>
           </CardHeader>
           <CardContent className="pb-3 px-4">
@@ -600,7 +663,9 @@ export default function StockInwardDetailsPage() {
                 <tr>
                   <th className="py-2.5 px-4">Product / SKU</th>
                   <th className="py-2.5 px-4">Variant Spec</th>
-                  <th className="py-2.5 px-4">Lot / Barcode</th>
+                  <th className="py-2.5 px-4">Lot #</th>
+                  <th className="py-2.5 px-4">Barcode</th>
+                  <th className="py-2.5 px-4">Expiry Date</th>
                   <th className="py-2.5 px-4 text-center">Expected</th>
                   <th className="py-2.5 px-4 text-center">Received</th>
                   <th className="py-2.5 px-4">Rack Location</th>
@@ -614,6 +679,8 @@ export default function StockInwardDetailsPage() {
                   const recQty = item.receivedQty ?? item.receivedQuantity ?? 0
                   const isComplete = recQty >= expQty
                   const price = item.purchasePrice ?? item.unitPrice ?? item.unitCost ?? 0
+                  const expiryInfo = getExpiryStatus(item.expiryDate)
+
                   return (
                     <tr key={idx} className="hover:bg-muted/30 transition-colors">
                       <td className="py-3 px-4 font-semibold text-foreground">
@@ -629,20 +696,78 @@ export default function StockInwardDetailsPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </td>
+
+                      {/* Lot # */}
                       <td className="py-3 px-4">
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-1.5 font-bold text-foreground">
-                            <Tag className="h-3 w-3 text-amber-600 shrink-0" />
-                            <span className="font-mono text-xs">
-                              {item.lotNumber || item.barcode || `LOT-${order.orderNumber?.slice(-5) || "01"}`}
-                            </span>
+                        <div className="flex items-center gap-1.5 font-bold text-foreground">
+                          <Tag className="h-3 w-3 text-amber-600 shrink-0" />
+                          <span className="font-mono text-xs">
+                            {item.lotNumber || `LOT-${order.orderNumber?.slice(-5) || "01"}`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const lotVal = item.lotNumber || `LOT-${order.orderNumber?.slice(-5) || "01"}`
+                              navigator.clipboard.writeText(lotVal)
+                              toast.success("Copied Lot #")
+                            }}
+                            className="text-muted-foreground hover:text-foreground cursor-pointer"
+                            title="Copy lot number"
+                          >
+                            <Copy className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      </td>
+
+                      {/* Barcode */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <div className="inline-flex items-center gap-1 text-[11px] font-mono px-2 py-0.5 rounded bg-muted/50 border border-border text-foreground">
+                            <Barcode className="h-3 w-3 text-primary shrink-0" />
+                            <span>{item.lotBarcode || item.barcode || item.lotNumber || "-"}</span>
                           </div>
-                          {item.barcode && item.barcode !== item.lotNumber && (
-                            <span className="text-[10px] text-muted-foreground font-mono">
-                              Barcode: {item.barcode}
-                            </span>
+                          {(item.lotBarcode || item.barcode || item.lotNumber) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const bVal = item.lotBarcode || item.barcode || item.lotNumber || ""
+                                navigator.clipboard.writeText(bVal)
+                                toast.success("Copied Barcode")
+                              }}
+                              className="text-muted-foreground hover:text-foreground cursor-pointer"
+                              title="Copy barcode"
+                            >
+                              <Copy className="h-2.5 w-2.5" />
+                            </button>
                           )}
                         </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        {item.expiryDate ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-mono text-xs font-semibold text-foreground">
+                              {new Date(item.expiryDate).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric"
+                              })}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={`text-[9px] font-mono px-1.5 py-0 w-fit ${
+                                expiryInfo.status === "valid"
+                                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                  : expiryInfo.status === "expiring-soon"
+                                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                  : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                              }`}
+                            >
+                              {expiryInfo.label}
+                            </Badge>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground font-mono">—</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-center font-bold">{expQty}</td>
                       <td className="py-3 px-4 text-center font-bold text-primary">{recQty}</td>

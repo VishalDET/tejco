@@ -18,6 +18,7 @@ export interface InwardOrderItem {
   lotNumber?: string
   lotBarcode?: string
   expiryDate?: string
+  manufacturingDate?: string
   locationCode?: string
   warehouseId?: number
   warehouseName?: string
@@ -45,11 +46,14 @@ export interface InwardOrder {
   id?: number
   orderNumber?: string
   inwardNumber?: string
+  invoiceNumber?: string
+  invoiceDate?: string
   poId?: number
   poNumber?: string
   purchaseOrderId?: number
   vendorId: number
   vendorName?: string
+  vendorPrefix?: string
   warehouseId: number
   warehouseName?: string
   warehouseCode?: string
@@ -82,3 +86,21 @@ export interface StatusUpdateDto {
   comments?: string
   remarks?: string
 }
+
+export interface VariantActiveLot {
+  lotId?: number
+  lotNumber?: string
+  productId?: number
+  variantId?: number
+  warehouseId?: number
+  warehouseName?: string
+  rackLocation?: string
+  initialQuantity?: number
+  currentQuantity?: number
+  reservedQuantity?: number
+  availableQuantity?: number
+  expiryDate?: string
+  inwardDate?: string
+  status?: string
+}
+

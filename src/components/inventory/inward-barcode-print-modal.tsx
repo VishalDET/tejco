@@ -54,6 +54,8 @@ interface GeneratedUnitLabel {
   variantName: string
   sku: string
   lotNumber: string
+  invoiceNumber?: string
+  expiryDate?: string
   inwardNumber: string
   inwardDate: string
 }
@@ -72,6 +74,8 @@ export function InwardBarcodePrintModal({
   const [includeVariantName, setIncludeVariantName] = useState<boolean>(true)
   const [includeSku, setIncludeSku] = useState<boolean>(true)
   const [includeLot, setIncludeLot] = useState<boolean>(true)
+  const [includeInvoice, setIncludeInvoice] = useState<boolean>(true)
+  const [includeExpiry, setIncludeExpiry] = useState<boolean>(true)
   const [previewIndex, setPreviewIndex] = useState<number>(0)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
@@ -94,7 +98,7 @@ export function InwardBarcodePrintModal({
 
       for (let i = 1; i <= qty; i++) {
         const seq = String(i).padStart(3, "0")
-        const baseBarcode = item.barcode || item.lotBarcode || item.lotNumber
+        const baseBarcode = item.lotBarcode || item.lotNumber || item.barcode
         const unitBarcode = qty === 1 && baseBarcode
           ? baseBarcode
           : (baseBarcode ? `${baseBarcode}-${seq}` : `${cleanSku}-${cleanInwardNum}-${seq}`)
@@ -108,6 +112,8 @@ export function InwardBarcodePrintModal({
           variantName: item.variantName || "",
           sku: item.sku || `SKU-${item.productId}`,
           lotNumber: item.lotNumber || `LOT-${cleanInwardNum}`,
+          invoiceNumber: order.invoiceNumber || order.referenceNumber || "",
+          expiryDate: item.expiryDate || "",
           inwardNumber: order.orderNumber || order.inwardNumber || "INW",
           inwardDate: order.orderDate || order.inwardDate || new Date().toISOString()
         })
@@ -245,6 +251,12 @@ export function InwardBarcodePrintModal({
                   <span>${includeSku ? lbl.sku : ""}</span>
                   <span>${includeLot ? lbl.lotNumber : ""}</span>
                 </div>
+                ${(includeInvoice && lbl.invoiceNumber) || (includeExpiry && lbl.expiryDate) ? `
+                <div class="meta-row" style="font-size: 5pt; color: #444; margin-top: 0.5px;">
+                  <span>${includeInvoice && lbl.invoiceNumber ? `Inv: ${lbl.invoiceNumber}` : ""}</span>
+                  <span>${includeExpiry && lbl.expiryDate ? `Exp: ${lbl.expiryDate.slice(0, 10)}` : ""}</span>
+                </div>
+                ` : ""}
               </div>
             `
     }).join("")}
@@ -370,7 +382,25 @@ export function InwardBarcodePrintModal({
                     onChange={(e) => setIncludeLot(e.target.checked)}
                     className="rounded text-primary"
                   />
-                  <span>Lot / Inward #</span>
+                  <span>Lot #</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeInvoice}
+                    onChange={(e) => setIncludeInvoice(e.target.checked)}
+                    className="rounded text-primary"
+                  />
+                  <span>Invoice #</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeExpiry}
+                    onChange={(e) => setIncludeExpiry(e.target.checked)}
+                    className="rounded text-primary"
+                  />
+                  <span>Expiry Date</span>
                 </label>
               </div>
             </div>
@@ -478,9 +508,17 @@ export function InwardBarcodePrintModal({
                   {currentLabel.unitBarcode}
                 </div>
 
-                <div className="w-full flex items-center justify-between text-[9px] font-mono text-neutral-600 pt-1 border-t border-neutral-200 mt-1">
-                  <span>{includeSku ? currentLabel.sku : ""}</span>
-                  <span>{includeLot ? currentLabel.lotNumber : ""}</span>
+                <div className="w-full flex flex-col gap-0.5 text-[9px] font-mono text-neutral-600 pt-1 border-t border-neutral-200 mt-1">
+                  <div className="flex items-center justify-between">
+                    <span>{includeSku ? currentLabel.sku : ""}</span>
+                    <span>{includeLot ? `Lot: ${currentLabel.lotNumber}` : ""}</span>
+                  </div>
+                  {((includeInvoice && currentLabel.invoiceNumber) || (includeExpiry && currentLabel.expiryDate)) && (
+                    <div className="flex items-center justify-between text-[8px] text-neutral-500">
+                      <span>{includeInvoice && currentLabel.invoiceNumber ? `Inv: ${currentLabel.invoiceNumber}` : ""}</span>
+                      <span>{includeExpiry && currentLabel.expiryDate ? `Exp: ${currentLabel.expiryDate.slice(0, 10)}` : ""}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

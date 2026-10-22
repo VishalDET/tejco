@@ -7,11 +7,22 @@ import { Input } from "@/components/ui/input"
 export interface SearchableOption {
   value: string | number
   label: string
-  subLabel?: string
-  badge?: string
+  subLabel?: any
+  badge?: any
   price?: string | number
   extra?: React.ReactNode
   keywords?: string[]
+}
+
+function safeRenderText(val: any): React.ReactNode {
+  if (val === null || val === undefined) return null
+  if (React.isValidElement(val)) return val
+  if (typeof val === "object") {
+    return Object.values(val)
+      .filter((v) => typeof v === "string" || typeof v === "number")
+      .join(", ")
+  }
+  return String(val)
 }
 
 export interface SearchableDropdownProps {
@@ -77,10 +88,12 @@ export function SearchableDropdown({
     if (!searchQuery.trim()) return options
     const q = searchQuery.toLowerCase().trim()
     return options.filter((opt) => {
-      const labelMatch = opt.label.toLowerCase().includes(q)
-      const subLabelMatch = opt.subLabel?.toLowerCase().includes(q)
-      const badgeMatch = opt.badge?.toLowerCase().includes(q)
-      const keywordMatch = opt.keywords?.some((k) => k.toLowerCase().includes(q))
+      const labelMatch = String(opt.label || "").toLowerCase().includes(q)
+      const subLabelStr = typeof opt.subLabel === "object" && opt.subLabel ? Object.values(opt.subLabel).join(" ") : String(opt.subLabel || "")
+      const subLabelMatch = subLabelStr.toLowerCase().includes(q)
+      const badgeStr = typeof opt.badge === "object" && opt.badge ? Object.values(opt.badge).join(" ") : String(opt.badge || "")
+      const badgeMatch = badgeStr.toLowerCase().includes(q)
+      const keywordMatch = opt.keywords?.some((k) => String(k || "").toLowerCase().includes(q))
       return Boolean(labelMatch || subLabelMatch || badgeMatch || keywordMatch)
     })
   }, [options, searchQuery])
@@ -239,11 +252,11 @@ export function SearchableDropdown({
           {selectedOption ? (
             <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
               <span className="font-semibold text-foreground truncate block">
-                {selectedOption.label}
+                {safeRenderText(selectedOption.label)}
               </span>
               {selectedOption.badge && (
                 <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0 font-medium hidden sm:inline-block">
-                  {selectedOption.badge}
+                  {safeRenderText(selectedOption.badge)}
                 </span>
               )}
             </div>
@@ -364,11 +377,11 @@ export function SearchableDropdown({
                         {/* Title & Badge */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-xs text-foreground leading-snug break-words">
-                            {opt.label}
+                            {safeRenderText(opt.label)}
                           </span>
                           {opt.badge && (
                             <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium shrink-0">
-                              {opt.badge}
+                              {safeRenderText(opt.badge)}
                             </span>
                           )}
                         </div>
@@ -377,7 +390,7 @@ export function SearchableDropdown({
                         {(opt.subLabel || opt.price !== undefined || opt.extra) && (
                           <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground flex-wrap pt-0.5">
                             {opt.subLabel && (
-                              <span className="truncate max-w-[240px]">{opt.subLabel}</span>
+                              <span className="truncate max-w-[240px]">{safeRenderText(opt.subLabel)}</span>
                             )}
                             {opt.price !== undefined && (
                               <span className="font-semibold text-emerald-600 dark:text-emerald-400">

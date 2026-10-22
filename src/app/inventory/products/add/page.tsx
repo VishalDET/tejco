@@ -628,7 +628,6 @@ export default function AddProductPage() {
                                         />
                                     </div>
                                     <div className="grid gap-2">
-                                        <Label htmlFor="sku">Base SKU</Label>
                                         <Input
                                             id="sku"
                                             placeholder="e.g., SB-010"
@@ -828,7 +827,7 @@ export default function AddProductPage() {
                                                     />
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">SKU Suffix</Label>
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">LOT Number  j0987is 6</Label>
                                                     <Input
                                                         placeholder="-LG"
                                                         value={v.sku_suffix}
@@ -1135,7 +1134,7 @@ export default function AddProductPage() {
                                         <p className="font-medium text-slate-700 mt-0.5 truncate">{previewData.product.productName || "-"}</p>
                                     </div>
                                     <div>
-                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">Base SKU</p>
+                                        <p className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">LOT No.</p>
                                         <p className="font-medium text-slate-700 mt-0.5">{previewData.product.baseSKU || "-"}</p>
                                     </div>
                                     <div>

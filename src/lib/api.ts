@@ -340,6 +340,7 @@ export interface ApiVendor {
   contactPerson?: string
   phone?: string
   status?: boolean | string
+  vendorPrefix?: string
 }
 
 export function mapApiVendor(raw: ApiVendor): Vendor {
@@ -356,6 +357,7 @@ export function mapApiVendor(raw: ApiVendor): Vendor {
     address: typeof raw.address === "string" ? raw.address : "",
     gstin: raw.gstin || "",
     status: raw.status === false ? "Inactive" : "Active",
+    vendorPrefix: raw.vendorPrefix || (raw as any).prefix || "",
     products: [],
     purchaseHistory: [],
     payments: [],
@@ -1379,6 +1381,28 @@ export const stockInwardApi = {
   },
   scan: (id: number | string, event: InwardScanEvent) => apiClient.post<void>(`/api/StockInward/${id}/Scan`, event),
   remove: (id: number | string) => apiClient.delete<void>(`/api/StockInward/Delete/${id}`),
+  generateLotNumber: (params: {
+    invoiceNumber?: string
+    orderNumber?: string
+    productId?: number
+    variantId?: number
+    sku?: string
+    itemIndex?: number
+    vendorId?: number
+    vendorPrefix?: string
+    date?: string
+    sequence?: number
+  }) => {
+    return inventoryLotsApi.generateLotNumber({
+      vendorId: params.vendorId,
+      vendorPrefix: params.vendorPrefix,
+      invoiceNumber: params.invoiceNumber || params.orderNumber || "",
+      productId: params.productId,
+      variantId: params.variantId,
+      date: params.date,
+      sequence: params.sequence ?? (params.itemIndex !== undefined ? params.itemIndex + 1 : undefined),
+    })
+  },
 }
 
 
@@ -1740,7 +1764,49 @@ export interface InventoryApiResponse<T> {
   error?: string | null
 }
 
+export interface GenerateLotNumberRequest {
+  vendorId?: number
+  vendorPrefix?: string
+  invoiceNumber?: string
+  productId?: number
+  variantId?: number
+  date?: string
+  sequence?: number
+}
+
+export interface GenerateLotNumberResponse {
+  lotNumber: string
+  lotBarcode: string
+  segments?: {
+    vendorPrefix?: string
+    invoiceNumber?: string
+    productId?: number
+    variantId?: number
+    productVariantCode?: string
+    dateCode?: string
+    sequence?: number
+  }
+}
+
 export const inventoryLotsApi = {
+  /** POST /api/Inventory/GenerateLotNumber (Phase 1) with GET fallback */
+  generateLotNumber: async (payload: GenerateLotNumberRequest): Promise<InventoryApiResponse<GenerateLotNumberResponse>> => {
+    try {
+      return await apiClient.post<InventoryApiResponse<GenerateLotNumberResponse>>("/api/Inventory/GenerateLotNumber", payload)
+    } catch {
+      // Fallback: try GET /api/Inventory/GenerateLotNumber with query params
+      const q = new URLSearchParams()
+      if (payload.vendorPrefix) q.append("vendorPrefix", payload.vendorPrefix)
+      if (payload.vendorId) q.append("vendorId", String(payload.vendorId))
+      if (payload.invoiceNumber) q.append("invoiceNumber", payload.invoiceNumber)
+      if (payload.productId) q.append("productId", String(payload.productId))
+      if (payload.variantId) q.append("variantId", String(payload.variantId))
+      if (payload.date) q.append("date", payload.date)
+      if (payload.sequence !== undefined) q.append("sequence", String(payload.sequence))
+      return apiClient.get<InventoryApiResponse<GenerateLotNumberResponse>>(`/api/Inventory/GenerateLotNumber?${q.toString()}`)
+    }
+  },
+
   /** GET /api/Inventory/Lots */
   getAll: (params?: LotsQueryParams) => {
     const query = new URLSearchParams()
