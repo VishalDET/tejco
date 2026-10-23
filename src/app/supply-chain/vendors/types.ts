@@ -24,15 +24,30 @@ export interface Payment {
 
 export interface Vendor {
   id: string;
+  vendorId?: number;
   name: string;
+  vendorName?: string;
   contactPerson: string;
+  contactPersonName?: string;
   email: string;
   phone: string;
+  mobileNumber?: string;
   address: string;
   gstin: string;
   status: 'Active' | 'Inactive';
-  vendorPrefix?: string;
+  vendorPrefix?: string | null;
   products: VendorProduct[];
   purchaseHistory: PurchaseHistory[];
   payments: Payment[];
+}
+
+export interface CreateVendorDto {
+  vendorId: number;
+  vendorName: string;
+  address: string;
+  gstin: string;
+  email: string;
+  mobileNumber: string;
+  contactPersonName: string;
+  vendorPrefix: string | null;
 }

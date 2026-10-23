@@ -24,25 +24,46 @@ interface VendorFormDialogProps {
 export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorFormDialogProps) {
   const [formData, setFormData] = useState<Partial<Vendor>>({
     name: "",
+    vendorName: "",
     contactPerson: "",
+    contactPersonName: "",
     email: "",
     phone: "",
+    mobileNumber: "",
     address: "",
     gstin: "",
+    vendorPrefix: "",
     status: "Active",
   })
 
   useEffect(() => {
     if (vendor) {
-      setFormData(vendor)
+      setFormData({
+        ...vendor,
+        name: vendor.vendorName || vendor.name || "",
+        vendorName: vendor.vendorName || vendor.name || "",
+        contactPerson: vendor.contactPersonName || vendor.contactPerson || "",
+        contactPersonName: vendor.contactPersonName || vendor.contactPerson || "",
+        phone: vendor.mobileNumber || vendor.phone || "",
+        mobileNumber: vendor.mobileNumber || vendor.phone || "",
+        vendorPrefix: vendor.vendorPrefix || "",
+        address: vendor.address || "",
+        gstin: vendor.gstin || "",
+        email: vendor.email || "",
+        status: vendor.status || "Active",
+      })
     } else {
       setFormData({
         name: "",
+        vendorName: "",
         contactPerson: "",
+        contactPersonName: "",
         email: "",
         phone: "",
+        mobileNumber: "",
         address: "",
         gstin: "",
+        vendorPrefix: "",
         status: "Active",
       })
     }
@@ -50,7 +71,14 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === "name" ? { vendorName: value } : {}),
+      ...(name === "contactPerson" ? { contactPersonName: value } : {}),
+      ...(name === "phone" ? { mobileNumber: value } : {}),
+      ...(name === "vendorPrefix" ? { vendorPrefix: value.toUpperCase() } : {}),
+    }))
   }
 
   const handleStatusChange = (value: string | null) => {
@@ -60,15 +88,24 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
   }
 
   const handleSave = () => {
-    // Basic validation could go here
+    const vName = (formData.vendorName || formData.name || "").trim()
+    const cPerson = (formData.contactPersonName || formData.contactPerson || "").trim()
+    const phone = (formData.mobileNumber || formData.phone || "").trim()
+    const prefix = (formData.vendorPrefix || "").trim()
+
     const savedVendor: Vendor = {
       id: vendor?.id || "0",
-      name: formData.name || "",
-      contactPerson: formData.contactPerson || "",
-      email: formData.email || "",
-      phone: formData.phone || "",
-      address: formData.address || "",
-      gstin: formData.gstin || "",
+      vendorId: Number(vendor?.vendorId || vendor?.id || 0),
+      name: vName,
+      vendorName: vName,
+      contactPerson: cPerson,
+      contactPersonName: cPerson,
+      email: (formData.email || "").trim(),
+      phone: phone,
+      mobileNumber: phone,
+      address: (formData.address || "").trim(),
+      gstin: (formData.gstin || "").trim().toUpperCase(),
+      vendorPrefix: prefix || null,
       status: (formData.status as "Active" | "Inactive") || "Active",
       products: vendor?.products || [],
       purchaseHistory: vendor?.purchaseHistory || [],
@@ -85,7 +122,7 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
           <DialogTitle>{vendor ? "Edit Vendor" : "Add Vendor"}</DialogTitle>
           <DialogDescription>
             {vendor
-              ? "Update the vendor's basic and business details here."
+              ? "Update the vendor's basic, contact, and business details."
               : "Enter the details of the new vendor to add them to the system."}
           </DialogDescription>
         </DialogHeader>
@@ -96,9 +133,32 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
               <Input
                 id="name"
                 name="name"
-                value={formData.name}
+                value={formData.name || formData.vendorName || ""}
                 onChange={handleChange}
-                placeholder="Acme Corp"
+                placeholder="Adequate Electro Mechanical..."
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="vendorPrefix">Vendor Prefix (e.g. TEJ, AEM)</Label>
+              <Input
+                id="vendorPrefix"
+                name="vendorPrefix"
+                value={formData.vendorPrefix || ""}
+                onChange={(e) => setFormData(prev => ({ ...prev, vendorPrefix: e.target.value.toUpperCase() }))}
+                placeholder="e.g. AEM"
+                maxLength={8}
+                className="font-mono uppercase"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="contactPerson">Contact Person Name</Label>
+              <Input
+                id="contactPerson"
+                name="contactPerson"
+                value={formData.contactPerson || formData.contactPersonName || ""}
+                onChange={handleChange}
+                placeholder="Mr Imran"
               />
             </div>
             <div className="grid gap-2">
@@ -106,22 +166,34 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
               <Input
                 id="gstin"
                 name="gstin"
-                value={formData.gstin}
+                value={formData.gstin || ""}
                 onChange={handleChange}
-                placeholder="07AABCA1234Z1Z5"
+                placeholder="08AATCA5431B1ZS"
+                className="font-mono uppercase"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="contactPerson">Contact Person</Label>
+              <Label htmlFor="phone">Mobile Number</Label>
               <Input
-                id="contactPerson"
-                name="contactPerson"
-                value={formData.contactPerson}
+                id="phone"
+                name="phone"
+                value={formData.phone || formData.mobileNumber || ""}
                 onChange={handleChange}
-                placeholder="John Doe"
+                placeholder="87699 99994"
               />
             </div>
             <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={formData.email || ""}
+                onChange={handleChange}
+                placeholder="imran@adequate.com"
+              />
+            </div>
+            <div className="grid gap-2 col-span-2">
               <Label htmlFor="status">Status</Label>
               <Select value={formData.status} onValueChange={handleStatusChange}>
                 <SelectTrigger id="status">
@@ -133,36 +205,15 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="john@acme.com"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input
-                id="phone"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                placeholder="+91 9876543210"
-              />
-            </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="address">Address</Label>
             <Textarea
               id="address"
               name="address"
-              value={formData.address}
+              value={formData.address || ""}
               onChange={handleChange}
-              placeholder="123 Industrial Area..."
+              placeholder="G-184, Akeda Dungar, Road no. 18, Vishwakarma industrial area, Jaipur"
               rows={3}
             />
           </div>
@@ -171,7 +222,7 @@ export function VendorFormDialog({ open, onOpenChange, vendor, onSave }: VendorF
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!formData.name}>
+          <Button onClick={handleSave} disabled={!(formData.name || formData.vendorName)}>
             Save Changes
           </Button>
         </DialogFooter>

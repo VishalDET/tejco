@@ -11,7 +11,7 @@
 import { apiClient } from "./api-client"
 export { apiClient }
 import type { Client, ClientDelivery, Address, ClientContact, CreateClientPayload } from "@/app/stakeholders/clients/types"
-import type { Vendor } from "@/app/supply-chain/vendors/types"
+import type { Vendor, CreateVendorDto } from "@/app/supply-chain/vendors/types"
 import type { Warehouse, ApiWarehouse, Rack } from "@/app/supply-chain/warehouse/types"
 
 // Helpers
@@ -331,44 +331,60 @@ export const clientsApi = {
 
 export interface ApiVendor {
   vendorId?: number
-  id?: number
+  id?: number | string
   vendorName?: string
   name?: string
   address?: string
   gstin?: string
   email?: string
+  contactPersonName?: string
   contactPerson?: string
+  mobileNumber?: string
   phone?: string
   status?: boolean | string
-  vendorPrefix?: string
+  vendorPrefix?: string | null
 }
 
-export function mapApiVendor(raw: ApiVendor): Vendor {
+export function mapApiVendor(raw: ApiVendor | any): Vendor {
+  if (!raw) return {} as Vendor
   const vId = String(raw.vendorId ?? raw.id ?? 0)
+  const vName = raw.vendorName || raw.name || `Vendor #${vId}`
+  const contact = raw.contactPersonName || raw.contactPerson || ""
+  const mobile = raw.mobileNumber || raw.phone || ""
+  const prefix = raw.vendorPrefix ?? (raw as any).prefix ?? ""
+
   return {
     ...(raw as any),
     id: vId,
     vendorId: Number(vId) || undefined,
-    name: raw.vendorName || raw.name || `Vendor #${vId}`,
-    vendorName: raw.vendorName || raw.name || `Vendor #${vId}`,
-    contactPerson: raw.contactPerson || "",
+    name: vName,
+    vendorName: vName,
+    contactPerson: contact,
+    contactPersonName: contact,
     email: raw.email || "",
-    phone: raw.phone || "",
+    phone: mobile,
+    mobileNumber: mobile,
     address: typeof raw.address === "string" ? raw.address : "",
     gstin: raw.gstin || "",
-    status: raw.status === false ? "Inactive" : "Active",
-    vendorPrefix: raw.vendorPrefix || (raw as any).prefix || "",
-    products: [],
-    purchaseHistory: [],
-    payments: [],
+    status: raw.status === false || raw.status === "Inactive" ? "Inactive" : "Active",
+    vendorPrefix: prefix || "",
+    products: Array.isArray(raw.products) ? raw.products : [],
+    purchaseHistory: Array.isArray(raw.purchaseHistory) ? raw.purchaseHistory : [],
+    payments: Array.isArray(raw.payments) ? raw.payments : [],
   }
 }
 
 export const vendorsApi = {
-  /** GET /api/Vendor — fetch all vendors */
-  getAll: async (): Promise<Vendor[]> => {
+  /** GET /api/Vendor — fetch all vendors with optional pagination & SearchTerm */
+  getAll: async (params?: { pageNumber?: number; pageSize?: number; searchTerm?: string }): Promise<Vendor[]> => {
     try {
-      const raw = await apiClient.get<any>("/api/Vendor")
+      const q = new URLSearchParams()
+      if (params?.pageNumber) q.append("PageNumber", String(params.pageNumber))
+      if (params?.pageSize) q.append("PageSize", String(params.pageSize))
+      if (params?.searchTerm) q.append("SearchTerm", params.searchTerm)
+
+      const endpoint = q.toString() ? `/api/Vendor?${q.toString()}` : "/api/Vendor"
+      const raw = await apiClient.get<any>(endpoint)
       const list = Array.isArray(raw) ? raw : (raw?.data && Array.isArray(raw.data) ? raw.data : [])
       return list.map(mapApiVendor)
     } catch (err) {
@@ -377,14 +393,39 @@ export const vendorsApi = {
     }
   },
 
+  /** GET /api/Vendor with pagination and metadata */
+  getPaged: async (params?: { pageNumber?: number; pageSize?: number; searchTerm?: string }): Promise<{ vendors: Vendor[]; totalCount: number }> => {
+    try {
+      const q = new URLSearchParams()
+      if (params?.pageNumber) q.append("PageNumber", String(params.pageNumber))
+      if (params?.pageSize) q.append("PageSize", String(params.pageSize))
+      if (params?.searchTerm) q.append("SearchTerm", params.searchTerm)
+
+      const endpoint = q.toString() ? `/api/Vendor?${q.toString()}` : "/api/Vendor"
+      const raw = await apiClient.get<any>(endpoint)
+      const list = Array.isArray(raw) ? raw : (raw?.data && Array.isArray(raw.data) ? raw.data : [])
+      const totalCount = typeof raw?.totalCount === "number" ? raw.totalCount : list.length
+      return {
+        vendors: list.map(mapApiVendor),
+        totalCount
+      }
+    } catch (err) {
+      console.error("Failed to fetch paged vendors:", err)
+      return { vendors: [], totalCount: 0 }
+    }
+  },
+
   /** GET /api/Vendor/{id} */
-  getById: async (id: string): Promise<Vendor> => {
+  getById: async (id: string | number): Promise<Vendor> => {
     try {
       const raw = await apiClient.get<any>(`/api/Vendor/${id}`)
-      const data = raw?.data || raw
-      return mapApiVendor(data)
+      const data = raw?.data !== undefined ? raw.data : raw
+      if (data && typeof data === "object") {
+        return mapApiVendor(data)
+      }
+      throw new Error(`Vendor with id ${id} not found in response`)
     } catch {
-      // Fallback: backend IIS returns 404 for /api/Vendor/{id}, so fallback to finding in getAll()
+      // Fallback: try finding in getAll()
       const all = await vendorsApi.getAll()
       const found = all.find(
         (v: any) => String(v.id) === String(id) || String(v.vendorId) === String(id)
@@ -395,37 +436,38 @@ export const vendorsApi = {
   },
 
   /** POST /api/Vendor */
-  create: (data: Partial<Vendor>) => {
-    const payload = {
+  create: (data: Partial<Vendor> | CreateVendorDto | any) => {
+    const payload: CreateVendorDto = {
       vendorId: 0,
-      vendorName: data.name || "",
-      contactPerson: data.contactPerson || "",
-      email: data.email || "",
-      phone: data.phone || "",
-      address: typeof data.address === "string" ? data.address : "",
-      gstin: data.gstin || "",
-      status: data.status === "Inactive" ? false : true,
+      vendorName: (data.vendorName || data.name || "").trim(),
+      address: typeof data.address === "string" ? data.address.trim() : "",
+      gstin: (data.gstin || "").trim(),
+      email: (data.email || "").trim(),
+      mobileNumber: (data.mobileNumber || data.phone || "").trim(),
+      contactPersonName: (data.contactPersonName || data.contactPerson || "").trim(),
+      vendorPrefix: data.vendorPrefix ? data.vendorPrefix.trim() : "",
     }
     return apiClient.post<any>("/api/Vendor", payload)
   },
 
   /** PUT /api/Vendor/{id} */
-  update: (id: string, data: Partial<Vendor>) => {
-    const payload = {
-      vendorId: parseInt(id) || 0,
-      vendorName: data.name || "",
-      contactPerson: data.contactPerson || "",
-      email: data.email || "",
-      phone: data.phone || "",
-      address: typeof data.address === "string" ? data.address : "",
-      gstin: data.gstin || "",
-      status: data.status === "Inactive" ? false : true,
+  update: (id: string | number, data: Partial<Vendor> | CreateVendorDto | any) => {
+    const vId = Number(id) || Number(data.vendorId) || 0
+    const payload: CreateVendorDto = {
+      vendorId: vId,
+      vendorName: (data.vendorName || data.name || "").trim(),
+      address: typeof data.address === "string" ? data.address.trim() : "",
+      gstin: (data.gstin || "").trim(),
+      email: (data.email || "").trim(),
+      mobileNumber: (data.mobileNumber || data.phone || "").trim(),
+      contactPersonName: (data.contactPersonName || data.contactPerson || "").trim(),
+      vendorPrefix: data.vendorPrefix ? data.vendorPrefix.trim() : "",
     }
     return apiClient.put<any>(`/api/Vendor/${id}`, payload)
   },
 
   /** DELETE /api/Vendor/{id} */
-  remove: (id: string) => apiClient.delete<void>(`/api/Vendor/${id}`),
+  remove: (id: string | number) => apiClient.delete<void>(`/api/Vendor/${id}`),
 }
 
 // ---------------------------------------------------------------------------
@@ -1361,15 +1403,15 @@ export const countryMasterApi = {
 // Stock Inward  →  /api/StockInward
 // ---------------------------------------------------------------------------
 
-import type { InwardOrder, InwardScanEvent, StatusUpdateDto } from "@/app/inventory/stock-inward/types"
+import type { InwardOrder, InwardScanEvent, StatusUpdateDto, CreateStockInwardDto } from "@/app/inventory/stock-inward/types"
 
 export const stockInwardApi = {
   getAll: () => apiClient.get<InwardOrder[]>("/api/StockInward/GetAll"),
   getById: (id: number | string) => apiClient.get<InwardOrder>(`/api/StockInward/GetById/${id}`),
   fromPurchaseOrder: (purchaseOrderId: number | string) =>
     apiClient.get<any>(`/api/StockInward/FromPurchaseOrder/${purchaseOrderId}`),
-  create: (data: Partial<InwardOrder>) => apiClient.post<InwardOrder>("/api/StockInward/Create", data),
-  update: (id: number | string, data: Partial<InwardOrder>) => apiClient.put<InwardOrder>(`/api/StockInward/Update/${id}`, data),
+  create: (data: CreateStockInwardDto | Partial<InwardOrder>) => apiClient.post<InwardOrder>("/api/StockInward/Create", data),
+  update: (id: number | string, data: CreateStockInwardDto | Partial<InwardOrder>) => apiClient.put<InwardOrder>(`/api/StockInward/Update/${id}`, data),
   updateStatus: (id: number | string, dto: StatusUpdateDto | { newStatus: string; status?: string; comments?: string; remarks?: string }) => {
     const payload = {
       newStatus: (dto as any).newStatus || (dto as any).status || "Completed",
@@ -1396,7 +1438,7 @@ export const stockInwardApi = {
     return inventoryLotsApi.generateLotNumber({
       vendorId: params.vendorId,
       vendorPrefix: params.vendorPrefix,
-      invoiceNumber: params.invoiceNumber || params.orderNumber || "",
+      invoiceNumber: params.invoiceNumber || "",
       productId: params.productId,
       variantId: params.variantId,
       date: params.date,
@@ -1789,21 +1831,39 @@ export interface GenerateLotNumberResponse {
 }
 
 export const inventoryLotsApi = {
-  /** POST /api/Inventory/GenerateLotNumber (Phase 1) with GET fallback */
+  /** POST /api/Inventory/GenerateLotNumber (Phase 1) */
   generateLotNumber: async (payload: GenerateLotNumberRequest): Promise<InventoryApiResponse<GenerateLotNumberResponse>> => {
+    const formattedDate = payload.date
+      ? (payload.date.includes("T") ? payload.date : new Date(payload.date).toISOString())
+      : new Date().toISOString()
+
+    const cleanPayload = {
+      vendorId: Number(payload.vendorId || 0),
+      vendorPrefix: typeof payload.vendorPrefix === "string" ? payload.vendorPrefix : "",
+      invoiceNumber: typeof payload.invoiceNumber === "string" ? payload.invoiceNumber : "",
+      productId: Number(payload.productId || 0),
+      variantId: Number(payload.variantId || 0),
+      date: formattedDate,
+      sequence: Number(payload.sequence ?? 1),
+    }
+
     try {
-      return await apiClient.post<InventoryApiResponse<GenerateLotNumberResponse>>("/api/Inventory/GenerateLotNumber", payload)
-    } catch {
+      return await apiClient.post<InventoryApiResponse<GenerateLotNumberResponse>>("/api/Inventory/GenerateLotNumber", cleanPayload)
+    } catch (postErr) {
       // Fallback: try GET /api/Inventory/GenerateLotNumber with query params
       const q = new URLSearchParams()
-      if (payload.vendorPrefix) q.append("vendorPrefix", payload.vendorPrefix)
-      if (payload.vendorId) q.append("vendorId", String(payload.vendorId))
-      if (payload.invoiceNumber) q.append("invoiceNumber", payload.invoiceNumber)
-      if (payload.productId) q.append("productId", String(payload.productId))
-      if (payload.variantId) q.append("variantId", String(payload.variantId))
-      if (payload.date) q.append("date", payload.date)
-      if (payload.sequence !== undefined) q.append("sequence", String(payload.sequence))
-      return apiClient.get<InventoryApiResponse<GenerateLotNumberResponse>>(`/api/Inventory/GenerateLotNumber?${q.toString()}`)
+      if (cleanPayload.vendorPrefix) q.append("vendorPrefix", cleanPayload.vendorPrefix)
+      if (cleanPayload.vendorId) q.append("vendorId", String(cleanPayload.vendorId))
+      if (cleanPayload.invoiceNumber) q.append("invoiceNumber", cleanPayload.invoiceNumber)
+      if (cleanPayload.productId) q.append("productId", String(cleanPayload.productId))
+      if (cleanPayload.variantId) q.append("variantId", String(cleanPayload.variantId))
+      if (cleanPayload.date) q.append("date", cleanPayload.date)
+      if (cleanPayload.sequence !== undefined) q.append("sequence", String(cleanPayload.sequence))
+      try {
+        return await apiClient.get<InventoryApiResponse<GenerateLotNumberResponse>>(`/api/Inventory/GenerateLotNumber?${q.toString()}`)
+      } catch {
+        throw postErr
+      }
     }
   },
 

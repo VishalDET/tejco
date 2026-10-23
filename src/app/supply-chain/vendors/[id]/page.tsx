@@ -58,7 +58,12 @@ export default function VendorDetailsPage() {
         </Link>
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight">{vendor.name}</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{vendor.vendorName || vendor.name}</h1>
+            {vendor.vendorPrefix && (
+              <Badge variant="outline" className="font-mono text-xs px-2 py-0.5 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                Prefix: {vendor.vendorPrefix}
+              </Badge>
+            )}
             <Badge variant={vendor.status === "Active" ? "default" : "secondary"} className="text-sm">
               {vendor.status}
             </Badge>
@@ -77,24 +82,24 @@ export default function VendorDetailsPage() {
               >
                 Overview
               </TabsTrigger>
-              <TabsTrigger
+              {/* <TabsTrigger
                 value="products"
                 className="relative h-full rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
               >
                 Products Supplied
-              </TabsTrigger>
+              </TabsTrigger> */}
               <TabsTrigger
                 value="history"
                 className="relative h-full rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
               >
                 Purchase History
               </TabsTrigger>
-              <TabsTrigger
+              {/* <TabsTriggerf
                 value="payments"
                 className="relative h-full rounded-none border-b-2 border-b-transparent bg-transparent px-4 pb-3 pt-2 font-medium text-muted-foreground shadow-none transition-none data-[state=active]:border-b-primary data-[state=active]:text-foreground data-[state=active]:shadow-none"
               >
                 Payment Ledger
-              </TabsTrigger>
+              </TabsTrigger> */}
             </TabsList>
           </div>
 
@@ -110,7 +115,7 @@ export default function VendorDetailsPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium leading-none mb-1">Contact Person</p>
-                        <p className="text-sm text-muted-foreground">{vendor.contactPerson || "N/A"}</p>
+                        <p className="text-sm text-muted-foreground">{vendor.contactPersonName || vendor.contactPerson || "N/A"}</p>
                       </div>
                     </div>
 
@@ -120,9 +125,13 @@ export default function VendorDetailsPage() {
                       </div>
                       <div>
                         <p className="text-sm font-medium leading-none mb-1">Email Address</p>
-                        <a href={`mailto:${vendor.email}`} className="text-sm text-blue-600 hover:underline">
-                          {vendor.email || "N/A"}
-                        </a>
+                        {vendor.email ? (
+                          <a href={`mailto:${vendor.email}`} className="text-sm text-blue-600 hover:underline">
+                            {vendor.email}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">N/A</p>
+                        )}
                       </div>
                     </div>
 
@@ -131,10 +140,14 @@ export default function VendorDetailsPage() {
                         <Phone className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium leading-none mb-1">Phone Number</p>
-                        <a href={`tel:${vendor.phone}`} className="text-sm text-blue-600 hover:underline">
-                          {vendor.phone || "N/A"}
-                        </a>
+                        <p className="text-sm font-medium leading-none mb-1">Mobile / Phone Number</p>
+                        {(vendor.mobileNumber || vendor.phone) ? (
+                          <a href={`tel:${vendor.mobileNumber || vendor.phone}`} className="text-sm text-blue-600 hover:underline font-mono">
+                            {vendor.mobileNumber || vendor.phone}
+                          </a>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">N/A</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -143,6 +156,18 @@ export default function VendorDetailsPage() {
                 <div className="space-y-4">
                   <h3 className="text-base font-semibold border-b pb-2">Business Details</h3>
                   <div className="grid gap-4">
+                    {vendor.vendorPrefix && (
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted/50">
+                          <ReceiptText className="h-5 w-5 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium leading-none mb-1">Vendor Prefix</p>
+                          <p className="text-sm font-mono font-semibold text-amber-700 dark:text-amber-400">{vendor.vendorPrefix}</p>
+                        </div>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted/50">
                         <ReceiptText className="h-5 w-5 text-muted-foreground" />

@@ -2,7 +2,7 @@ import * as React from "react"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { stockInwardApi, vendorsApi, warehousesApi, productsApi } from "@/lib/api"
-import type { InwardOrder, InwardOrderItem } from "../types"
+import type { InwardOrder, InwardOrderItem, CreateStockInwardDto } from "../types"
 import {
   generateInvoiceLotNumber,
   generatePhase1LotNumber,
@@ -86,23 +86,41 @@ export default function StockInwardFormPage() {
     priority: "Normal",
     receiverName: "Admin User",
     referenceNumber: "",
+    purchaseOrderId: 0,
     poId: 0,
     poNumber: "",
     items: [],
     scanHistory: []
   })
 
-  const applyDraftFromPo = useCallback((poDraft: any, poIdValue?: string | number, currentVendors = vendors, currentWarehouses = warehouses, currentProducts = productsList) => {
+  const vendorsRef = React.useRef(vendors)
+  vendorsRef.current = vendors
+  const warehousesRef = React.useRef(warehouses)
+  warehousesRef.current = warehouses
+  const productsListRef = React.useRef(productsList)
+  productsListRef.current = productsList
+
+  const applyDraftFromPo = useCallback((
+    poDraft: any,
+    poIdValue?: string | number,
+    currentVendors?: any[],
+    currentWarehouses?: any[],
+    currentProducts?: any[]
+  ) => {
+    const vList = currentVendors || vendorsRef.current
+    const wList = currentWarehouses || warehousesRef.current
+    const pList = currentProducts || productsListRef.current
+
     const vId = Number(poDraft.vendorId || 0)
-    const matchedVendor = currentVendors.find(v => Number(v.vendorId || v.id || 0) === vId)
-    const targetWhId = Number(poDraft.warehouseId || (currentWarehouses[0]?.warehouseId || Number(currentWarehouses[0]?.id) || 0))
-    const matchedWarehouse = currentWarehouses.find(w => Number(w.warehouseId || w.id || 0) === targetWhId)
+    const matchedVendor = vList.find((v: any) => Number(v.vendorId || v.id || 0) === vId)
+    const targetWhId = Number(poDraft.warehouseId || (wList[0]?.warehouseId || Number(wList[0]?.id) || 0))
+    const matchedWarehouse = wList.find((w: any) => Number(w.warehouseId || w.id || 0) === targetWhId)
     const targetWhName = poDraft.warehouseName || matchedWarehouse?.name || matchedWarehouse?.warehouseName || ""
 
     const draftItems: InwardOrderItem[] = (poDraft.items || []).map((line: any, idx: number) => {
       const prodId = Number(line.productId || 0)
       const varId = Number(line.variantId || 0)
-      const matchedProd = currentProducts.find(p => Number(p.productId || p.id || 0) === prodId)
+      const matchedProd = pList.find((p: any) => Number(p.productId || p.id || 0) === prodId)
       const matchedVar = matchedProd?.variants?.find((v: any) => Number(v.variantId || v.id || 0) === varId)
       const sku = line.sku || matchedVar?.sku || `SKU-${prodId}`
       const lotNumber = line.lotNumber || ""
@@ -145,11 +163,12 @@ export default function StockInwardFormPage() {
       warehouseName: targetWhName || prev.warehouseName,
       warehouseCode: matchedWarehouse?.code || prev.warehouseCode || "",
       referenceNumber: poDraft.orderNumber || String(poIdValue || ""),
+      purchaseOrderId: Number(poDraft.purchaseOrderId || poIdValue || prev.purchaseOrderId || prev.poId || 0),
       poId: Number(poDraft.purchaseOrderId || poIdValue || prev.poId || 0),
       poNumber: poDraft.orderNumber || prev.poNumber || `PO #${poIdValue}`,
       items: draftItems
     }))
-  }, [id, isEdit, vendors, warehouses, productsList])
+  }, [id, isEdit])
 
   useEffect(() => {
     let isMounted = true
@@ -178,6 +197,7 @@ export default function StockInwardFormPage() {
           if (data && isMounted) {
             setForm({
               ...data,
+              purchaseOrderId: Number(data.purchaseOrderId || data.poId || 0),
               invoiceNumber: data.invoiceNumber || data.referenceNumber || "",
               invoiceDate: data.invoiceDate ? data.invoiceDate.slice(0, 10) : (data.orderDate ? data.orderDate.slice(0, 10) : new Date().toISOString().slice(0, 10)),
               vendorPrefix: data.vendorPrefix || "",
@@ -519,17 +539,33 @@ export default function StockInwardFormPage() {
     const item = form.items?.[idx]
     if (!item) return
 
+    if (!item.productId || Number(item.productId) <= 0) {
+      toast.warning("Please select a product before generating a lot number.")
+      return
+    }
+
+    const invoiceNumber = (form.invoiceNumber || "").trim()
+    if (!invoiceNumber) {
+      toast.warning("Please enter the Vendor Invoice / Bill Number before generating lot numbers.")
+      return
+    }
+
     setFetchingLotIdx(idx)
     try {
+      const selectedVendor = vendors.find(v => Number(v.vendorId || v.id || 0) === Number(form.vendorId || 0))
+      const vendorPrefix = form.vendorPrefix || selectedVendor?.vendorPrefix || (selectedVendor as any)?.prefix || ""
+
+      const isoDate = form.invoiceDate
+        ? (form.invoiceDate.includes("T") ? form.invoiceDate : new Date(form.invoiceDate).toISOString())
+        : new Date().toISOString()
+
       const params = {
-        vendorId: form.vendorId || undefined,
-        vendorPrefix: form.vendorPrefix || undefined,
-        invoiceNumber: form.invoiceNumber || form.referenceNumber || form.orderNumber || "",
-        orderNumber: form.orderNumber || "",
-        productId: item.productId || 0,
-        variantId: item.variantId || 0,
-        sku: item.sku || `ITEM${idx + 1}`,
-        date: form.invoiceDate ? form.invoiceDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+        vendorId: Number(form.vendorId || 0),
+        vendorPrefix: vendorPrefix,
+        invoiceNumber: invoiceNumber,
+        productId: Number(item.productId || 0),
+        variantId: Number(item.variantId || 0),
+        date: isoDate,
         sequence: idx + 1
       }
 
@@ -554,10 +590,10 @@ export default function StockInwardFormPage() {
       // Formula: {VendorPrefix}-{InvoiceNumber}-{ProductId}[-{VariantId}]-{DateCode}[-{Sequence}]
       if (!generatedLot) {
         generatedLot = generatePhase1LotNumber({
-          vendorPrefix: form.vendorPrefix || undefined,
-          invoiceNumber: form.invoiceNumber || form.referenceNumber || form.orderNumber || "",
-          productId: item.productId || 0,
-          variantId: item.variantId || 0,
+          vendorPrefix: vendorPrefix || undefined,
+          invoiceNumber: invoiceNumber,
+          productId: Number(item.productId || 0),
+          variantId: Number(item.variantId || 0),
           date: form.invoiceDate ? form.invoiceDate.slice(0, 10) : undefined,
           sequence: idx + 1
         })
@@ -592,10 +628,29 @@ export default function StockInwardFormPage() {
       return
     }
 
+    const unassignedItems = form.items.filter(it => !it.productId || Number(it.productId) <= 0)
+    if (unassignedItems.length > 0) {
+      toast.warning(`Please select a product for all line items first (${unassignedItems.length} item(s) missing product).`)
+      return
+    }
+
+    const invoiceNumber = (form.invoiceNumber || "").trim()
+    if (!invoiceNumber) {
+      toast.warning("Please enter the Vendor Invoice / Bill Number before generating lot numbers.")
+      return
+    }
+
     setFetchingAllLots(true)
     try {
       const updated = [...(form.items || [])]
       let generatedCount = 0
+
+      const selectedVendor = vendors.find(v => Number(v.vendorId || v.id || 0) === Number(form.vendorId || 0))
+      const vendorPrefix = form.vendorPrefix || selectedVendor?.vendorPrefix || (selectedVendor as any)?.prefix || ""
+
+      const isoDate = form.invoiceDate
+        ? (form.invoiceDate.includes("T") ? form.invoiceDate : new Date(form.invoiceDate).toISOString())
+        : new Date().toISOString()
 
       for (let i = 0; i < updated.length; i++) {
         const item = updated[i]
@@ -604,14 +659,12 @@ export default function StockInwardFormPage() {
 
         try {
           const res = await stockInwardApi.generateLotNumber({
-            vendorId: form.vendorId || undefined,
-            vendorPrefix: form.vendorPrefix || undefined,
-            invoiceNumber: form.invoiceNumber || form.referenceNumber || form.orderNumber || "",
-            orderNumber: form.orderNumber || "",
-            productId: item.productId || 0,
-            variantId: item.variantId || 0,
-            sku: item.sku || `ITEM${i + 1}`,
-            date: form.invoiceDate ? form.invoiceDate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+            vendorId: Number(form.vendorId || 0),
+            vendorPrefix: vendorPrefix,
+            invoiceNumber: invoiceNumber,
+            productId: Number(item.productId || 0),
+            variantId: Number(item.variantId || 0),
+            date: isoDate,
             sequence: i + 1
           })
           const data = (res as any)?.data || res
@@ -622,16 +675,16 @@ export default function StockInwardFormPage() {
             lot = data.lotNumber || data.lotNo || data.lot || data.code || ""
             barcode = data.lotBarcode || data.barcode || lot || ""
           }
-        } catch {
-          // fallback
+        } catch (apiErr) {
+          console.warn(`API error generating lot for item #${i + 1}:`, apiErr)
         }
 
         if (!lot) {
           lot = generatePhase1LotNumber({
-            vendorPrefix: form.vendorPrefix || undefined,
-            invoiceNumber: form.invoiceNumber || form.referenceNumber || form.orderNumber || "",
-            productId: item.productId || 0,
-            variantId: item.variantId || 0,
+            vendorPrefix: vendorPrefix || undefined,
+            invoiceNumber: invoiceNumber,
+            productId: Number(item.productId || 0),
+            variantId: Number(item.variantId || 0),
             date: form.invoiceDate ? form.invoiceDate.slice(0, 10) : undefined,
             sequence: i + 1
           })
@@ -808,7 +861,8 @@ export default function StockInwardFormPage() {
       warehouseId: targetWhId,
       warehouseName: targetWhName,
       referenceNumber: po.orderNumber,
-      poId: po.purchaseOrderId,
+      purchaseOrderId: Number(po.purchaseOrderId || 0),
+      poId: Number(po.purchaseOrderId || 0),
       poNumber: po.orderNumber,
       items: poItems
     }))
@@ -819,6 +873,7 @@ export default function StockInwardFormPage() {
   const handleClearPoLink = () => {
     setForm(prev => ({
       ...prev,
+      purchaseOrderId: 0,
       poId: 0,
       poNumber: "",
       referenceNumber: ""
@@ -850,55 +905,65 @@ export default function StockInwardFormPage() {
       return
     }
 
-    const payload: InwardOrder = {
+    const formatIsoDate = (dateVal?: string | null): string => {
+      if (!dateVal) return new Date().toISOString()
+      const d = new Date(dateVal)
+      return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+    }
+
+    const matchedVendor = vendors.find(v => Number(v.vendorId || v.id || 0) === Number(form.vendorId))
+    const matchedWarehouse = warehouses.find(w => Number(w.warehouseId || w.id || 0) === Number(form.warehouseId))
+
+    const vendorName = form.vendorName || matchedVendor?.vendorName || matchedVendor?.name || ""
+    const warehouseName = form.warehouseName || matchedWarehouse?.name || matchedWarehouse?.warehouseName || ""
+    const warehouseCode = form.warehouseCode || matchedWarehouse?.code || matchedWarehouse?.warehouseCode || (form.warehouseId ? `WH-${form.warehouseId}` : "")
+
+    const payload: CreateStockInwardDto = {
       inwardOrderId: isEdit ? parseInt(id || "0") : 0,
       orderNumber: form.orderNumber || form.inwardNumber || `INW-${Date.now()}`,
-      invoiceNumber: form.invoiceNumber || form.referenceNumber || "",
-      invoiceDate: form.invoiceDate ? new Date(form.invoiceDate).toISOString() : new Date().toISOString(),
-      poId: form.poId,
-      poNumber: form.poNumber,
-      referenceNumber: form.invoiceNumber || form.referenceNumber || form.poNumber || "",
-      vendorId: form.vendorId,
-      vendorName: form.vendorName || "",
-      vendorPrefix: form.vendorPrefix || "",
-      warehouseId: form.warehouseId,
-      warehouseName: form.warehouseName || "",
-      warehouseCode: form.warehouseCode || "",
-      orderDate: form.orderDate || new Date().toISOString(),
+      vendorId: Number(form.vendorId || 0),
+      vendorName: vendorName,
+      warehouseId: Number(form.warehouseId || 0),
+      warehouseName: warehouseName,
+      warehouseCode: warehouseCode,
+      orderDate: formatIsoDate(form.orderDate || form.inwardDate),
       status: form.status || "Pending",
       priority: form.priority || "Normal",
       receiverName: form.receiverName || "Admin User",
-      createdAt: form.createdAt || new Date().toISOString(),
+      createdAt: formatIsoDate(form.createdAt),
       updatedAt: new Date().toISOString(),
-      items: (form.items || []).map((i, idx) => {
+      purchaseOrderId: Number(form.purchaseOrderId || form.poId || 0),
+      invoiceNumber: form.invoiceNumber || form.referenceNumber || "",
+      items: (form.items || []).map((i) => {
         const assignedLot = i.lotNumber || ""
-        const assignedBarcode = i.lotBarcode || i.barcode || assignedLot || ""
+        const assignedBarcode = i.barcode || i.lotBarcode || assignedLot || ""
         return {
-          inwardOrderItemId: i.inwardOrderItemId || 0,
+          inwardOrderItemId: Number(i.inwardOrderItemId || 0),
           inwardOrderId: isEdit ? parseInt(id || "0") : 0,
-          productId: i.productId,
-          variantId: i.variantId || 0,
+          productId: Number(i.productId || 0),
+          variantId: Number(i.variantId || 0),
           productName: i.productName || "",
           variantName: i.variantName || "Default",
           sku: i.sku || `SKU-${i.productId}`,
           barcode: assignedBarcode,
-          expectedQty: i.expectedQty || i.expectedQuantity || 1,
-          receivedQty: i.receivedQty || i.receivedQuantity || 0,
-          acceptedQty: i.acceptedQty || i.expectedQty || 1,
-          rejectedQty: i.rejectedQty || 0,
-          unitPrice: i.unitPrice || i.purchasePrice || 0,
-          purchasePrice: i.purchasePrice || i.unitPrice || 0,
-          warehouseId: i.warehouseId || form.warehouseId || 0,
-          warehouseName: i.warehouseName || form.warehouseName || "",
-          lotId: i.lotId,
+          expectedQty: Number(i.expectedQty ?? i.expectedQuantity ?? 0),
+          receivedQty: Number(i.receivedQty ?? i.receivedQuantity ?? 0),
+          locationCode: i.locationCode || "RACK-A1",
+          lotId: Number(i.lotId || 0),
           lotNumber: assignedLot,
-          lotBarcode: assignedBarcode,
-          expiryDate: i.expiryDate || "",
-          manufacturingDate: i.manufacturingDate || "",
-          locationCode: i.locationCode || "RACK-A1"
+          purchasePrice: Number(i.purchasePrice ?? i.unitPrice ?? 0),
+          expiryDate: formatIsoDate(i.expiryDate)
         }
       }),
-      scanHistory: form.scanHistory || []
+      scanHistory: (form.scanHistory || []).map((s) => ({
+        scanId: Number(s.scanId || 0),
+        inwardOrderId: isEdit ? parseInt(id || "0") : 0,
+        barcode: s.barcode || "",
+        message: s.message || "",
+        scanType: s.scanType || "Scan",
+        productName: s.productName || "",
+        scannedAt: formatIsoDate(s.scannedAt)
+      }))
     }
 
     setSubmitting(true)
@@ -999,7 +1064,7 @@ export default function StockInwardFormPage() {
               Linked to Purchase Order: <span className="text-primary">{form.poNumber}</span>
             </span>
             <Badge variant="outline" className="text-[10px] bg-background">
-              Ref PO #{form.poId || form.poNumber}
+              Ref PO #{form.purchaseOrderId || form.poId || form.poNumber}
             </Badge>
           </div>
           <Button
@@ -1027,121 +1092,132 @@ export default function StockInwardFormPage() {
               Enter the vendor's physical invoice details. Lot numbers will be generated automatically for every product on this invoice.
             </CardDescription>
           </CardHeader>
-          <CardContent className="pt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Vendor Invoice Number (Key Feature) */}
-            <div className="p-3 rounded-lg border-2 border-primary/40 bg-primary/5 sm:col-span-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-mono font-bold text-primary flex items-center gap-1.5">
-                  <Receipt className="h-3.5 w-3.5" />
-                  Vendor Invoice / Bill Number *
+          <CardContent className="pt-4 space-y-4">
+            {/* Top Section: Left column (Row 1: Vendor Partner, Row 2: Vendor Invoice Date) and Second column (Vendor Invoice / Bill Number) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+              {/* Left Column: 2 stacked rows */}
+              <div className="flex flex-col justify-between gap-3">
+                {/* Row 1: Vendor Partner */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-mono font-semibold text-muted-foreground">Vendor Partner *</label>
+                    {form.vendorPrefix && (
+                      <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30">
+                        Prefix: {form.vendorPrefix}
+                      </Badge>
+                    )}
+                  </div>
+                  <SearchableDropdown
+                    value={form.vendorId ? String(form.vendorId) : ""}
+                    onChange={(val) => handleVendorSelect(parseInt(val) || 0)}
+                    options={vendorOptions}
+                    placeholder="Select Vendor..."
+                    searchPlaceholder="Search vendor by name, code, contact..."
+                    className="mt-1"
+                    triggerClassName="h-9 font-mono text-xs"
+                    allowClear
+                  />
+                </div>
+
+                {/* Row 2: Vendor Invoice Date */}
+                <div>
+                  <label className="text-xs font-mono font-semibold text-muted-foreground flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Vendor Invoice Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={form.invoiceDate || ""}
+                    onChange={(e) => setForm({ ...form, invoiceDate: e.target.value })}
+                    className="mt-1 text-xs font-mono bg-background h-9"
+                  />
+                </div>
+              </div>
+
+              {/* Second Column: Vendor Invoice / Bill Number */}
+              <div className="p-3.5 rounded-lg border-2 border-primary/40 bg-primary/5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <label className="text-xs font-mono font-bold text-primary flex items-center gap-1.5">
+                      <Receipt className="h-3.5 w-3.5" />
+                      Vendor Invoice / Bill Number *
+                    </label>
+                    {form.invoiceNumber && (
+                      <Badge variant="outline" className="text-[10px] font-mono bg-background text-primary border-primary/30">
+                        Formula: {form.vendorPrefix || "GEN"}-{form.invoiceNumber.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}-...
+                      </Badge>
+                    )}
+                  </div>
+                  <Input
+                    placeholder="e.g. INV-2026-9042 or BILL/26/104"
+                    value={form.invoiceNumber || ""}
+                    onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })}
+                    className="mt-2 text-xs font-mono font-bold bg-background text-foreground h-9 shadow-2xs"
+                    required
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Used to generate unique lot codes & barcode serials for all line items on this bill.
+                </p>
+              </div>
+            </div>
+
+            {/* Bottom Section: Inbound Tracking and Warehouse Details */}
+            <div className="pt-2 border-t border-border/50 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {/* Internal Inward Number */}
+              <div>
+                <label className="text-xs font-mono font-semibold text-muted-foreground flex items-center gap-1">
+                  <FileText className="h-3 w-3" />
+                  Internal Inward #
                 </label>
-                {form.invoiceNumber && (
-                  <Badge variant="outline" className="text-[10px] font-mono bg-background text-primary border-primary/30">
-                    Formula: {form.vendorPrefix || "GEN"}-{form.invoiceNumber.replace(/[^A-Za-z0-9]/g, "").toUpperCase()}-...
-                  </Badge>
-                )}
+                <Input
+                  value={form.orderNumber || ""}
+                  onChange={(e) => setForm({ ...form, orderNumber: e.target.value })}
+                  className="mt-1 text-xs font-mono bg-background h-9"
+                  required
+                />
               </div>
-              <Input
-                placeholder="e.g. INV-2026-9042 or BILL/26/104"
-                value={form.invoiceNumber || ""}
-                onChange={(e) => setForm({ ...form, invoiceNumber: e.target.value })}
-                className="mt-1 text-xs font-mono font-bold bg-background text-foreground h-9 shadow-2xs"
-                required
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                Used to generate unique lot codes & barcode serials for all line items on this bill.
-              </p>
-            </div>
 
-            {/* Vendor Invoice Date */}
-            <div>
-              <label className="text-xs font-mono font-semibold text-muted-foreground flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                Vendor Invoice Date
-              </label>
-              <Input
-                type="date"
-                value={form.invoiceDate || ""}
-                onChange={(e) => setForm({ ...form, invoiceDate: e.target.value })}
-                className="mt-1 text-xs font-mono bg-background h-9"
-              />
-            </div>
-
-            {/* Internal Inward Number */}
-            <div>
-              <label className="text-xs font-mono font-semibold text-muted-foreground flex items-center gap-1">
-                <FileText className="h-3 w-3" />
-                Internal Inward #
-              </label>
-              <Input
-                value={form.orderNumber || ""}
-                onChange={(e) => setForm({ ...form, orderNumber: e.target.value })}
-                className="mt-1 text-xs font-mono bg-background h-9"
-                required
-              />
-            </div>
-
-            {/* Vendor Partner */}
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-mono font-semibold text-muted-foreground">Vendor Partner *</label>
-                {form.vendorPrefix && (
-                  <Badge variant="outline" className="text-[10px] font-mono bg-primary/10 text-primary border-primary/30">
-                    Prefix: {form.vendorPrefix}
-                  </Badge>
-                )}
+              {/* Target Destination Warehouse */}
+              <div>
+                <label className="text-xs font-mono font-semibold text-muted-foreground">Destination Warehouse *</label>
+                <SearchableDropdown
+                  value={form.warehouseId ? String(form.warehouseId) : ""}
+                  onChange={(val) => handleWarehouseSelect(parseInt(val) || 0)}
+                  options={warehouseOptions}
+                  placeholder="Select Warehouse..."
+                  searchPlaceholder="Search warehouse name, code..."
+                  className="mt-1"
+                  triggerClassName="h-9 font-mono text-xs"
+                />
               </div>
-              <SearchableDropdown
-                value={form.vendorId ? String(form.vendorId) : ""}
-                onChange={(val) => handleVendorSelect(parseInt(val) || 0)}
-                options={vendorOptions}
-                placeholder="Select Vendor..."
-                searchPlaceholder="Search vendor by name, code, contact..."
-                className="mt-1"
-                triggerClassName="h-9 font-mono text-xs"
-                allowClear
-              />
-            </div>
 
-            {/* Target Destination Warehouse */}
-            <div>
-              <label className="text-xs font-mono font-semibold text-muted-foreground">Destination Warehouse *</label>
-              <SearchableDropdown
-                value={form.warehouseId ? String(form.warehouseId) : ""}
-                onChange={(val) => handleWarehouseSelect(parseInt(val) || 0)}
-                options={warehouseOptions}
-                placeholder="Select Warehouse..."
-                searchPlaceholder="Search warehouse name, code..."
-                className="mt-1"
-                triggerClassName="h-9 font-mono text-xs"
-              />
-            </div>
+              {/* Inward Receipt Timestamp */}
+              <div>
+                <label className="text-xs font-mono font-semibold text-muted-foreground">Physical Receipt Date</label>
+                <Input
+                  type="datetime-local"
+                  value={form.orderDate ? new Date(form.orderDate).toISOString().slice(0, 16) : ""}
+                  onChange={(e) => setForm({ ...form, orderDate: new Date(e.target.value).toISOString() })}
+                  className="mt-1 text-xs font-mono bg-background h-9"
+                  required
+                />
+              </div>
 
-            {/* Inward Receipt Timestamp */}
-            <div>
-              <label className="text-xs font-mono font-semibold text-muted-foreground">Physical Receipt Date</label>
-              <Input
-                type="datetime-local"
-                value={form.orderDate ? new Date(form.orderDate).toISOString().slice(0, 16) : ""}
-                onChange={(e) => setForm({ ...form, orderDate: new Date(e.target.value).toISOString() })}
-                className="mt-1 text-xs font-mono bg-background h-9"
-                required
-              />
-            </div>
-
-            {/* Receiver Name */}
-            <div>
-              <label className="text-xs font-mono font-semibold text-muted-foreground">Receiver / QC Staff</label>
-              <Input
-                value={form.receiverName || ""}
-                onChange={(e) => setForm({ ...form, receiverName: e.target.value })}
-                className="mt-1 text-xs font-mono bg-background h-9"
-              />
+              {/* Receiver Name */}
+              <div>
+                <label className="text-xs font-mono font-semibold text-muted-foreground">Receiver / QC Staff</label>
+                <Input
+                  value={form.receiverName || ""}
+                  onChange={(e) => setForm({ ...form, receiverName: e.target.value })}
+                  className="mt-1 text-xs font-mono bg-background h-9"
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Multi-Lot & Expiry Quick Utility Bar */}
+        {/* Multi-Lot & Expiry Quick Utility Bar
         <div className="p-3 bg-muted/40 border border-border rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
@@ -1215,7 +1291,6 @@ export default function StockInwardFormPage() {
             </div>
           </div>
 
-          {/* Quick Metrics */}
           <div className="flex items-center gap-3 text-xs font-mono shrink-0">
             <span className="px-2.5 py-1 bg-background rounded-md border border-border">
               Items: <strong>{form.items?.length || 0}</strong>
@@ -1230,7 +1305,7 @@ export default function StockInwardFormPage() {
               {distinctLotsCount} {distinctLotsCount === 1 ? "Lot" : "Lots"} Assigned
             </Badge>
           </div>
-        </div>
+        </div> */}
 
         {/* Line Items Table with Multi-Lot & Expiry Schema */}
         <Card className="shadow-xs border border-border">
@@ -1338,6 +1413,8 @@ export default function StockInwardFormPage() {
                       const rackSuggestions = getWarehouseRacks(currentItemWhId)
                       const expiryInfo = getExpiryStatus(item.expiryDate)
                       const lineTotal = (item.expectedQty || 0) * (item.purchasePrice || item.unitPrice || 0)
+                      const isProductSelected = Boolean(item.productId && Number(item.productId) > 0)
+                      const isInvoiceEntered = Boolean(form.invoiceNumber && form.invoiceNumber.trim().length > 0)
 
                       return (
                         <tr key={idx} className="hover:bg-muted/20 transition-colors">
@@ -1387,7 +1464,7 @@ export default function StockInwardFormPage() {
                               )}
 
                               <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                                <span>SKU: {item.sku || "—"}</span>
+                                <span>{item.sku || "—"}</span>
                                 {Array.isArray(matchedVar?.lots) && matchedVar.lots.length > 0 && (
                                   <span
                                     className="px-1.5 py-0.2 rounded bg-muted border border-border text-foreground font-mono cursor-help"
@@ -1446,15 +1523,24 @@ export default function StockInwardFormPage() {
                                   type="button"
                                   variant="outline"
                                   size="sm"
-                                  disabled={fetchingLotIdx === idx}
+                                  disabled={fetchingLotIdx === idx || !isProductSelected || !isInvoiceEntered}
                                   onClick={() => handleFetchLotNumber(idx)}
-                                  title="Fetch lot and barcode from endpoint"
-                                  className="h-8 px-2 text-[11px] font-mono font-medium border-amber-400/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 shrink-0 cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                                  title={
+                                    !isInvoiceEntered
+                                      ? "Please enter the Vendor Invoice / Bill Number first"
+                                      : !isProductSelected
+                                        ? "Please select a product before generating a lot number"
+                                        : "Fetch lot and barcode from endpoint"
+                                  }
+                                  className={`h-8 px-2 text-[11px] font-mono font-medium shrink-0 flex items-center gap-1 whitespace-nowrap transition-all ${!isProductSelected || !isInvoiceEntered
+                                    ? "border-muted bg-muted/40 text-muted-foreground opacity-50 cursor-not-allowed"
+                                    : "border-amber-400/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer"
+                                    }`}
                                 >
                                   {fetchingLotIdx === idx ? (
                                     <Loader2 className="h-3 w-3 animate-spin" />
                                   ) : (
-                                    <Sparkles className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                                    <Sparkles className={`h-3 w-3 ${!isProductSelected ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`} />
                                   )}
                                   <span>Get Lot No</span>
                                 </Button>
@@ -1476,7 +1562,15 @@ export default function StockInwardFormPage() {
                                   </button>
                                 </div>
                               ) : (
-                                <p className="text-[10px] text-muted-foreground font-mono">Click &quot;Get Lot No&quot; to assign</p>
+                                <p className="text-[10px] text-muted-foreground font-mono">
+                                  {!isInvoiceEntered ? (
+                                    <span className="text-amber-600/90 dark:text-amber-400/90">Enter Invoice # above</span>
+                                  ) : !isProductSelected ? (
+                                    <span className="text-amber-600/90 dark:text-amber-400/90">Select product to enable</span>
+                                  ) : (
+                                    'Click "Get Lot No" to assign'
+                                  )}
+                                </p>
                               )}
                             </div>
                           </td>
@@ -1584,10 +1678,10 @@ export default function StockInwardFormPage() {
                                 <Badge
                                   variant="outline"
                                   className={`text-[9px] font-mono px-1.5 py-0 ${expiryInfo.status === "valid"
-                                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                                      : expiryInfo.status === "expiring-soon"
-                                        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
-                                        : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                    : expiryInfo.status === "expiring-soon"
+                                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                      : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
                                     }`}
                                 >
                                   {expiryInfo.label}

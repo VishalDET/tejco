@@ -41,6 +41,54 @@ export interface ScanHistoryItem {
   scannedAt?: string
 }
 
+export interface CreateStockInwardItemDto {
+  inwardOrderItemId: number
+  inwardOrderId: number
+  productId: number
+  variantId: number
+  productName: string
+  variantName: string
+  sku: string
+  barcode: string
+  expectedQty: number
+  receivedQty: number
+  locationCode: string
+  lotId: number
+  lotNumber: string
+  purchasePrice: number
+  expiryDate: string
+}
+
+export interface CreateStockInwardScanDto {
+  scanId: number
+  inwardOrderId: number
+  barcode: string
+  message: string
+  scanType: string
+  productName: string
+  scannedAt: string
+}
+
+export interface CreateStockInwardDto {
+  inwardOrderId: number
+  orderNumber: string
+  vendorId: number
+  vendorName: string
+  warehouseId: number
+  warehouseName: string
+  warehouseCode: string
+  orderDate: string
+  status: string
+  priority: string
+  receiverName: string
+  createdAt: string
+  updatedAt: string
+  purchaseOrderId: number
+  invoiceNumber: string
+  items: CreateStockInwardItemDto[]
+  scanHistory: CreateStockInwardScanDto[]
+}
+
 export interface InwardOrder {
   inwardOrderId?: number
   id?: number

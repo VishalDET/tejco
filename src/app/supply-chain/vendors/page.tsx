@@ -25,6 +25,7 @@ import { Vendor } from "./types"
 import { vendorsApi } from "@/lib/api"
 import { VendorFormDialog } from "./vendor-form-dialog"
 import { useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 export default function VendorsPage() {
   const navigate = useNavigate()
@@ -37,8 +38,9 @@ export default function VendorsPage() {
     try {
       const data = await vendorsApi.getAll()
       setVendors(Array.isArray(data) ? data : [])
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to load vendors:", err)
+      toast.error(err?.message || "Failed to load vendors")
       setVendors([])
     } finally {
       setIsLoading(false)
@@ -70,9 +72,11 @@ export default function VendorsPage() {
     if (confirm("Are you sure you want to delete this vendor? This action cannot be undone.")) {
       try {
         await vendorsApi.remove(vendorId)
+        toast.success("Vendor deleted successfully")
         loadVendors()
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to delete vendor:", err)
+        toast.error(err?.message || "Failed to delete vendor")
       }
     }
   }
@@ -81,20 +85,25 @@ export default function VendorsPage() {
     try {
       if (vendorToSave.id && vendorToSave.id !== "0") {
         await vendorsApi.update(vendorToSave.id, vendorToSave)
+        toast.success("Vendor updated successfully")
       } else {
         await vendorsApi.create(vendorToSave)
+        toast.success("Vendor created successfully")
       }
       loadVendors()
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save vendor:", err)
+      toast.error(err?.message || "Failed to save vendor")
     }
   }
 
   const filteredVendors = vendors.filter(
     (v) =>
-      (v.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (v.contactPerson || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.vendorName || v.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.contactPersonName || v.contactPerson || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.mobileNumber || v.phone || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (v.email || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (v.vendorPrefix || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (v.gstin || "").toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -178,10 +187,26 @@ export default function VendorsPage() {
               <TableBody>
                 {filteredVendors.map((vendor) => (
                   <TableRow key={vendor.id}>
-                    <TableCell className="font-medium">{vendor.name}</TableCell>
-                    <TableCell>{vendor.contactPerson || "-"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-foreground">{vendor.vendorName || vendor.name}</span>
+                        {vendor.vendorPrefix && (
+                          <Badge variant="outline" className="text-[10px] font-mono px-1.5 py-0 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                            {vendor.vendorPrefix}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{vendor.contactPersonName || vendor.contactPerson || "-"}</span>
+                        {(vendor.mobileNumber || vendor.phone) && (
+                          <span className="text-xs text-muted-foreground font-mono">{vendor.mobileNumber || vendor.phone}</span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>{vendor.email || "-"}</TableCell>
-                    <TableCell>{vendor.gstin || "-"}</TableCell>
+                    <TableCell className="font-mono text-xs">{vendor.gstin || "-"}</TableCell>
                     <TableCell>
                       <Badge variant={vendor.status === "Active" ? "default" : "secondary"}>
                         {vendor.status}
