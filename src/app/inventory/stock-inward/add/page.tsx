@@ -2,6 +2,7 @@ import * as React from "react"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { stockInwardApi, vendorsApi, warehousesApi, productsApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 import type { InwardOrder, InwardOrderItem, CreateStockInwardDto } from "../types"
 import {
   generateInvoiceLotNumber,
@@ -57,6 +58,9 @@ export default function StockInwardFormPage() {
   const [searchParams] = useSearchParams()
   const poIdParam = searchParams.get("poId")
 
+  const { user } = useAuth()
+  const defaultReceiver = user?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Admin Staff"
+
   const [loading, setLoading] = useState(isEdit || Boolean(poIdParam))
   const [submitting, setSubmitting] = useState(false)
   const [vendors, setVendors] = useState<any[]>([])
@@ -84,7 +88,7 @@ export default function StockInwardFormPage() {
     orderDate: new Date().toISOString(),
     status: "Pending",
     priority: "Normal",
-    receiverName: "Admin User",
+    receiverName: defaultReceiver,
     referenceNumber: "",
     purchaseOrderId: 0,
     poId: 0,
@@ -92,6 +96,15 @@ export default function StockInwardFormPage() {
     items: [],
     scanHistory: []
   })
+
+  useEffect(() => {
+    if (!isEdit && user && (!form.receiverName || form.receiverName === "Admin User" || form.receiverName === "Admin Staff")) {
+      const currentUserName = user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim()
+      if (currentUserName) {
+        setForm(prev => ({ ...prev, receiverName: currentUserName }))
+      }
+    }
+  }, [user, isEdit])
 
   const vendorsRef = React.useRef(vendors)
   vendorsRef.current = vendors
@@ -929,7 +942,7 @@ export default function StockInwardFormPage() {
       orderDate: formatIsoDate(form.orderDate || form.inwardDate),
       status: form.status || "Pending",
       priority: form.priority || "Normal",
-      receiverName: form.receiverName || "Admin User",
+      receiverName: form.receiverName || (!isEdit ? (user?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim()) : "") || "Admin Staff",
       createdAt: formatIsoDate(form.createdAt),
       updatedAt: new Date().toISOString(),
       purchaseOrderId: Number(form.purchaseOrderId || form.poId || 0),

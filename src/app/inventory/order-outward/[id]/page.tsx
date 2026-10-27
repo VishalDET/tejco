@@ -2,6 +2,7 @@ import * as React from "react"
 import { useParams } from "react-router-dom"
 import { OutwardScanView } from "./outward-scan-view"
 import { orderOutwardApi, salesOrderApi, warehousesApi, productsApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 import { mapApiOutwardOrder, type OutwardOrder } from "../types"
 import { mapApiSalesOrder } from "../../../sales/orders/types"
 import { Loader } from "@/components/ui/loader"
@@ -9,6 +10,8 @@ import { Loader } from "@/components/ui/loader"
 export default function OrderOutwardScanPage() {
   const params = useParams()
   const id = params?.id as string
+  const { user } = useAuth()
+  const currentUserName = user?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Warehouse Operator"
 
   const [order, setOrder] = React.useState<OutwardOrder | null>(null)
   const [loading, setLoading] = React.useState(true)
@@ -140,35 +143,103 @@ export default function OrderOutwardScanPage() {
                 : resolvedVar?.sku || (resolvedProd?.baseSKU ? `${resolvedProd.baseSKU}${resolvedVar?.skuSuffix || ""}` : `SKU-${item.productId}`)
 
               const finalBarcode = resolvedVar?.barcode || resolved?.barcode || (isValidSku ? rawSku : `BC-${item.productId}`)
+              const variantId = Number(resolvedVar?.id || resolvedVar?.variantId || item.variantId || 0)
 
               return {
                 id: String(item.id || item.orderItemId || Math.random().toString(36).substring(2, 9)),
+                outwardOrderItemId: 0,
                 productId: String(item.productId),
+                variantId,
                 productName: finalProdName,
                 variantName: finalVarName,
                 sku: finalSku,
                 barcode: finalBarcode,
                 orderedQty: Number(item.quantity || 1),
                 scannedQty: 0,
-                locationCode: "A-1"
+                locationCode: "A-1",
+                lotId: null,
+                lotNumber: null
               }
             })
 
-            resolvedOrder = {
-              id: String(mappedSales.orderId || mappedSales.id || id),
-              orderId: mappedSales.orderId,
-              orderNumber: mappedSales.orderNumber,
-              clientName: mappedSales.clientName,
+            const formatIsoDate = (dVal: any) => {
+              if (!dVal) return new Date().toISOString()
+              const d = new Date(dVal)
+              return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+            }
+
+            const createPayload = {
+              outwardOrderId: 0,
+              orderId: Number(mappedSales.orderId || mappedSales.id || id || 0),
+              orderNumber: mappedSales.orderNumber || `SO-${id}`,
+              clientName: mappedSales.clientName || "Unknown Client",
+              warehouseId: Number(defaultWarehouse?.id || 0),
               warehouseName: whName,
               warehouseCode: whCode,
               shippingAddress: mappedSales.shippingAddress || mappedSales.billingAddress || "",
-              orderDate: mappedSales.date,
-              promisedDate: mappedSales.deliveryDate || mappedSales.date,
+              orderDate: formatIsoDate(mappedSales.date),
+              promisedDate: formatIsoDate(mappedSales.deliveryDate || mappedSales.date),
+              status: "Ready",
+              priority: (rawSalesOrder?.priority as any) || "Normal",
+              pickerName: currentUserName,
+              freight: Number(rawSalesOrder?.freight || 0),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              items: items.map((it: any) => ({
+                outwardOrderItemId: 0,
+                outwardOrderId: 0,
+                productId: Number(it.productId || 0),
+                variantId: Number(it.variantId || 0),
+                productName: it.productName,
+                variantName: it.variantName || "",
+                sku: it.sku,
+                barcode: it.barcode,
+                orderedQty: Number(it.orderedQty || 0),
+                scannedQty: 0,
+                locationCode: it.locationCode || "A-1",
+                lotId: null,
+                lotNumber: null
+              })),
+              scanHistory: []
+            }
+
+            resolvedOrder = {
+              id: String(mappedSales.orderId || mappedSales.id || id),
+              outwardOrderId: undefined,
+              orderId: mappedSales.orderId,
+              orderNumber: mappedSales.orderNumber,
+              clientName: mappedSales.clientName,
+              warehouseId: Number(defaultWarehouse?.id || 0),
+              warehouseName: whName,
+              warehouseCode: whCode,
+              shippingAddress: mappedSales.shippingAddress || mappedSales.billingAddress || "",
+              orderDate: formatIsoDate(mappedSales.date),
+              promisedDate: formatIsoDate(mappedSales.deliveryDate || mappedSales.date),
               status: "Ready",
               priority: "Normal",
-              pickerName: "Warehouse Operator",
+              pickerName: currentUserName,
+              freight: Number(rawSalesOrder?.freight || 0),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
               items,
               scanHistory: []
+            }
+
+            // Immediately create outward order on server via POST /api/OrderOutward/Create
+            try {
+              const createRes = await orderOutwardApi.create(createPayload)
+              const createdData = (createRes as any)?.data || createRes
+              if (createdData && (createdData.outwardOrderId || createdData.id)) {
+                const mapped = mapApiOutwardOrder(createdData)
+                if (mapped && mapped.items && mapped.items.length > 0) {
+                  resolvedOrder = mapped
+                } else if (createdData.outwardOrderId) {
+                  resolvedOrder.outwardOrderId = Number(createdData.outwardOrderId)
+                  resolvedOrder.id = String(createdData.outwardOrderId)
+                }
+              }
+            } catch (createErr) {
+              console.warn("Failed to auto-create outward order on server, proceeding with in-memory fallback:", createErr)
             }
           }
         } catch (salesErr) {

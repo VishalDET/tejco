@@ -16,6 +16,7 @@ import { ProductSelector } from "@/components/sales/product-selector"
 import { proformaApi, usersApi, serializeAddress, countryMasterApi, clientsApi, productsApi } from "@/lib/api"
 import { toast } from "sonner"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
+import { useAuth } from "@/hooks/use-auth"
 
 interface ProformaFormDialogProps {
   open: boolean
@@ -27,6 +28,7 @@ interface ProformaFormDialogProps {
 const GST_RATES = [0, 5, 12, 18, 28]
 
 export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: ProformaFormDialogProps) {
+  const { user } = useAuth()
   const [form, setForm] = useState<Partial<ProformaInvoice>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [users, setUsers] = useState<any[]>([])
@@ -119,6 +121,10 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
     } else {
       const year = new Date().getFullYear()
       const random = Math.floor(1000 + Math.random() * 9000)
+      const currentUserName = user?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || ""
+      const currentUserCell = user?.phone || user?.mobile || user?.mobileNumber || ""
+      const currentUserId = user?.userId !== undefined ? String(user.userId) : (user?.id !== undefined ? String(user.id) : "")
+
       setForm({
         number: `PI-${year}-${random}`,
         date: new Date().toISOString().split("T")[0],
@@ -132,8 +138,9 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         deliveryTime: "10-15 Working Days",
         deliveryTerms: "10-15 Working Days",
         paymentTerms: "",
-        salesPersonName: "",
-        salesPersonCell: "",
+        salesPersonName: currentUserName,
+        salesPersonCell: currentUserCell,
+        salesPersonId: currentUserId || undefined,
         subject: "",
         paymentType: "Domestic",
         currencyType: "INR",
@@ -142,7 +149,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
         clientGSTIN: "",
       })
     }
-  }, [proforma, open])
+  }, [proforma, open, user])
 
   // Auto-resolve Client ID by searching clients API with client name / billing name
   useEffect(() => {
@@ -276,22 +283,27 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
       const hasValidId = form.salesPersonId && users.some(u => String(u.userId) === String(form.salesPersonId))
 
       if (!hasValidId) {
-        const match = users.find(u =>
-          `${u.firstName} ${u.lastName}`.trim().toLowerCase() === form.salesPersonName?.trim().toLowerCase()
-        )
+        const targetName = form.salesPersonName.trim().toLowerCase()
+        const match = users.find(u => {
+          const uFull = `${u.firstName || ""} ${u.lastName || ""}`.trim().toLowerCase()
+          const uName = (u.name || "").trim().toLowerCase()
+          return uFull === targetName || uName === targetName
+        })
         if (match) {
           setForm(prev => ({
             ...prev,
             salesPersonId: String(match.userId),
             salesPersonCell: match.mobile || match.phone || prev.salesPersonCell || ""
           }))
+        } else if (user?.userId && String(form.salesPersonId) === String(user.userId)) {
+          // Keep current logged-in user ID
         } else {
           // Clear invalid/mock salesPersonId so user is forced to select a valid one
           setForm(prev => ({ ...prev, salesPersonId: undefined }))
         }
       }
     }
-  }, [users, form.salesPersonName, form.salesPersonId])
+  }, [users, form.salesPersonName, form.salesPersonId, user?.userId])
 
   const calculateTotals = (items: (SalesDocumentItem | ProformaInvoiceItem)[]) => {
     const isForeign = form.paymentType === "Foreign"
@@ -768,7 +780,10 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                 <Select
                   value={form.salesPersonName || ""}
                   onValueChange={(val) => {
-                    const selectedUser = users.find(u => `${u.firstName} ${u.lastName}`.trim() === val)
+                    const selectedUser = users.find(u => {
+                      const uFull = `${u.firstName || ""} ${u.lastName || ""}`.trim()
+                      return uFull === val || u.name === val
+                    })
                     if (selectedUser) {
                       setForm(prev => ({
                         ...prev,
@@ -788,7 +803,7 @@ export function ProformaFormDialog({ open, onOpenChange, proforma, onSave }: Pro
                   <SelectTrigger><SelectValue placeholder={loadingUsers ? "Loading..." : "Select sales person"} /></SelectTrigger>
                   <SelectContent>
                     {users.map(u => {
-                      const fullName = `${u.firstName} ${u.lastName}`.trim()
+                      const fullName = (u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim()) || `User ${u.userId}`
                       return (
                         <SelectItem key={u.userId} value={fullName}>
                           {fullName}

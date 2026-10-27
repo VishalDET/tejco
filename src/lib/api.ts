@@ -1263,6 +1263,7 @@ export interface ApiOutwardOrderItem {
   outwardOrderItemId: number
   outwardOrderId: number
   productId: number
+  variantId?: number
   productName: string
   variantName: string
   sku: string
@@ -1270,6 +1271,8 @@ export interface ApiOutwardOrderItem {
   orderedQty: number
   scannedQty: number
   locationCode: string
+  lotId?: number | null
+  lotNumber?: string | null
 }
 
 export interface ApiOutwardScanEvent {
@@ -1287,13 +1290,16 @@ export interface ApiOutwardOrder {
   orderId: number
   orderNumber: string
   clientName: string
+  warehouseId?: number
   warehouseName: string
+  warehouseCode?: string
   shippingAddress: string
   orderDate: string
   promisedDate: string
   status: string
   priority: string
   pickerName?: string
+  freight?: number
   createdAt: string
   updatedAt: string
   items: ApiOutwardOrderItem[]
@@ -1303,12 +1309,12 @@ export interface ApiOutwardOrder {
 export const orderOutwardApi = {
   getAll: () => apiClient.get<ApiOutwardOrder[]>("/api/OrderOutward/GetAll"),
   getById: (id: number | string) => apiClient.get<ApiOutwardOrder>(`/api/OrderOutward/GetById/${id}`),
-  create: (data: Partial<ApiOutwardOrder>) => apiClient.post<ApiOutwardOrder>("/api/OrderOutward/Create", data),
-  update: (id: number | string, data: ApiOutwardOrder) => apiClient.put<ApiOutwardOrder>(`/api/OrderOutward/Update/${id}`, data),
+  create: (data: Partial<ApiOutwardOrder>) => apiClient.post<any>("/api/OrderOutward/Create", data),
+  update: (id: number | string, data: ApiOutwardOrder) => apiClient.put<any>(`/api/OrderOutward/Update/${id}`, data),
   updateStatus: (id: number | string, newStatus: string, remarks: string) => 
     apiClient.put<void>(`/api/OrderOutward/${id}/Status`, { newStatus, remarks }),
   scanBarcode: (id: number | string, scanEvent: Partial<ApiOutwardScanEvent>) => 
-    apiClient.post<ApiOutwardScanEvent>(`/api/OrderOutward/${id}/Scan`, scanEvent),
+    apiClient.post<any>(`/api/OrderOutward/${id}/Scan`, scanEvent),
   remove: (id: number | string) => apiClient.delete<void>(`/api/OrderOutward/Delete/${id}`),
 }
 
@@ -1781,7 +1787,9 @@ export interface ProductLot {
   purchasePrice?: number
   lotBarcode: string
   inwardOrderId?: number
-  inwardOrderItemId?: number
+  purchaseOrderId?: number | null
+  purchaseOrderItemId?: number | null
+  expiryDate?: string
   status: "Pending" | "Active" | "Depleted" | "Expired" | string
   createdAt?: string
   updatedAt?: string

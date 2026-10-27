@@ -60,7 +60,9 @@ export function stampActivity() {
 }
 
 export interface UserProfile {
-    userId?: string
+    userId?: string | number
+    id?: string | number
+    name?: string
     firstName?: string
     lastName?: string
     email?: string
@@ -68,6 +70,8 @@ export interface UserProfile {
     roleId?: number | string
     permissions?: string[]
     phone?: string
+    mobile?: string
+    mobileNumber?: string
     company?: string
     branch?: string
     department?: string
@@ -211,8 +215,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setToken(newToken)
 
             if (userData) {
-                localStorage.setItem(USER_KEY, JSON.stringify(userData))
-                setUser(userData)
+                const resolvedUserId = userData.userId !== undefined ? userData.userId : userData.id
+                const fullName = (userData.name || `${userData.firstName || ""} ${userData.lastName || ""}`.trim()) || userData.username || ""
+                const phone = userData.phone || userData.mobile || userData.mobileNumber || ""
+                const normalizedUser: UserProfile = {
+                    ...userData,
+                    userId: resolvedUserId,
+                    id: resolvedUserId,
+                    name: fullName,
+                    phone: phone,
+                    mobile: phone,
+                    roleId: userData.roleId !== undefined ? Number(userData.roleId) : 1,
+                }
+                localStorage.setItem(USER_KEY, JSON.stringify(normalizedUser))
+                setUser(normalizedUser)
             }
 
             const permsToStore = userPermissions ?? userData?.permissions ?? []
@@ -365,9 +381,15 @@ export function useAuth(): AuthContextType {
         // Fallback if accessed outside AuthProvider
         const token = getToken()
         const storedPerms = getStoredPermissions()
+        let storedUser: UserProfile | null = null
+        try {
+            const raw = localStorage.getItem(USER_KEY)
+            storedUser = raw ? JSON.parse(raw) : null
+        } catch {}
+
         return {
             isAuthenticated: !!token,
-            user: null,
+            user: storedUser,
             permissions: storedPerms,
             hasPermission: (required: string | string[]) => {
                 if (!required) return true

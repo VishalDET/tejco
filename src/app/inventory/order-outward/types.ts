@@ -19,6 +19,7 @@ export interface OutwardOrderItem {
   id: string
   outwardOrderItemId?: number
   productId: string
+  variantId?: number
   productName: string
   variantName?: string
   sku: string
@@ -28,6 +29,8 @@ export interface OutwardOrderItem {
   availableQty?: number
   scannedBarcodes?: string[]
   locationCode: string
+  lotId?: number | null
+  lotNumber?: string | null
 }
 
 export interface OutwardScanEvent {
@@ -47,6 +50,7 @@ export interface OutwardOrder {
   orderId?: number
   orderNumber: string
   clientName: string
+  warehouseId?: number
   warehouseName: string
   warehouseCode: string
   shippingAddress: string
@@ -55,6 +59,9 @@ export interface OutwardOrder {
   status: OutwardStatus
   priority: "Normal" | "High" | "Urgent" | string
   pickerName?: string
+  freight?: number
+  createdAt?: string
+  updatedAt?: string
   items: OutwardOrderItem[]
   scanHistory: OutwardScanEvent[]
 }
@@ -90,13 +97,16 @@ export function mapApiOutwardOrderItem(raw: ApiOutwardOrderItem): OutwardOrderIt
     id: String(raw.outwardOrderItemId || `item-${Math.random()}`),
     outwardOrderItemId: raw.outwardOrderItemId,
     productId: String(raw.productId),
+    variantId: raw.variantId,
     productName: raw.productName || "Unknown Product",
     variantName: raw.variantName || "",
     sku: raw.sku || "",
     barcode: raw.barcode || "",
     orderedQty: raw.orderedQty || 0,
     scannedQty: raw.scannedQty || 0,
-    locationCode: raw.locationCode || "N/A"
+    locationCode: raw.locationCode || "N/A",
+    lotId: raw.lotId ?? null,
+    lotNumber: raw.lotNumber ?? null
   }
 }
 
@@ -144,7 +154,7 @@ export function mapApiOutwardOrder(rawInput: ApiOutwardOrder | any): OutwardOrde
 
   // Generate a warehouseCode
   const nameParts = (raw.warehouseName || "WH").split(" ")
-  const warehouseCode = nameParts.length >= 2 
+  const defaultWarehouseCode = nameParts.length >= 2 
     ? `${nameParts[0].substring(0,3).toUpperCase()}-${nameParts[1].substring(0,2).toUpperCase()}`
     : nameParts[0].substring(0,6).toUpperCase()
 
@@ -154,14 +164,18 @@ export function mapApiOutwardOrder(rawInput: ApiOutwardOrder | any): OutwardOrde
     orderId: raw.orderId,
     orderNumber: raw.orderNumber || `SO-${raw.orderId}`,
     clientName: raw.clientName || "Unknown Client",
+    warehouseId: raw.warehouseId,
     warehouseName: raw.warehouseName || "Default Warehouse",
-    warehouseCode,
+    warehouseCode: raw.warehouseCode || defaultWarehouseCode,
     shippingAddress: raw.shippingAddress || "",
     orderDate: raw.orderDate || new Date().toISOString(),
     promisedDate: raw.promisedDate || new Date().toISOString(),
     status,
     priority: (raw.priority === "High" || raw.priority === "Urgent") ? raw.priority : "Normal",
     pickerName: raw.pickerName,
+    freight: raw.freight || 0,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
     items: Array.isArray(raw.items) ? raw.items.map(mapApiOutwardOrderItem) : [],
     scanHistory: Array.isArray(raw.scanHistory) ? raw.scanHistory.map(mapApiOutwardScanEvent) : []
   }

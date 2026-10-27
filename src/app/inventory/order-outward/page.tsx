@@ -278,7 +278,7 @@ export default function OrderOutwardPage() {
         }
 
         outwardOrders.push({
-          id: String(order.orderId || order.id),
+          id: String(existingOutward?.outwardOrderId || order.orderId || order.id),
           outwardOrderId: existingOutward?.outwardOrderId,
           orderId: oId,
           orderNumber: order.orderNumber || `SO-${order.id}`,

@@ -62,6 +62,7 @@ import {
   type ScanResultType,
 } from "../types"
 import { orderOutwardApi, dispatchApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 
 interface OutwardScanViewProps {
   order: OutwardOrder
@@ -129,12 +130,30 @@ function getItemBadge(status: ReturnType<typeof getItemScanStatus>) {
 export function OutwardScanView({ order }: OutwardScanViewProps) {
   const navigate = useNavigate()
   const router = useNavigate()
+  const { user } = useAuth()
+  const currentUserName = user?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || "Warehouse Operator"
+
   const inputRef = React.useRef<HTMLInputElement>(null)
-  const [outwardOrder, setOutwardOrder] = React.useState<OutwardOrder>(() => cloneOrder(order))
+  const [outwardOrder, setOutwardOrder] = React.useState<OutwardOrder>(() => {
+    const cloned = cloneOrder(order)
+    if (!cloned.pickerName || cloned.pickerName === "Warehouse Operator" || cloned.pickerName === "Unassigned") {
+      cloned.pickerName = currentUserName
+    }
+    return cloned
+  })
   const [barcodeValue, setBarcodeValue] = React.useState("")
   const [latestEvent, setLatestEvent] = React.useState<OutwardScanEvent | null>(
     order.scanHistory[0] ?? null
   )
+
+  React.useEffect(() => {
+    if (user && (!outwardOrder.pickerName || outwardOrder.pickerName === "Warehouse Operator" || outwardOrder.pickerName === "Unassigned")) {
+      const name = user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim()
+      if (name) {
+        setOutwardOrder(prev => ({ ...prev, pickerName: name }))
+      }
+    }
+  }, [user])
 
   const [isDispatchDialogOpen, setIsDispatchDialogOpen] = React.useState(false)
   const [isSubmittingDispatch, setIsSubmittingDispatch] = React.useState(false)
@@ -208,7 +227,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
             timelineId: 0,
             dispatchId: 0,
             label: "Created",
-            description: `Dispatch record created for order ${outwardOrder.orderNumber}`,
+            description: `Dispatch record created for order ${outwardOrder.orderNumber} by ${currentUserName}`,
             timestamp: new Date().toISOString(),
             status: "Created"
           }
@@ -289,6 +308,12 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     })
   }
 
+  function formatIsoDate(dateVal?: any) {
+    if (!dateVal) return new Date().toISOString()
+    const d = new Date(dateVal)
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+  }
+
   async function handleScan(rawBarcode?: string) {
     const barcode = (rawBarcode ?? barcodeValue).trim()
     if (!barcode) return
@@ -315,101 +340,167 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
         item.barcode === barcode ||
         item.sku === barcode ||
         cleanBarcode.startsWith(item.sku.toUpperCase()) ||
-        cleanBarcode.includes(item.sku.toUpperCase())
+        cleanBarcode.includes(item.sku.toUpperCase()) ||
+        (item.lotNumber && item.lotNumber.toUpperCase() === cleanBarcode)
     )
-    const productName = itemIndex === -1 ? "" : outwardOrder.items[itemIndex].productName
 
-    // Register scan event on server
-    try {
-      const scanType = itemIndex === -1 ? "Error" : "Pick"
-      await orderOutwardApi.scanBarcode(outwardOrder.id, {
-        scanId: 0,
-        outwardOrderId: outwardOrder.outwardOrderId || parseInt(outwardOrder.id) || 0,
-        barcode,
-        message: itemIndex === -1 ? "Barcode not found in this order" : "Product unit verified",
-        scanType,
-        productName,
-        scannedAt: new Date().toISOString()
-      })
-    } catch (apiErr) {
-      console.warn("Failed to register scan on server:", apiErr)
-    }
-
-    setOutwardOrder((currentOrder) => {
-      const idx = currentOrder.items.findIndex(
-        (item) =>
-          item.barcode === barcode ||
-          item.sku === barcode ||
-          cleanBarcode.startsWith(item.sku.toUpperCase()) ||
-          cleanBarcode.includes(item.sku.toUpperCase())
-      )
-
-      if (idx === -1) {
-        const event = addScanEvent({
-          barcode,
-          message: "Barcode not found in this order",
-          type: "error",
-        })
-        toast.error(event.message)
-        return {
-          ...currentOrder,
-          status: "Exception",
-          scanHistory: [event, ...currentOrder.scanHistory],
-        }
-      }
-
-      const item = currentOrder.items[idx]
-      if (item.scannedQty >= item.orderedQty) {
-        const event = addScanEvent({
-          barcode,
-          productName: item.productName,
-          message: `${item.productName} is already fully scanned`,
-          type: "warning",
-        })
-        toast.warning(event.message)
-        return {
-          ...currentOrder,
-          scanHistory: [event, ...currentOrder.scanHistory],
-        }
-      }
-
-      const nextItems = currentOrder.items.map((currentItem, index) =>
-        index === idx
-          ? {
-              ...currentItem,
-              scannedQty: currentItem.scannedQty + 1,
-              scannedBarcodes: [...(currentItem.scannedBarcodes || []), barcode]
-            }
-          : currentItem
-      )
-
-      const nextItem = nextItems[idx]
+    if (itemIndex === -1) {
       const event = addScanEvent({
         barcode,
-        productName: item.productName,
-        message:
-          nextItem.scannedQty === nextItem.orderedQty
-            ? `${item.productName} completed`
-            : `${nextItem.scannedQty} of ${nextItem.orderedQty} ${item.productName} scanned`,
-        type: "success",
+        message: "Barcode not found in this order",
+        type: "error",
       })
+      toast.error(event.message)
+      setOutwardOrder((prev) => ({
+        ...prev,
+        status: "Exception",
+        scanHistory: [event, ...prev.scanHistory],
+      }))
+      setBarcodeValue("")
+      return
+    }
 
-      toast.success(event.message)
-      const nextStatus = resolveStatus(currentOrder, nextItems, "success")
+    const matchedItem = outwardOrder.items[itemIndex]
+    const productName = matchedItem.productName || ""
 
-      // Auto-update status on server if we transition to Completed or Partially Scanned
-      orderOutwardApi.updateStatus(
-        currentOrder.id,
-        nextStatus === "Completed" ? "Picked" : "Picking",
-        `Scanned ${barcode}`
-      ).catch(err => console.warn("Failed to update status on server:", err))
+    if (matchedItem.scannedQty >= matchedItem.orderedQty) {
+      const event = addScanEvent({
+        barcode,
+        productName: matchedItem.productName,
+        message: `${matchedItem.productName} is already fully scanned`,
+        type: "warning",
+      })
+      toast.warning(event.message)
+      setOutwardOrder((prev) => ({
+        ...prev,
+        scanHistory: [event, ...prev.scanHistory],
+      }))
+      setBarcodeValue("")
+      return
+    }
 
-      return {
-        ...currentOrder,
-        status: nextStatus,
-        items: nextItems,
-        scanHistory: [event, ...currentOrder.scanHistory],
+    const outwardOrderId = Number(outwardOrder.outwardOrderId || outwardOrder.id || 0)
+
+    // 1. POST /api/OrderOutward/{id}/Scan -> returns lotId & lotNumber
+    let returnedLotId: number | null = null
+    let returnedLotNumber: string | null = null
+
+    try {
+      const scanPayload = {
+        scanId: 0,
+        outwardOrderId,
+        barcode,
+        message: " ",
+        scanType: "Pick",
+        productName,
+        scannedAt: new Date().toISOString()
       }
+      const scanRes = await orderOutwardApi.scanBarcode(outwardOrderId, scanPayload)
+      const sData = (scanRes as any)?.data || scanRes
+      returnedLotId = sData?.lotId ?? sData?.item?.lotId ?? null
+      returnedLotNumber = sData?.lotNumber ?? sData?.item?.lotNumber ?? null
+    } catch (apiErr) {
+      console.warn("POST /api/OrderOutward/{id}/Scan failed:", apiErr)
+    }
+
+    // 2. Update local items with scannedQty, lotId, and lotNumber
+    const nextItems = outwardOrder.items.map((item, idx) => {
+      if (idx !== itemIndex) return item
+      return {
+        ...item,
+        scannedQty: item.scannedQty + 1,
+        lotId: returnedLotId !== null ? returnedLotId : (item.lotId ?? null),
+        lotNumber: returnedLotNumber || item.lotNumber || null,
+        scannedBarcodes: [...(item.scannedBarcodes || []), barcode]
+      }
+    })
+
+    const updatedItem = nextItems[itemIndex]
+    const scanMsg =
+      updatedItem.scannedQty === updatedItem.orderedQty
+        ? `${updatedItem.productName} completed`
+        : `${updatedItem.scannedQty} of ${updatedItem.orderedQty} ${updatedItem.productName} scanned`
+
+    const event = addScanEvent({
+      barcode,
+      productName: updatedItem.productName,
+      message: scanMsg,
+      type: "success",
+    })
+    toast.success(scanMsg)
+
+    const nextStatus = resolveStatus(outwardOrder, nextItems, "success")
+    const updatedScanHistory = [event, ...outwardOrder.scanHistory]
+
+    // 3. PUT /api/OrderOutward/Update/{id} with full payload
+    try {
+      const updatePayload = {
+        outwardOrderId,
+        orderId: Number(outwardOrder.orderId || 0),
+        orderNumber: outwardOrder.orderNumber,
+        clientName: outwardOrder.clientName,
+        warehouseId: Number(outwardOrder.warehouseId || 0),
+        warehouseName: outwardOrder.warehouseName,
+        warehouseCode: outwardOrder.warehouseCode,
+        shippingAddress: outwardOrder.shippingAddress || "",
+        orderDate: formatIsoDate(outwardOrder.orderDate),
+        promisedDate: formatIsoDate(outwardOrder.promisedDate),
+        status: nextStatus,
+        priority: outwardOrder.priority || "Normal",
+        pickerName: outwardOrder.pickerName || currentUserName,
+        freight: Number(outwardOrder.freight || 0),
+        createdAt: formatIsoDate(outwardOrder.createdAt),
+        updatedAt: new Date().toISOString(),
+        items: nextItems.map((it) => ({
+          outwardOrderItemId: Number(it.outwardOrderItemId || 0),
+          outwardOrderId,
+          productId: Number(it.productId || 0),
+          variantId: Number(it.variantId || 0),
+          productName: it.productName,
+          variantName: it.variantName || "",
+          sku: it.sku,
+          barcode: it.barcode,
+          orderedQty: Number(it.orderedQty || 0),
+          scannedQty: Number(it.scannedQty || 0),
+          locationCode: it.locationCode || "A-1",
+          lotId: it.lotId ? Number(it.lotId) : null,
+          lotNumber: it.lotNumber || null
+        })),
+        scanHistory: updatedScanHistory.map((sh) => ({
+          scanId: Number(sh.scanId || 0),
+          outwardOrderId,
+          barcode: sh.barcode,
+          message: sh.message || " ",
+          scanType: sh.scanType || "Pick",
+          productName: sh.productName || "",
+          scannedAt: formatIsoDate(sh.timestamp)
+        }))
+      }
+
+      await orderOutwardApi.update(outwardOrderId, updatePayload)
+    } catch (updateErr) {
+      console.warn("PUT /api/OrderOutward/Update/{id} failed:", updateErr)
+    }
+
+    // 4. If all items completed, automatically call PUT /api/OrderOutward/{id}/Status
+    const nextProgress = getOutwardProgress({ ...outwardOrder, items: nextItems })
+    if (nextProgress.isComplete) {
+      try {
+        await orderOutwardApi.updateStatus(
+          outwardOrderId,
+          "Completed",
+          "Order outward scanning completed"
+        )
+      } catch (statusErr) {
+        console.warn("PUT /api/OrderOutward/{id}/Status failed:", statusErr)
+      }
+    }
+
+    setOutwardOrder({
+      ...outwardOrder,
+      status: nextStatus,
+      items: nextItems,
+      scanHistory: updatedScanHistory,
     })
 
     setBarcodeValue("")
@@ -422,64 +513,73 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
   }
 
   async function handleCompleteOutward() {
+    const outwardOrderId = Number(outwardOrder.outwardOrderId || outwardOrder.id || 0)
     try {
-      // Create outward order record only when scanning is completed
-      const payload = {
-        outwardOrderId: 0,
-        orderId: outwardOrder.orderId ? Number(outwardOrder.orderId) : parseInt(outwardOrder.id) || 0,
+      // 1. Sync full payload via PUT Update
+      const updatePayload = {
+        outwardOrderId,
+        orderId: Number(outwardOrder.orderId || 0),
         orderNumber: outwardOrder.orderNumber,
         clientName: outwardOrder.clientName,
+        warehouseId: Number(outwardOrder.warehouseId || 0),
         warehouseName: outwardOrder.warehouseName,
         warehouseCode: outwardOrder.warehouseCode,
-        shippingAddress: outwardOrder.shippingAddress,
-        orderDate: outwardOrder.orderDate,
-        promisedDate: outwardOrder.promisedDate,
+        shippingAddress: outwardOrder.shippingAddress || "",
+        orderDate: formatIsoDate(outwardOrder.orderDate),
+        promisedDate: formatIsoDate(outwardOrder.promisedDate),
         status: "Completed",
         priority: outwardOrder.priority || "Normal",
-        pickerName: outwardOrder.pickerName || "Warehouse Operator",
-        items: outwardOrder.items.map((item) => ({
-          outwardOrderItemId: 0,
-          outwardOrderId: 0,
-          productId: parseInt(item.productId) || 0,
-          productName: item.productName,
-          variantName: item.variantName || "",
-          sku: item.sku,
-          barcode: item.barcode,
-          orderedQty: item.orderedQty,
-          scannedQty: item.scannedQty,
-          locationCode: item.locationCode || "A-1"
+        pickerName: outwardOrder.pickerName || currentUserName,
+        freight: Number(outwardOrder.freight || 0),
+        createdAt: formatIsoDate(outwardOrder.createdAt),
+        updatedAt: new Date().toISOString(),
+        items: outwardOrder.items.map((it) => ({
+          outwardOrderItemId: Number(it.outwardOrderItemId || 0),
+          outwardOrderId,
+          productId: Number(it.productId || 0),
+          variantId: Number(it.variantId || 0),
+          productName: it.productName,
+          variantName: it.variantName || "",
+          sku: it.sku,
+          barcode: it.barcode,
+          orderedQty: Number(it.orderedQty || 0),
+          scannedQty: Number(it.scannedQty || 0),
+          locationCode: it.locationCode || "A-1",
+          lotId: it.lotId ? Number(it.lotId) : null,
+          lotNumber: it.lotNumber || null
         })),
         scanHistory: outwardOrder.scanHistory.map((sh) => ({
-          scanId: 0,
-          outwardOrderId: 0,
+          scanId: Number(sh.scanId || 0),
+          outwardOrderId,
           barcode: sh.barcode,
-          message: sh.message,
+          message: sh.message || " ",
           scanType: sh.scanType || "Pick",
           productName: sh.productName || "",
-          scannedAt: sh.timestamp
+          scannedAt: formatIsoDate(sh.timestamp)
         }))
       }
 
-      const created = await orderOutwardApi.create(payload)
-      const responseData = (created as any)?.data || created
-      const finalId = responseData?.outwardOrderId || responseData?.id || outwardOrder.id
+      await orderOutwardApi.update(outwardOrderId, updatePayload)
 
-      // Update status to Picked
-      await orderOutwardApi.updateStatus(finalId, "Picked", "All items scanned and completed via scan console")
+      // 2. PUT /api/OrderOutward/{id}/Status
+      await orderOutwardApi.updateStatus(
+        outwardOrderId,
+        "Completed",
+        "Order outward completed successfully by operator"
+      )
 
-      setOutwardOrder((currentOrder) => ({
-        ...currentOrder,
-        id: String(finalId),
-        status: "Completed",
-      }))
-      toast.success("Order outward created and verified on server")
-    } catch (apiErr) {
-      console.warn("Failed to create/complete outward on server:", apiErr)
       setOutwardOrder((currentOrder) => ({
         ...currentOrder,
         status: "Completed",
       }))
-      toast.success("Order outward completed locally")
+      toast.success("Order outward completed successfully!")
+    } catch (err: any) {
+      console.warn("Failed to complete outward on server:", err)
+      setOutwardOrder((currentOrder) => ({
+        ...currentOrder,
+        status: "Completed",
+      }))
+      toast.success("Order outward marked completed")
     }
   }
 
@@ -847,6 +947,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                   <TableRow>
                     <TableHead>Product</TableHead>
                     <TableHead>SKU / Barcode</TableHead>
+                    <TableHead>Lot Number</TableHead>
                     <TableHead>Location</TableHead>
                     <TableHead className="text-right">Ordered</TableHead>
                     <TableHead className="text-right">Scanned</TableHead>
@@ -889,6 +990,15 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                         <TableCell>
                           <div className="text-sm font-medium">{item.sku}</div>
                           <div className="font-mono text-xs text-muted-foreground">{item.barcode}</div>
+                        </TableCell>
+                        <TableCell>
+                          {item.lotNumber ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              {item.lotNumber}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="gap-1 font-mono">

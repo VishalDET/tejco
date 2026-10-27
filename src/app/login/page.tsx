@@ -63,7 +63,7 @@ export default function LoginPage() {
             }
 
             // Extract roleId (from loginResponse, loginUser, or userData)
-            const roleId = loginResponse?.roleId ?? loginUser?.roleId ?? userData?.roleId ?? loginResponse?.data?.roleId ?? 1
+            const roleId = Number(loginResponse?.roleId ?? loginUser?.roleId ?? userData?.roleId ?? loginResponse?.data?.roleId ?? 1)
 
             // Resolve role name if not present in userData
             if (userData && !userData.role) {
@@ -80,6 +80,22 @@ export default function LoginPage() {
                         userData.role = roleId === 1 ? "Administrator" : `Role-${roleId}`
                     }
                 }
+            }
+
+            // Standardize full user identity attributes
+            const userId = userData?.userId ?? userData?.id ?? loginUser?.userId ?? loginUser?.id ?? 1
+            const fullName = (userData?.name || `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim()) || userData?.username || formData.username
+            const phone = userData?.phone || userData?.mobile || userData?.mobileNumber || ""
+
+            userData = {
+                ...(userData || {}),
+                userId,
+                id: userId,
+                name: fullName,
+                phone,
+                mobile: phone,
+                roleId,
+                email: userData?.email || formData.username
             }
 
             // Extract permissions: prefer loginResponse.permissions, fallback to rolesApi.getRolePermissions
@@ -120,7 +136,9 @@ export default function LoginPage() {
         setIsLoading(true)
         const mockToken = "dev-bypass-token"
         const mockUser = {
-            userId: "0001",
+            userId: 1,
+            id: 1,
+            name: "Developer User",
             firstName: "Developer",
             lastName: "User",
             email: "dev@tejco.com",
@@ -128,6 +146,7 @@ export default function LoginPage() {
             roleId: 1,
             permissions: ["*"],
             phone: "+91 98765 43210",
+            mobile: "+91 98765 43210",
             company: "Tejco Group (Dev)",
             branch: "Mumbai HO",
             department: "IT Infrastructure",

@@ -28,7 +28,11 @@ import {
     DollarSign,
     Sparkles,
     Eye,
-    Printer
+    Printer,
+    ChevronDown,
+    ChevronUp,
+    Calendar,
+    Clock
 } from "lucide-react"
 
 import { apiClient } from "@/lib/api-client"
@@ -45,7 +49,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Loader } from "@/components/ui/loader"
 import { toast } from "sonner"
-import { categoriesApi, warehousesApi, productsApi } from "@/lib/api"
+import { categoriesApi, warehousesApi, productsApi, inventoryLotsApi, type ProductLot } from "@/lib/api"
 import {
     Table,
     TableBody,
@@ -96,6 +100,11 @@ export default function ViewProductPage() {
     const [barcodeModal, setBarcodeModal] = React.useState<{ code: string; name: string; sku: string } | null>(null)
     const [isBarcodePrintModalOpen, setIsBarcodePrintModalOpen] = React.useState(false)
     const [printTargetVariantId, setPrintTargetVariantId] = React.useState<number | "all">("all")
+
+    // Variant Lots State
+    const [variantLotsMap, setVariantLotsMap] = React.useState<Record<number, ProductLot[]>>({})
+    const [loadingLotsMap, setLoadingLotsMap] = React.useState<Record<number, boolean>>({})
+    const [expandedLots, setExpandedLots] = React.useState<Record<number, boolean>>({})
 
     const handleOpenBarcodePrint = (variantId: number | "all" = "all") => {
         setPrintTargetVariantId(variantId)
@@ -276,6 +285,102 @@ export default function ViewProductPage() {
     const calculateMargin = (sellPrice: number, costPrice: number) => {
         if (!sellPrice || sellPrice <= 0 || !costPrice || costPrice <= 0) return null
         return Math.round(((sellPrice - costPrice) / sellPrice) * 100)
+    }
+
+    const fetchLotsForVariant = React.useCallback(async (variantId: number, force = false) => {
+        if (!variantId) return
+        if (!force && variantLotsMap[variantId] !== undefined) return
+
+        try {
+            setLoadingLotsMap(prev => ({ ...prev, [variantId]: true }))
+            const res = await inventoryLotsApi.getByVariant(variantId)
+            if (res && res.success && Array.isArray(res.data)) {
+                setVariantLotsMap(prev => ({ ...prev, [variantId]: res.data }))
+            } else {
+                setVariantLotsMap(prev => ({ ...prev, [variantId]: [] }))
+            }
+        } catch (err) {
+            console.error(`Failed to load lots for variant ${variantId}:`, err)
+            setVariantLotsMap(prev => ({ ...prev, [variantId]: [] }))
+        } finally {
+            setLoadingLotsMap(prev => ({ ...prev, [variantId]: false }))
+        }
+    }, [variantLotsMap])
+
+    const toggleExpandLots = (variantId: number) => {
+        setExpandedLots(prev => {
+            const nextState = !prev[variantId]
+            if (nextState && variantLotsMap[variantId] === undefined) {
+                fetchLotsForVariant(variantId)
+            }
+            return { ...prev, [variantId]: nextState }
+        })
+    }
+
+    const toggleAllLots = (expand: boolean) => {
+        const next: Record<number, boolean> = {}
+        variants.forEach((v: any) => {
+            if (v.variantId) {
+                next[v.variantId] = expand
+                if (expand && variantLotsMap[v.variantId] === undefined) {
+                    fetchLotsForVariant(v.variantId)
+                }
+            }
+        })
+        setExpandedLots(next)
+    }
+
+    // Auto-fetch lots for all variants once product data is loaded
+    React.useEffect(() => {
+        if (!product?.variants || !Array.isArray(product.variants) || product.variants.length === 0) return
+
+        product.variants.forEach((v: any) => {
+            if (v.variantId && variantLotsMap[v.variantId] === undefined) {
+                fetchLotsForVariant(v.variantId)
+            }
+        })
+    }, [product?.variants, fetchLotsForVariant, variantLotsMap])
+
+    const formatExpiryDate = (dateStr?: string) => {
+        if (!dateStr) return { text: "No Expiry", status: "none", badgeClass: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400", label: "No Expiry" }
+        try {
+            const d = new Date(dateStr)
+            if (isNaN(d.getTime())) return { text: "—", status: "none", badgeClass: "bg-slate-100 text-slate-600", label: "—" }
+
+            const formatted = d.toLocaleDateString("en-IN", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric"
+            })
+
+            const now = new Date()
+            const diffDays = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+            if (diffDays < 0) {
+                return {
+                    text: formatted,
+                    status: "expired",
+                    label: `Expired (${formatted})`,
+                    badgeClass: "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800"
+                }
+            }
+            if (diffDays <= 90) {
+                return {
+                    text: formatted,
+                    status: "expiring_soon",
+                    label: `${formatted} (${diffDays}d left)`,
+                    badgeClass: "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800"
+                }
+            }
+            return {
+                text: formatted,
+                status: "active",
+                label: formatted,
+                badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+            }
+        } catch {
+            return { text: dateStr, status: "none", badgeClass: "bg-slate-100 text-slate-600", label: dateStr }
+        }
     }
 
     // Filtered variations
@@ -471,7 +576,7 @@ export default function ViewProductPage() {
                                     </div>
                                     <div>
                                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Default Unit</p>
-                                        <p className="text-sm font-medium mt-1">{product.unit || "PCS"}</p>
+                                        <p className="text-sm font-medium mt-1"> PCS </p>
                                     </div>
                                 </div>
                                 <div className="pt-2 border-t flex items-center justify-between">
@@ -557,6 +662,22 @@ export default function ViewProductPage() {
                                             Table
                                         </Button>
                                     </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8.5 px-2.5 text-xs gap-1.5 bg-background/90 border-slate-200 dark:border-slate-800 shadow-2xs hover:bg-muted/60"
+                                        onClick={() => {
+                                            const anyExpanded = Object.values(expandedLots).some(Boolean)
+                                            toggleAllLots(!anyExpanded)
+                                        }}
+                                        title={Object.values(expandedLots).some(Boolean) ? "Collapse all lot breakdowns" : "Expand all lot breakdowns"}
+                                    >
+                                        <Boxes className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                        <span className="hidden sm:inline">
+                                            {Object.values(expandedLots).some(Boolean) ? "Collapse Lots" : "Expand Lots"}
+                                        </span>
+                                    </Button>
                                 </div>
                             </div>
 
@@ -730,6 +851,9 @@ export default function ViewProductPage() {
                                         const margin = calculateMargin(Number(v.sellingPrice), Number(v.purchasePrice))
                                         const HealthIcon = health.icon
                                         const imageUrl = getGoogleDrivePreviewUrl(v.variantImage)
+                                        const lots = variantLotsMap[v.variantId]
+                                        const isLotsLoading = loadingLotsMap[v.variantId]
+                                        const isExpanded = expandedLots[v.variantId]
 
                                         return (
                                             <div
@@ -740,14 +864,12 @@ export default function ViewProductPage() {
                                                 <div className="p-4 border-b bg-muted/20 flex items-start justify-between gap-3">
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                                Variation #{index + 1}
-                                                            </span>
                                                             {(v.size || v.Size) && (
-                                                                <Badge variant="outline" className="text-[10px] h-5 px-2 font-semibold bg-indigo-50/60 text-indigo-700 border-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
+                                                                <Badge variant="outline" className="text-[13px] h-5 px-2 font-semibold bg-indigo-50/60 text-indigo-700 border-indigo-200/60 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
                                                                     Size: {v.size || v.Size}
                                                                 </Badge>
                                                             )}
+
                                                             <Badge
                                                                 variant={v.status ? "default" : "secondary"}
                                                                 className={`text-[10px] h-5 px-2 font-semibold ${v.status ? "bg-emerald-600 hover:bg-emerald-600 text-white" : ""}`}
@@ -810,7 +932,7 @@ export default function ViewProductPage() {
                                                             )}
                                                         </div>
 
-                                                        {/* Location Pill */}
+                                                        {/* Location Pill 
                                                         <div className="flex flex-col gap-1 text-[11px] bg-muted/40 p-2 rounded-lg border">
                                                             <div className="flex items-center gap-1.5 text-muted-foreground truncate">
                                                                 <Warehouse className="h-3.5 w-3.5 shrink-0 text-slate-500" />
@@ -820,7 +942,7 @@ export default function ViewProductPage() {
                                                                 <MapPin className="h-3.5 w-3.5 shrink-0 text-indigo-500" />
                                                                 <span className="truncate">Rack: {v.rackLocation || "Unassigned"}</span>
                                                             </div>
-                                                        </div>
+                                                        </div>*/}
                                                     </div>
 
                                                     {/* Right Details (Stock & Financials) */}
@@ -834,7 +956,7 @@ export default function ViewProductPage() {
                                                                 </div>
                                                                 <div className="text-right">
                                                                     <span className="text-lg font-bold text-foreground">{qty}</span>
-                                                                    <span className="text-xs text-muted-foreground ml-1">{product.unit || "PCS"}</span>
+                                                                    <span className="text-xs text-muted-foreground ml-1"> PCS </span>
                                                                 </div>
                                                             </div>
 
@@ -898,10 +1020,149 @@ export default function ViewProductPage() {
                                                     </div>
                                                 </div>
 
+                                                {/* Lot-wise Stocks Breakdown */}
+                                                <div className="border-t bg-muted/10">
+                                                    <div
+                                                        className="px-4 py-2.5 flex items-center justify-between cursor-pointer select-none hover:bg-muted/30 transition-colors"
+                                                        onClick={() => toggleExpandLots(v.variantId)}
+                                                    >
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                                                                <Boxes className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                                                Lot Stocks
+                                                            </span>
+                                                            {isLotsLoading ? (
+                                                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                                                    <Loader2 className="h-3 w-3 animate-spin text-indigo-600" /> Loading...
+                                                                </span>
+                                                            ) : lots && lots.length > 0 ? (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-semibold bg-indigo-50/80 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
+                                                                        {lots.length} {lots.length === 1 ? "Lot" : "Lots"}
+                                                                    </Badge>
+                                                                    <span className="text-[11px] text-muted-foreground font-medium">
+                                                                        • {lots.reduce((acc, l) => acc + (Number(l.availableQuantity ?? l.currentQuantity) || 0), 0)} PCS available
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal text-muted-foreground text-white">
+                                                                    No Lots Recorded
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+
+                                                        <button
+                                                            type="button"
+                                                            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
+                                                        >
+                                                            <span>{isExpanded ? "Hide Lots" : "View Lots"}</span>
+                                                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                                        </button>
+                                                    </div>
+
+                                                    {/* Expanded Lots Content */}
+                                                    {isExpanded && (
+                                                        <div className="px-4 pb-4 pt-1 border-t bg-background/60 dark:bg-card/60">
+                                                            {isLotsLoading ? (
+                                                                <div className="py-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                                                    <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                                                                    <span>Fetching lot breakdown...</span>
+                                                                </div>
+                                                            ) : !lots || lots.length === 0 ? (
+                                                                <div className="py-4 text-center text-xs text-muted-foreground bg-muted/20 rounded-lg border border-dashed p-3">
+                                                                    No specific lot or batch inward records found for this variation.
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1 mt-1">
+                                                                    {lots.map((lot, lIdx) => {
+                                                                        const expiry = formatExpiryDate(lot.expiryDate)
+                                                                        const wName = lot.warehouseName || warehousesMap[lot.warehouseId] || "Main Warehouse"
+                                                                        const lotAvail = Number(lot.availableQuantity ?? lot.currentQuantity) || 0
+                                                                        const lotCurrent = Number(lot.currentQuantity) || 0
+
+                                                                        return (
+                                                                            <div
+                                                                                key={lot.lotId || lIdx}
+                                                                                className="p-2.5 rounded-lg border bg-card hover:bg-card hover:border-indigo-200 dark:hover:border-indigo-900 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs"
+                                                                            >
+                                                                                {/* Lot Number & Warehouse */}
+                                                                                <div className="flex flex-col min-w-0">
+                                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                        <span className="font-mono font-bold text-foreground tracking-tight">{lot.lotNumber}</span>
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation()
+                                                                                                handleCopy(lot.lotNumber, `lot-${lot.lotId}`, "Lot number")
+                                                                                            }}
+                                                                                            className="text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                                                                                            title="Copy Lot Number"
+                                                                                        >
+                                                                                            {copiedKey === `lot-${lot.lotId}` ? (
+                                                                                                <Check className="h-3 w-3 text-emerald-600" />
+                                                                                            ) : (
+                                                                                                <Copy className="h-3 w-3" />
+                                                                                            )}
+                                                                                        </button>
+                                                                                        {lot.status && (
+                                                                                            <Badge
+                                                                                                variant={lot.status === "Active" ? "default" : "secondary"}
+                                                                                                className={`text-[9px] h-4 px-1 ${lot.status === "Active" ? "bg-emerald-600/90 text-white" : ""}`}
+                                                                                            >
+                                                                                                {lot.status}
+                                                                                            </Badge>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-1">
+                                                                                        <Warehouse className="h-3 w-3 shrink-0 text-slate-500" />
+                                                                                        <span className="truncate">{wName}</span>
+                                                                                        {lot.rackLocation && (
+                                                                                            <span className="font-medium text-foreground bg-muted px-1.5 py-0.2 rounded text-[10px]">
+                                                                                                Rack: {lot.rackLocation}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {/* Stock Quantity & Expiry Date */}
+                                                                                <div className="flex items-center justify-between sm:justify-end gap-3.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0">
+                                                                                    {/* Quantity */}
+                                                                                    <div className="flex flex-col sm:items-end">
+                                                                                        <span className="text-[10px] text-muted-foreground font-semibold uppercase">Available</span>
+                                                                                        <div className="flex items-baseline gap-1">
+                                                                                            <span className="font-bold text-sm text-foreground">{lotAvail}</span>
+                                                                                            <span className="text-[10px] text-muted-foreground">PCS</span>
+                                                                                        </div>
+                                                                                        {lotCurrent !== lotAvail && (
+                                                                                            <span className="text-[9px] text-muted-foreground">Current: {lotCurrent}</span>
+                                                                                        )}
+                                                                                    </div>
+
+                                                                                    {/* Expiry Date */}
+                                                                                    <div className="flex flex-col sm:items-end min-w-[95px]">
+                                                                                        <span className="text-[10px] text-muted-foreground font-semibold uppercase">Expiry Date</span>
+                                                                                        <Badge
+                                                                                            variant="outline"
+                                                                                            className={`text-[10px] h-5 px-1.5 font-semibold mt-0.5 ${expiry.badgeClass}`}
+                                                                                        >
+                                                                                            <Calendar className="h-2.5 w-2.5 mr-1 shrink-0" />
+                                                                                            <span className="truncate">{expiry.label}</span>
+                                                                                        </Badge>
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+
                                                 {/* Card Footer with Barcode Strip */}
                                                 {(v.barcodeNumber || fullSku) && (
                                                     <div className="p-3 border-t bg-muted/15 flex items-center justify-between text-xs">
-                                                        <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                                                        {/* <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
                                                             <Barcode className="h-3.5 w-3.5 text-slate-500" />
                                                             <span className="font-semibold text-foreground">{v.barcodeNumber || fullSku}</span>
                                                             <button
@@ -912,7 +1173,7 @@ export default function ViewProductPage() {
                                                             >
                                                                 {copiedKey === `bc-${v.variantId}` ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
                                                             </button>
-                                                        </div>
+                                                        </div> */}
 
                                                         <div className="flex items-center gap-1">
                                                             <Button
@@ -973,143 +1234,277 @@ export default function ViewProductPage() {
                                                 const health = getStockHealth(qty, reorder)
                                                 const margin = calculateMargin(Number(v.sellingPrice), Number(v.purchasePrice))
                                                 const imageUrl = getGoogleDrivePreviewUrl(v.variantImage)
+                                                const lots = variantLotsMap[v.variantId]
+                                                const isLotsLoading = loadingLotsMap[v.variantId]
+                                                const isExpanded = expandedLots[v.variantId]
 
                                                 return (
-                                                    <TableRow key={v.variantId || index} className="hover:bg-muted/30">
-                                                        {/* Thumbnail */}
-                                                        <TableCell>
-                                                            <div className="h-10 w-10 rounded-lg border bg-muted/20 overflow-hidden flex items-center justify-center shrink-0">
-                                                                {imageUrl ? (
-                                                                    <img
-                                                                        src={imageUrl}
-                                                                        alt={v.variantName}
-                                                                        className="h-full w-full object-cover cursor-pointer"
-                                                                        onClick={() => setPreviewImage({ url: imageUrl, title: v.variantName })}
-                                                                        referrerPolicy="no-referrer"
-                                                                    />
-                                                                ) : (
-                                                                    <Package className="h-4 w-4 text-muted-foreground/60" />
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-
-                                                        {/* Variation Name & SKU */}
-                                                        <TableCell>
-                                                            <div className="flex flex-col">
-                                                                <span className="font-semibold text-foreground text-sm">{v.variantName}</span>
-                                                                <div className="flex items-center gap-1 mt-0.5">
-                                                                    <span className="text-xs font-mono text-muted-foreground">{fullSku}</span>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleCopy(fullSku, `tbl-sku-${v.variantId}`, "SKU")}
-                                                                        className="text-muted-foreground hover:text-foreground transition-colors"
-                                                                        title="Copy SKU"
-                                                                    >
-                                                                        {copiedKey === `tbl-sku-${v.variantId}` ? (
-                                                                            <Check className="h-3 w-3 text-emerald-600" />
-                                                                        ) : (
-                                                                            <Copy className="h-3 w-3" />
-                                                                        )}
-                                                                    </button>
+                                                    <React.Fragment key={v.variantId || index}>
+                                                        <TableRow className={`hover:bg-muted/30 ${isExpanded ? "bg-indigo-50/15 dark:bg-indigo-950/15" : ""}`}>
+                                                            {/* Thumbnail */}
+                                                            <TableCell>
+                                                                <div className="h-10 w-10 rounded-lg border bg-muted/20 overflow-hidden flex items-center justify-center shrink-0">
+                                                                    {imageUrl ? (
+                                                                        <img
+                                                                            src={imageUrl}
+                                                                            alt={v.variantName}
+                                                                            className="h-full w-full object-cover cursor-pointer"
+                                                                            onClick={() => setPreviewImage({ url: imageUrl, title: v.variantName })}
+                                                                            referrerPolicy="no-referrer"
+                                                                        />
+                                                                    ) : (
+                                                                        <Package className="h-4 w-4 text-muted-foreground/60" />
+                                                                    )}
                                                                 </div>
-                                                            </div>
-                                                        </TableCell>
+                                                            </TableCell>
 
-                                                        {/* Size */}
-                                                        <TableCell>
-                                                            {(v.size || v.Size) ? (
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-semibold text-foreground">
-                                                                    {v.size || v.Size}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-muted-foreground text-xs">—</span>
-                                                            )}
-                                                        </TableCell>
-
-                                                        {/* Stock Level */}
-                                                        <TableCell>
-                                                            <div className="flex flex-col gap-1">
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <span className="font-bold text-sm text-foreground">{qty}</span>
-                                                                    <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4.5 ${health.badgeClass}`}>
-                                                                        {health.label}
-                                                                    </Badge>
+                                                            {/* Variation Name & SKU */}
+                                                            <TableCell>
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-semibold text-foreground text-sm">{v.variantName}</span>
+                                                                    <div className="flex items-center gap-1 mt-0.5">
+                                                                        <span className="text-xs font-mono text-muted-foreground">{fullSku}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleCopy(fullSku, `tbl-sku-${v.variantId}`, "SKU")}
+                                                                            className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                                                            title="Copy SKU"
+                                                                        >
+                                                                            {copiedKey === `tbl-sku-${v.variantId}` ? (
+                                                                                <Check className="h-3 w-3 text-emerald-600" />
+                                                                            ) : (
+                                                                                <Copy className="h-3 w-3" />
+                                                                            )}
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
-                                                                <span className="text-[10px] text-muted-foreground">Reorder at: {reorder}</span>
-                                                            </div>
-                                                        </TableCell>
+                                                            </TableCell>
 
-                                                        {/* Cost Price */}
-                                                        <TableCell className="text-right text-xs">
-                                                            {formatCurrency(v.purchasePrice)}
-                                                        </TableCell>
-
-                                                        {/* Sale Price IND */}
-                                                        <TableCell className="text-right">
-                                                            <div className="flex flex-col items-end">
-                                                                <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                                                                    {formatCurrency(v.sellingPrice)}
-                                                                </span>
-                                                                {margin !== null && (
-                                                                    <span className="text-[10px] font-semibold text-emerald-600">
-                                                                        +{margin}% margin
+                                                            {/* Size */}
+                                                            <TableCell>
+                                                                {(v.size || v.Size) ? (
+                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-muted text-xs font-semibold text-foreground">
+                                                                        {v.size || v.Size}
                                                                     </span>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-
-                                                        {/* Export Price USD */}
-                                                        <TableCell className="text-right text-xs font-semibold">
-                                                            ${v.usdAmount || v.exportSellingPrice || 0}
-                                                        </TableCell>
-
-                                                        {/* Warehouse & Rack */}
-                                                        <TableCell className="text-xs">
-                                                            <div className="flex flex-col text-slate-700 dark:text-slate-300">
-                                                                <span className="font-medium truncate max-w-[120px]">{warehousesMap[v.warehouseId] || "Main"}</span>
-                                                                <span className="text-[10px] text-muted-foreground">Rack: {v.rackLocation || "—"}</span>
-                                                            </div>
-                                                        </TableCell>
-
-                                                        {/* Barcode */}
-                                                        <TableCell className="text-xs">
-                                                            <div className="flex items-center gap-1.5">
-                                                                {v.barcodeNumber ? (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setBarcodeModal({ code: v.barcodeNumber, name: v.variantName, sku: fullSku })}
-                                                                        className="inline-flex items-center gap-1 font-mono text-[11px] text-indigo-600 hover:text-indigo-700 hover:underline"
-                                                                        title="View Barcode"
-                                                                    >
-                                                                        <Barcode className="h-3 w-3" />
-                                                                        <span>{v.barcodeNumber}</span>
-                                                                    </button>
                                                                 ) : (
-                                                                    <span className="text-muted-foreground">—</span>
+                                                                    <span className="text-muted-foreground text-xs">—</span>
                                                                 )}
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className="h-6 w-6 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50"
-                                                                    onClick={() => handleOpenBarcodePrint(v.variantId)}
-                                                                    title="Print Label"
-                                                                >
-                                                                    <Printer className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
-                                                        </TableCell>
+                                                            </TableCell>
 
-                                                        {/* Status */}
-                                                        <TableCell className="text-center">
-                                                            <Badge
-                                                                variant={v.status ? "default" : "secondary"}
-                                                                className={`text-[10px] h-5 ${v.status ? "bg-emerald-600" : ""}`}
-                                                            >
-                                                                {v.status ? "Active" : "Inactive"}
-                                                            </Badge>
-                                                        </TableCell>
-                                                    </TableRow>
+                                                            {/* Stock Level */}
+                                                            <TableCell>
+                                                                <div className="flex flex-col gap-1">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-bold text-sm text-foreground">{qty}</span>
+                                                                        <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4.5 ${health.badgeClass}`}>
+                                                                            {health.label}
+                                                                        </Badge>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                                        <span className="text-[10px] text-muted-foreground">Reorder: {reorder}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => toggleExpandLots(v.variantId)}
+                                                                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 transition-colors cursor-pointer"
+                                                                            title="View lot-wise breakdown"
+                                                                        >
+                                                                            <Boxes className="h-3 w-3" />
+                                                                            <span>
+                                                                                {isLotsLoading
+                                                                                    ? "..."
+                                                                                    : lots
+                                                                                        ? `${lots.length} Lot${lots.length === 1 ? "" : "s"}`
+                                                                                        : "Lots"}
+                                                                            </span>
+                                                                            {isExpanded ? (
+                                                                                <ChevronUp className="h-3 w-3" />
+                                                                            ) : (
+                                                                                <ChevronDown className="h-3 w-3" />
+                                                                            )}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </TableCell>
+
+                                                            {/* Cost Price */}
+                                                            <TableCell className="text-right text-xs">
+                                                                {formatCurrency(v.purchasePrice)}
+                                                            </TableCell>
+
+                                                            {/* Sale Price IND */}
+                                                            <TableCell className="text-right">
+                                                                <div className="flex flex-col items-end">
+                                                                    <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                                                        {formatCurrency(v.sellingPrice)}
+                                                                    </span>
+                                                                    {margin !== null && (
+                                                                        <span className="text-[10px] font-semibold text-emerald-600">
+                                                                            +{margin}% margin
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+
+                                                            {/* Export Price USD */}
+                                                            <TableCell className="text-right text-xs font-semibold">
+                                                                ${v.usdAmount || v.exportSellingPrice || 0}
+                                                            </TableCell>
+
+                                                            {/* Warehouse & Rack */}
+                                                            <TableCell className="text-xs">
+                                                                <div className="flex flex-col text-slate-700 dark:text-slate-300">
+                                                                    <span className="font-medium truncate max-w-[120px]">{warehousesMap[v.warehouseId] || "Main"}</span>
+                                                                    <span className="text-[10px] text-muted-foreground">Rack: {v.rackLocation || "—"}</span>
+                                                                </div>
+                                                            </TableCell>
+
+                                                            {/* Barcode */}
+                                                            <TableCell className="text-xs">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {v.barcodeNumber ? (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setBarcodeModal({ code: v.barcodeNumber, name: v.variantName, sku: fullSku })}
+                                                                            className="inline-flex items-center gap-1 font-mono text-[11px] text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                                                                            title="View Barcode"
+                                                                        >
+                                                                            <Barcode className="h-3 w-3" />
+                                                                            <span>{v.barcodeNumber}</span>
+                                                                        </button>
+                                                                    ) : (
+                                                                        <span className="text-muted-foreground">—</span>
+                                                                    )}
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-6 w-6 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer"
+                                                                        onClick={() => handleOpenBarcodePrint(v.variantId)}
+                                                                        title="Print Label"
+                                                                    >
+                                                                        <Printer className="h-3 w-3" />
+                                                                    </Button>
+                                                                </div>
+                                                            </TableCell>
+
+                                                            {/* Status */}
+                                                            <TableCell className="text-center">
+                                                                <Badge
+                                                                    variant={v.status ? "default" : "secondary"}
+                                                                    className={`text-[10px] h-5 ${v.status ? "bg-emerald-600" : ""}`}
+                                                                >
+                                                                    {v.status ? "Active" : "Inactive"}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+
+                                                        {/* Expandable Sub-Row for Variant Lots Breakdown */}
+                                                        {isExpanded && (
+                                                            <TableRow className="bg-indigo-50/20 dark:bg-indigo-950/20 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/20 border-b">
+                                                                <TableCell colSpan={10} className="p-0">
+                                                                    <div className="p-4 pl-12 border-l-4 border-indigo-500 bg-background/60 dark:bg-card/60">
+                                                                        <div className="flex items-center justify-between mb-2.5">
+                                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                                <Boxes className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                                                                <span className="text-xs font-bold text-foreground">
+                                                                                    Lot-wise Stocks: {v.variantName} ({fullSku})
+                                                                                </span>
+                                                                                {lots && lots.length > 0 && (
+                                                                                    <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 bg-indigo-50/60 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200">
+                                                                                        {lots.length} {lots.length === 1 ? "Lot" : "Lots"} ({lots.reduce((acc, l) => acc + (Number(l.availableQuantity ?? l.currentQuantity) || 0), 0)}  PCS  available)
+                                                                                    </Badge>
+                                                                                )}
+                                                                            </div>
+                                                                            <Button
+                                                                                type="button"
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                                                                                onClick={() => fetchLotsForVariant(v.variantId, true)}
+                                                                            >
+                                                                                <RefreshCcw className="h-3 w-3 mr-1" /> Refresh Lots
+                                                                            </Button>
+                                                                        </div>
+
+                                                                        {isLotsLoading ? (
+                                                                            <div className="py-5 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                                                                <Loader2 className="h-4 w-4 animate-spin text-indigo-600" /> Loading lot breakdown...
+                                                                            </div>
+                                                                        ) : !lots || lots.length === 0 ? (
+                                                                            <div className="py-3 px-4 text-xs text-muted-foreground bg-background rounded-lg border border-dashed text-center">
+                                                                                No specific lot inward batches found for this variation.
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="rounded-lg border bg-background overflow-hidden shadow-2xs">
+                                                                                <Table>
+                                                                                    <TableHeader className="bg-muted/40">
+                                                                                        <TableRow className="h-7 text-[11px]">
+                                                                                            <TableHead className="py-1">Lot Number</TableHead>
+                                                                                            <TableHead className="py-1">Warehouse</TableHead>
+                                                                                            <TableHead className="py-1">Rack</TableHead>
+                                                                                            <TableHead className="py-1 text-right">Available Qty</TableHead>
+                                                                                            <TableHead className="py-1 text-right">Current Qty</TableHead>
+                                                                                            <TableHead className="py-1">Expiry Date</TableHead>
+                                                                                            <TableHead className="py-1 text-center">Status</TableHead>
+                                                                                        </TableRow>
+                                                                                    </TableHeader>
+                                                                                    <TableBody>
+                                                                                        {lots.map((lot, lIdx) => {
+                                                                                            const expiry = formatExpiryDate(lot.expiryDate)
+                                                                                            const wName = lot.warehouseName || warehousesMap[lot.warehouseId] || "Main Warehouse"
+                                                                                            return (
+                                                                                                <TableRow key={lot.lotId || lIdx} className="h-8 text-xs hover:bg-muted/20">
+                                                                                                    <TableCell className="font-mono font-medium py-1.5">
+                                                                                                        <div className="flex items-center gap-1.5">
+                                                                                                            <span className="font-semibold text-foreground">{lot.lotNumber}</span>
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => handleCopy(lot.lotNumber, `tbl-lot-${lot.lotId}`, "Lot number")}
+                                                                                                                className="text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                                                                                                                title="Copy Lot Number"
+                                                                                                            >
+                                                                                                                {copiedKey === `tbl-lot-${lot.lotId}` ? (
+                                                                                                                    <Check className="h-3 w-3 text-emerald-600" />
+                                                                                                                ) : (
+                                                                                                                    <Copy className="h-3 w-3" />
+                                                                                                                )}
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    </TableCell>
+                                                                                                    <TableCell className="py-1.5 font-medium">{wName}</TableCell>
+                                                                                                    <TableCell className="py-1.5 text-muted-foreground">{lot.rackLocation || "—"}</TableCell>
+                                                                                                    <TableCell className="py-1.5 text-right font-bold text-foreground">
+                                                                                                        {lot.availableQuantity}  PCS
+                                                                                                    </TableCell>
+                                                                                                    <TableCell className="py-1.5 text-right text-muted-foreground">
+                                                                                                        {lot.currentQuantity}
+                                                                                                    </TableCell>
+                                                                                                    <TableCell className="py-1.5">
+                                                                                                        <Badge variant="outline" className={`text-[10px] h-4.5 px-1.5 font-semibold ${expiry.badgeClass}`}>
+                                                                                                            <Calendar className="h-2.5 w-2.5 mr-1" />
+                                                                                                            {expiry.label}
+                                                                                                        </Badge>
+                                                                                                    </TableCell>
+                                                                                                    <TableCell className="py-1.5 text-center">
+                                                                                                        <Badge
+                                                                                                            variant={lot.status === "Active" ? "default" : "secondary"}
+                                                                                                            className={`text-[10px] h-4 px-1.5 ${lot.status === "Active" ? "bg-emerald-600 text-white" : ""}`}
+                                                                                                        >
+                                                                                                            {lot.status || "Active"}
+                                                                                                        </Badge>
+                                                                                                    </TableCell>
+                                                                                                </TableRow>
+                                                                                            )
+                                                                                        })}
+                                                                                    </TableBody>
+                                                                                </Table>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </React.Fragment>
                                                 )
                                             })}
                                         </TableBody>

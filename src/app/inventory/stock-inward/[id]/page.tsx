@@ -2,7 +2,7 @@ import * as React from "react"
 import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { stockInwardApi } from "@/lib/api"
-import type { InwardOrder, InwardScanEvent } from "../types"
+import type { InwardOrder, InwardScanEvent, CreateStockInwardDto } from "../types"
 import { getExpiryStatus } from "@/lib/barcode-utils"
 import {
   ArrowLeft,
@@ -85,9 +85,9 @@ export default function StockInwardDetailsPage() {
     )
   }
 
-  const fetchOrderDetails = async () => {
+  const fetchOrderDetails = async (silent = false) => {
     if (!id) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const res = await stockInwardApi.getById(id)
       const data = (res as any)?.data || res
@@ -95,7 +95,7 @@ export default function StockInwardDetailsPage() {
     } catch (err: any) {
       toast.error(err?.message || "Failed to load Stock Inward details")
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
@@ -150,15 +150,131 @@ export default function StockInwardDetailsPage() {
     }
     setScanning(true)
     try {
+      // 1. Post scan event to record the scan
       const scanEvent: InwardScanEvent = {
         inwardOrderId: parseInt(id),
         barcode: trimmed,
         scannedQuantity: 1
       }
       await stockInwardApi.scan(id, scanEvent)
+
+      // 2. Increment receivedQty on the matching line item
+      let matchedFound = false
+      const updatedItems = (order.items || []).map((it) => {
+        const b = (it.barcode || "").toLowerCase().trim()
+        const lb = (it.lotBarcode || "").toLowerCase().trim()
+        const ln = (it.lotNumber || "").toLowerCase().trim()
+        const sku = (it.sku || "").toLowerCase().trim()
+        const inGenerated = it.generatedBarcodes?.some(gb => (gb || "").toLowerCase().trim() === trimmed.toLowerCase().trim())
+
+        const isMatch = b === trimmed.toLowerCase().trim() ||
+                        lb === trimmed.toLowerCase().trim() ||
+                        ln === trimmed.toLowerCase().trim() ||
+                        sku === trimmed.toLowerCase().trim() ||
+                        Boolean(inGenerated) ||
+                        (it.inwardOrderItemId && matchedItem.inwardOrderItemId && it.inwardOrderItemId === matchedItem.inwardOrderItemId)
+
+        if (isMatch && !matchedFound) {
+          matchedFound = true
+          const currentRec = Number(it.receivedQty ?? it.receivedQuantity ?? 0)
+          return {
+            ...it,
+            receivedQty: currentRec + 1,
+            receivedQuantity: currentRec + 1
+          }
+        }
+        return it
+      })
+
+      const formatIsoDate = (dateVal?: any) => {
+        if (!dateVal) return new Date().toISOString()
+        const d = new Date(dateVal)
+        return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString()
+      }
+
+      // 3. Build full payload for PUT /api/StockInward/Update/{id} to persist updated received quantity
+      const updatePayload: CreateStockInwardDto = {
+        inwardOrderId: Number(order.inwardOrderId || id || 0),
+        orderNumber: order.orderNumber || order.inwardNumber || "",
+        vendorId: Number(order.vendorId || 0),
+        vendorName: order.vendorName || "",
+        warehouseId: Number(order.warehouseId || 0),
+        warehouseName: order.warehouseName || "",
+        warehouseCode: order.warehouseCode || (order.warehouseId ? `WH-${order.warehouseId}` : ""),
+        orderDate: formatIsoDate(order.orderDate || order.inwardDate),
+        status: order.status || "Pending",
+        priority: order.priority || "Normal",
+        receiverName: order.receiverName || "Admin User",
+        createdAt: formatIsoDate(order.createdAt),
+        updatedAt: new Date().toISOString(),
+        purchaseOrderId: Number(order.purchaseOrderId || order.poId || 0),
+        invoiceNumber: order.invoiceNumber || order.referenceNumber || "",
+        items: updatedItems.map((item) => {
+          const assignedLot = item.lotNumber || ""
+          const assignedBarcode = item.barcode || item.lotBarcode || assignedLot || ""
+          return {
+            inwardOrderItemId: Number(item.inwardOrderItemId || 0),
+            inwardOrderId: Number(order.inwardOrderId || id || 0),
+            productId: Number(item.productId || 0),
+            variantId: Number(item.variantId || 0),
+            productName: item.productName || "",
+            variantName: item.variantName || "Default",
+            sku: item.sku || `SKU-${item.productId}`,
+            barcode: assignedBarcode,
+            expectedQty: Number(item.expectedQty ?? item.expectedQuantity ?? 0),
+            receivedQty: Number(item.receivedQty ?? item.receivedQuantity ?? 0),
+            locationCode: item.locationCode || "RACK-A1",
+            lotId: Number(item.lotId || 0),
+            lotNumber: assignedLot,
+            purchasePrice: Number(item.purchasePrice ?? item.unitPrice ?? item.unitCost ?? 0),
+            expiryDate: formatIsoDate(item.expiryDate)
+          }
+        }),
+        scanHistory: [
+          {
+            scanId: 0,
+            inwardOrderId: Number(order.inwardOrderId || id || 0),
+            barcode: trimmed,
+            message: `Verified: ${matchedItem.productName || "Item"}`,
+            scanType: "Scan",
+            productName: matchedItem.productName || "",
+            scannedAt: new Date().toISOString()
+          },
+          ...(order.scanHistory || []).map((s) => ({
+            scanId: Number(s.scanId || 0),
+            inwardOrderId: Number(order.inwardOrderId || id || 0),
+            barcode: s.barcode || "",
+            message: s.message || "",
+            scanType: s.scanType || "Scan",
+            productName: s.productName || "",
+            scannedAt: formatIsoDate(s.scannedAt)
+          }))
+        ]
+      }
+
+      await stockInwardApi.update(id, updatePayload)
+
+      // 4. Optimistically update local order state
+      setOrder(prev => prev ? {
+        ...prev,
+        items: updatedItems,
+        scanHistory: [
+          {
+            scanId: Date.now(),
+            inwardOrderId: Number(order.inwardOrderId || id || 0),
+            barcode: trimmed,
+            message: `Verified: ${matchedItem.productName || "Item"}`,
+            scanType: "Scan",
+            productName: matchedItem.productName || "",
+            scannedAt: new Date().toISOString()
+          },
+          ...(prev.scanHistory || [])
+        ]
+      } : null)
+
       toast.success(`Verified: ${matchedItem.productName} (${trimmed})`)
       setBarcodeInput("")
-      fetchOrderDetails()
+      fetchOrderDetails(true)
     } catch (err: any) {
       toast.error(err?.message || `Failed to verify barcode ${trimmed}`)
     } finally {

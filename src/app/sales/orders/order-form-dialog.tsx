@@ -16,6 +16,7 @@ import { salesOrderApi, countryMasterApi, clientsApi, serializeAddress, usersApi
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
+import { useAuth } from "@/hooks/use-auth"
 
 interface OrderFormDialogProps {
   open: boolean
@@ -27,6 +28,7 @@ interface OrderFormDialogProps {
 const GST_RATES = [0, 5, 12, 18, 28]
 
 export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderFormDialogProps) {
+  const { user } = useAuth()
   const [form, setForm] = useState<Partial<Order>>({})
   const [isSaving, setIsSaving] = useState(false)
   const [currencies, setCurrencies] = useState<string[]>(["USD", "EUR", "GBP"])
@@ -222,6 +224,10 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
           console.error("Error initializing order form details:", err)
         }
       } else {
+        const currentUserName = user?.name || `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || ""
+        const currentUserCell = user?.phone || user?.mobile || user?.mobileNumber || ""
+        const currentUserId = user?.userId !== undefined ? String(user.userId) : (user?.id !== undefined ? String(user.id) : undefined)
+
         setForm({
           orderNumber: `SO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
           date: new Date().toISOString().split('T')[0],
@@ -231,36 +237,45 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
           currencyType: "INR",
           doctorSpeciality: "",
           clientGSTIN: "",
+          salesPersonName: currentUserName,
+          salesPersonCell: currentUserCell,
+          salesPersonId: currentUserId,
           items: [],
           subtotal: 0,
           taxAmount: 0,
           totalAmount: 0,
-        })
+        } as any)
       }
     }
 
     if (open) {
       initForm()
     }
-  }, [order, open])
+  }, [order, open, user])
 
   // Auto-match salesperson name to user list, or resolve mock/invalid salesPersonId
   useEffect(() => {
     if (users.length > 0 && (form as any).salesPersonName) {
       const hasValidId = form.salesPersonId && users.some(u => String(u.userId) === String(form.salesPersonId))
       if (!hasValidId) {
-        const match = users.find(u =>
-          `${u.firstName} ${u.lastName}`.trim().toLowerCase() === (form as any).salesPersonName?.trim().toLowerCase()
-        )
+        const targetName = (form as any).salesPersonName.trim().toLowerCase()
+        const match = users.find(u => {
+          const uFull = `${u.firstName || ""} ${u.lastName || ""}`.trim().toLowerCase()
+          const uName = (u.name || "").trim().toLowerCase()
+          return uFull === targetName || uName === targetName
+        })
         if (match) {
           setForm(prev => ({
             ...prev,
-            salesPersonId: String(match.userId)
+            salesPersonId: String(match.userId),
+            salesPersonCell: match.phone || match.mobile || (prev as any).salesPersonCell || ""
           }))
+        } else if (user?.userId && String(form.salesPersonId) === String(user.userId)) {
+          // Keep current logged-in user ID
         }
       }
     }
-  }, [users, (form as any).salesPersonName])
+  }, [users, (form as any).salesPersonName, form.salesPersonId, user?.userId])
 
   const set = (field: keyof Order, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -403,6 +418,8 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
         orderStatus: form.status || "Pending",
         paymentStatus: form.paymentStatus || "Unpaid",
         salesPersonId: isNaN(parseInt(String(form.salesPersonId || ""))) ? 0 : parseInt(String(form.salesPersonId || "")),
+        salesPersonName: (form as any).salesPersonName || "",
+        salesPersonCell: (form as any).salesPersonCell || "",
         billingAddress: form.billingAddress || "",
         status: form.status || "Pending",
         shippingAddress: form.shippingAddress || form.billingAddress || "",
@@ -638,6 +655,59 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
                     set("gstinNo" as any, e.target.value)
                   }}
                   placeholder="GSTIN Number"
+                  className="border-slate-200"
+                />
+              </div>
+            </div>
+
+            {/* Sales Representative & Sales Person Cell */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2 min-w-0">
+                <Label>Sales Representative *</Label>
+                <Select
+                  value={(form as any).salesPersonName || ""}
+                  onValueChange={(val) => {
+                    const selectedUser = users.find(u => {
+                      const uFull = `${u.firstName || ""} ${u.lastName || ""}`.trim()
+                      return uFull === val || u.name === val
+                    })
+                    if (selectedUser) {
+                      setForm(prev => ({
+                        ...prev,
+                        salesPersonName: val,
+                        salesPersonCell: selectedUser.phone || selectedUser.mobile || "",
+                        salesPersonId: String(selectedUser.userId)
+                      } as any))
+                    } else {
+                      setForm(prev => ({
+                        ...prev,
+                        salesPersonName: val,
+                        salesPersonId: undefined
+                      } as any))
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full min-w-0 border-slate-200">
+                    <SelectValue placeholder={loadingUsers ? "Loading..." : "Select Sales Person"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {users.map(u => {
+                      const fullName = (u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim()) || `User ${u.userId}`
+                      return (
+                        <SelectItem key={u.userId} value={fullName}>
+                          {fullName}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Sales Person Cell</Label>
+                <Input
+                  value={(form as any).salesPersonCell || ""}
+                  onChange={(e) => set("salesPersonCell" as any, e.target.value)}
+                  placeholder="+91-xxxxxxxxxx"
                   className="border-slate-200"
                 />
               </div>
