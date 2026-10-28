@@ -135,8 +135,18 @@ export interface LabelPreset {
 
 export const LABEL_PRESETS: LabelPreset[] = [
   {
+    id: "thermal_40x15",
+    name: "Thermal Roll 4cm × 1.5cm (40mm × 15mm)",
+    type: "roll",
+    widthMm: 40,
+    heightMm: 15,
+    columns: 1,
+    labelsPerPage: 1,
+    description: "Standard 4cm × 1.5cm (40mm × 15mm) compact item barcode sticker"
+  },
+  {
     id: "thermal_50x25",
-    name: "Thermal Roll (50mm × 25mm)",
+    name: "Thermal Roll 5cm × 2.5cm (50mm × 25mm)",
     type: "roll",
     widthMm: 50,
     heightMm: 25,
@@ -163,6 +173,16 @@ export const LABEL_PRESETS: LabelPreset[] = [
     columns: 1,
     labelsPerPage: 1,
     description: "Compact 1.5\" × 1\" barcode label"
+  },
+  {
+    id: "thermal_100x50",
+    name: "Thermal Roll (100mm × 50mm)",
+    type: "roll",
+    widthMm: 100,
+    heightMm: 50,
+    columns: 1,
+    labelsPerPage: 1,
+    description: "Large 4\" × 2\" warehouse shipping & box label (Zebra, TSC, Godex)"
   },
   {
     id: "a4_24",
@@ -353,5 +373,350 @@ export function getExpiryStatus(expiryDate?: string): {
       monthsRemaining,
     }
   }
+}
+
+/**
+ * ============================================================================
+ * THERMAL PRINTER RAW (.PRN) SCRIPT GENERATORS (ZPL II & TSPL)
+ * For industrial thermal label printers (Zebra, TSC, TVS, Godex, Xprinter)
+ * ============================================================================
+ */
+
+export type ThermalPrinterLanguage = "zpl" | "tspl"
+export type ThermalPrinterDpi = 203 | 300
+
+export interface ThermalPrintItem {
+  barcode: string
+  lotNumber: string
+  productName: string
+  variantName?: string
+  sku?: string
+  expiryDate?: string
+  warehouse?: string
+  rack?: string
+  quantity: number
+}
+
+export interface ThermalPrintOptions {
+  language: ThermalPrinterLanguage
+  dpi: ThermalPrinterDpi
+  widthMm: number
+  heightMm: number
+  companyName?: string
+  includeCompany?: boolean
+  includeProductName?: boolean
+  includeVariantName?: boolean
+  includeSku?: boolean
+  includeLotNumber?: boolean
+  includeExpiry?: boolean
+  includeLocation?: boolean
+  includeHumanBarcode?: boolean
+  items: ThermalPrintItem[]
+}
+
+/**
+ * Generates raw ZPL II (.prn) command stream for Zebra and ZPL-compatible printers.
+ */
+export function generateLotZpl(options: ThermalPrintOptions): string {
+  const {
+    dpi = 203,
+    widthMm,
+    heightMm,
+    companyName = "TEJCO GLOBAL LLP",
+    includeCompany = true,
+    includeProductName = true,
+    includeVariantName = true,
+    includeSku = true,
+    includeLotNumber = true,
+    includeExpiry = true,
+    includeLocation = true,
+    includeHumanBarcode = true,
+    items = []
+  } = options
+
+  // Dots per mm: 203 DPI = 8.0 dots/mm, 300 DPI = 11.81 dots/mm
+  const dpmm = dpi === 300 ? 11.81 : 8.0
+  const widthDots = Math.round(widthMm * dpmm)
+  const heightDots = Math.round(heightMm * dpmm)
+  const marginDots = Math.round(2 * dpmm)
+  const printableWidth = Math.max(10, widthDots - marginDots * 2)
+
+  // Scaling factor for fonts and barcodes relative to 203 DPI baseline
+  const s = dpi === 300 ? 1.48 : 1.0
+
+  const zplBlocks: string[] = []
+
+  for (const item of items) {
+    if (!item.quantity || item.quantity <= 0) continue
+
+    const barcodeVal = (item.barcode || item.lotNumber || "000000").replace(/[\^~]/g, "").trim()
+    const lotNum = (item.lotNumber || "").replace(/[\^~]/g, "").trim()
+    const prodName = (item.productName || "").replace(/[\^~]/g, "").trim().slice(0, 36)
+    const varName = (item.variantName || "").replace(/[\^~]/g, "").trim().slice(0, 36)
+    const skuStr = (item.sku || "").replace(/[\^~]/g, "").trim().slice(0, 24)
+    const expStr = (item.expiryDate || "").replace(/[\^~]/g, "").trim()
+    const whStr = (item.warehouse || "").replace(/[\^~]/g, "").trim().slice(0, 20)
+    const rackStr = (item.rack ? `Rack: ${item.rack}` : "").replace(/[\^~]/g, "").trim().slice(0, 16)
+
+    // Calculate module width for Code 128
+    // Code 128 symbol: ~11 modules per char + 35 modules overhead
+    const maxModules = (barcodeVal.length + 4) * 11 + 2
+    const moduleWidth = Math.max(1, Math.min(3, Math.floor((printableWidth - 20) / maxModules)))
+    const barcodeWidth = maxModules * moduleWidth
+    const barcodeX = Math.max(marginDots, Math.round((widthDots - barcodeWidth) / 2))
+
+    const isTiny = heightMm <= 18
+    const isSmall = heightMm <= 26 && !isTiny
+    const isLarge = heightMm >= 45
+
+    let curY = Math.round((isTiny ? 0.8 : 1.5) * dpmm)
+
+    const lines: string[] = [
+      "^XA",
+      `^PW${widthDots}`,
+      `^LL${heightDots}`,
+      "^LH0,0",
+      "^CI28" // Enable UTF-8 interpretation
+    ]
+
+    // 1. Company Name Header
+    if (includeCompany && companyName) {
+      const hFont = Math.round((isTiny ? 12 : isSmall ? 16 : 20) * s)
+      const wFont = Math.round((isTiny ? 10 : isSmall ? 14 : 17) * s)
+      const compClean = companyName.replace(/[\^~]/g, "").trim().toUpperCase()
+      lines.push(`^FO0,${curY}^FB${widthDots},1,0,C,0^A0N,${hFont},${wFont}^FD${compClean}^FS`)
+      curY += hFont + Math.round((isTiny ? 1 : 2) * s)
+    }
+
+    // 2. Product Title
+    if (includeProductName && prodName) {
+      const hFont = Math.round((isTiny ? 13 : isSmall ? 18 : 22) * s)
+      const wFont = Math.round((isTiny ? 11 : isSmall ? 15 : 18) * s)
+      lines.push(`^FO0,${curY}^FB${widthDots},1,0,C,0^A0N,${hFont},${wFont}^FD${prodName}^FS`)
+      curY += hFont + Math.round((isTiny ? 1 : 1.5) * s)
+    }
+
+    // 3. Variant / Spec
+    if (includeVariantName && varName) {
+      const hFont = Math.round((isTiny ? 11 : isSmall ? 15 : 18) * s)
+      const wFont = Math.round((isTiny ? 9 : isSmall ? 13 : 15) * s)
+      lines.push(`^FO0,${curY}^FB${widthDots},1,0,C,0^A0N,${hFont},${wFont}^FD${varName}^FS`)
+      curY += hFont + Math.round((isTiny ? 1 : 2) * s)
+    }
+
+    // 4. Barcode Code 128
+    const barcodeHeight = Math.round(
+      (isTiny ? (includeProductName || includeCompany ? 28 : 46) : isSmall ? 38 : isLarge ? 68 : 50) * s
+    )
+    lines.push(`^BY${moduleWidth},3,${barcodeHeight}`)
+    lines.push(`^FO${barcodeX},${curY}^BCN,${barcodeHeight},N,N,N^FD>:${barcodeVal}^FS`)
+    curY += barcodeHeight + Math.round((isTiny ? 1.5 : 2) * s)
+
+    // 5. Human-readable Barcode Value
+    if (includeHumanBarcode) {
+      const hFont = Math.round((isTiny ? 12 : isSmall ? 16 : 18) * s)
+      const wFont = Math.round((isTiny ? 10 : isSmall ? 14 : 16) * s)
+      lines.push(`^FO0,${curY}^FB${widthDots},1,0,C,0^A0N,${hFont},${wFont}^FD${barcodeVal}^FS`)
+      curY += hFont + Math.round((isTiny ? 1.5 : 2.5) * s)
+    }
+
+    // 6. Meta Row 1: Lot Number and Expiry Date
+    const metaHFont = Math.round((isTiny ? 11 : isSmall ? 15 : 18) * s)
+    const metaWFont = Math.round((isTiny ? 9 : isSmall ? 13 : 15) * s)
+
+    if (includeLotNumber || includeExpiry || includeSku) {
+      const leftText = includeLotNumber ? `LOT: ${lotNum}` : (includeSku ? `SKU: ${skuStr}` : "")
+      const rightText = includeExpiry && expStr ? `EXP: ${expStr}` : ""
+
+      if (leftText) {
+        lines.push(`^FO${marginDots},${curY}^A0N,${metaHFont},${metaWFont}^FD${leftText}^FS`)
+      }
+      if (rightText) {
+        lines.push(`^FO${marginDots},${curY}^FB${printableWidth},1,0,R,0^A0N,${metaHFont},${metaWFont}^FD${rightText}^FS`)
+      }
+      curY += metaHFont + Math.round((isTiny ? 1 : 2) * s)
+    }
+
+    // 7. Meta Row 2: Warehouse and Rack
+    if (includeLocation && (whStr || rackStr)) {
+      const locHFont = Math.round((isTiny ? 10 : isSmall ? 13 : 16) * s)
+      const locWFont = Math.round((isTiny ? 8 : isSmall ? 11 : 13) * s)
+      if (whStr) {
+        lines.push(`^FO${marginDots},${curY}^A0N,${locHFont},${locWFont}^FD${whStr}^FS`)
+      }
+      if (rackStr) {
+        lines.push(`^FO${marginDots},${curY}^FB${printableWidth},1,0,R,0^A0N,${locHFont},${locWFont}^FD${rackStr}^FS`)
+      }
+    }
+
+    // Quantity repetition and close label
+    lines.push(`^PQ${item.quantity},0,1,Y`)
+    lines.push("^XZ")
+
+    zplBlocks.push(lines.join("\n"))
+  }
+
+  return zplBlocks.join("\n\n")
+}
+
+/**
+ * Generates raw TSPL/TSPL2 (.prn) command stream for TSC, TVS, Xprinter and compatible printers.
+ */
+export function generateLotTspl(options: ThermalPrintOptions): string {
+  const {
+    dpi = 203,
+    widthMm,
+    heightMm,
+    companyName = "TEJCO GLOBAL LLP",
+    includeCompany = true,
+    includeProductName = true,
+    includeVariantName = true,
+    includeSku = true,
+    includeLotNumber = true,
+    includeExpiry = true,
+    includeLocation = true,
+    includeHumanBarcode = true,
+    items = []
+  } = options
+
+  const dpmm = dpi === 300 ? 11.81 : 8.0
+  const widthDots = Math.round(widthMm * dpmm)
+  const heightDots = Math.round(heightMm * dpmm)
+  const marginDots = Math.round(2 * dpmm)
+  const printableWidth = Math.max(10, widthDots - marginDots * 2)
+
+  const s = dpi === 300 ? 1.48 : 1.0
+  const isTiny = heightMm <= 18
+  const isSmall = heightMm <= 26 && !isTiny
+  const isLarge = heightMm >= 45
+
+  const tsplBlocks: string[] = []
+
+  const escapeTspl = (str: string) =>
+    (str || "").replace(/"/g, "'").replace(/[\r\n]/g, " ").trim()
+
+  for (const item of items) {
+    if (!item.quantity || item.quantity <= 0) continue
+
+    const barcodeVal = escapeTspl(item.barcode || item.lotNumber || "000000")
+    const lotNum = escapeTspl(item.lotNumber)
+    const prodName = escapeTspl(item.productName).slice(0, 36)
+    const varName = escapeTspl(item.variantName || "").slice(0, 36)
+    const skuStr = escapeTspl(item.sku || "").slice(0, 24)
+    const expStr = escapeTspl(item.expiryDate || "")
+    const whStr = escapeTspl(item.warehouse || "").slice(0, 20)
+    const rackStr = escapeTspl(item.rack ? `Rack: ${item.rack}` : "").slice(0, 16)
+
+    const maxModules = (barcodeVal.length + 4) * 11 + 2
+    const moduleWidth = Math.max(1, Math.min(3, Math.floor((printableWidth - 20) / maxModules)))
+    const barcodeWidth = maxModules * moduleWidth
+    const barcodeX = Math.max(marginDots, Math.round((widthDots - barcodeWidth) / 2))
+
+    const lines: string[] = [
+      `SIZE ${widthMm} mm, ${heightMm} mm`,
+      `GAP 2 mm, 0 mm`,
+      `DIRECTION 1,0`,
+      `REFERENCE 0,0`,
+      `OFFSET 0 mm`,
+      `CLS`
+    ]
+
+    let curY = Math.round((isTiny ? 0.8 : 1.5) * dpmm)
+
+    // 1. Company Header
+    if (includeCompany && companyName) {
+      const compClean = escapeTspl(companyName).toUpperCase()
+      const fontName = "1"
+      const charWidth = 8 * (dpi === 300 ? 1.5 : 1)
+      const textW = Math.round(compClean.length * charWidth)
+      const textX = Math.max(marginDots, Math.round((widthDots - textW) / 2))
+      lines.push(`TEXT ${textX},${curY},"${fontName}",0,1,1,"${compClean}"`)
+      curY += Math.round((isTiny ? 12 : isSmall ? 16 : 24) * s)
+    }
+
+    // 2. Product Name
+    if (includeProductName && prodName) {
+      const fontName = isTiny ? "1" : isSmall ? "2" : "3"
+      const charWidth = (isTiny ? 8 : isSmall ? 12 : 16) * (dpi === 300 ? 1.5 : 1)
+      const textW = Math.round(prodName.length * charWidth)
+      const textX = Math.max(marginDots, Math.round((widthDots - textW) / 2))
+      lines.push(`TEXT ${textX},${curY},"${fontName}",0,1,1,"${prodName}"`)
+      curY += Math.round((isTiny ? 13 : isSmall ? 22 : 28) * s)
+    }
+
+    // 3. Variant Name
+    if (includeVariantName && varName) {
+      const fontName = isTiny ? "1" : "2"
+      const charWidth = (isTiny ? 8 : 12) * (dpi === 300 ? 1.5 : 1)
+      const textW = Math.round(varName.length * charWidth)
+      const textX = Math.max(marginDots, Math.round((widthDots - textW) / 2))
+      lines.push(`TEXT ${textX},${curY},"${fontName}",0,1,1,"${varName}"`)
+      curY += Math.round((isTiny ? 12 : 22) * s)
+    }
+
+    // 4. Barcode Code 128
+    const barcodeHeight = Math.round(
+      (isTiny ? (includeProductName || includeCompany ? 28 : 46) : isSmall ? 36 : isLarge ? 65 : 48) * s
+    )
+    lines.push(`BARCODE ${barcodeX},${curY},"128",${barcodeHeight},0,0,${moduleWidth},${moduleWidth},"${barcodeVal}"`)
+    curY += barcodeHeight + Math.round((isTiny ? 1.5 : 2) * s)
+
+    // 5. Human readable barcode text
+    if (includeHumanBarcode) {
+      const fontName = isTiny ? "1" : "2"
+      const charWidth = (isTiny ? 8 : 12) * (dpi === 300 ? 1.5 : 1)
+      const textW = Math.round(barcodeVal.length * charWidth)
+      const textX = Math.max(marginDots, Math.round((widthDots - textW) / 2))
+      lines.push(`TEXT ${textX},${curY},"${fontName}",0,1,1,"${barcodeVal}"`)
+      curY += Math.round((isTiny ? 13 : 22) * s)
+    }
+
+    // 6. Meta Row 1: LOT and EXP
+    if (includeLotNumber || includeExpiry || includeSku) {
+      const leftText = includeLotNumber ? `LOT: ${lotNum}` : (includeSku ? `SKU: ${skuStr}` : "")
+      const rightText = includeExpiry && expStr ? `EXP: ${expStr}` : ""
+
+      if (leftText) {
+        lines.push(`TEXT ${marginDots},${curY},"1",0,1,1,"${leftText}"`)
+      }
+      if (rightText) {
+        const charW = 8 * (dpi === 300 ? 1.5 : 1)
+        const rightW = Math.round(rightText.length * charW)
+        const rightX = Math.max(marginDots, widthDots - marginDots - rightW)
+        lines.push(`TEXT ${rightX},${curY},"1",0,1,1,"${rightText}"`)
+      }
+      curY += Math.round((isTiny ? 12 : 22) * s)
+    }
+
+    // 7. Meta Row 2: Warehouse and Rack
+    if (includeLocation && (whStr || rackStr)) {
+      if (whStr) {
+        lines.push(`TEXT ${marginDots},${curY},"1",0,1,1,"${whStr}"`)
+      }
+      if (rackStr) {
+        const charW = 8 * (dpi === 300 ? 1.5 : 1)
+        const rightW = Math.round(rackStr.length * charW)
+        const rightX = Math.max(marginDots, widthDots - marginDots - rightW)
+        lines.push(`TEXT ${rightX},${curY},"1",0,1,1,"${rackStr}"`)
+      }
+    }
+
+    // Print command: PRINT {quantity}, 1
+    lines.push(`PRINT ${item.quantity},1`)
+
+    tsplBlocks.push(lines.join("\n"))
+  }
+
+  return tsplBlocks.join("\n\n")
+}
+
+/**
+ * Generates raw PRN script for thermal printing based on selected language.
+ */
+export function generateLotPrn(options: ThermalPrintOptions): string {
+  if (options.language === "tspl") {
+    return generateLotTspl(options)
+  }
+  return generateLotZpl(options)
 }
 

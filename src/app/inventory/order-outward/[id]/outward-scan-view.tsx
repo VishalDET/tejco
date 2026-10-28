@@ -17,6 +17,11 @@ import {
   Warehouse,
   X,
   XCircle,
+  Volume2,
+  VolumeX,
+  Boxes,
+  Loader2,
+  Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -61,8 +66,16 @@ import {
   type OutwardStatus,
   type ScanResultType,
 } from "../types"
-import { orderOutwardApi, dispatchApi } from "@/lib/api"
+import { orderOutwardApi, dispatchApi, type OutwardScanResultDto } from "@/lib/api"
 import { useAuth } from "@/hooks/use-auth"
+import {
+  playScanSuccess,
+  playItemComplete,
+  playOrderComplete,
+  playScanError,
+  isSoundMuted,
+  toggleSound,
+} from "@/lib/sound-utils"
 
 interface OutwardScanViewProps {
   order: OutwardOrder
@@ -142,9 +155,19 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     return cloned
   })
   const [barcodeValue, setBarcodeValue] = React.useState("")
+  const [isScanning, setIsScanning] = React.useState(false)
+  const [soundMuted, setSoundMuted] = React.useState<boolean>(() => isSoundMuted())
+  const [recentlyScannedId, setRecentlyScannedId] = React.useState<string | null>(null)
+  const [showOrderCompleteModal, setShowOrderCompleteModal] = React.useState(false)
   const [latestEvent, setLatestEvent] = React.useState<OutwardScanEvent | null>(
     order.scanHistory[0] ?? null
   )
+
+  const handleToggleSound = () => {
+    const next = toggleSound()
+    setSoundMuted(next)
+    toast.info(next ? "Scan audio cues muted" : "Scan audio cues enabled")
+  }
 
   React.useEffect(() => {
     if (user && (!outwardOrder.pickerName || outwardOrder.pickerName === "Warehouse Operator" || outwardOrder.pickerName === "Unassigned")) {
@@ -318,193 +341,127 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     const barcode = (rawBarcode ?? barcodeValue).trim()
     if (!barcode) return
 
-    // Prevent duplicate scan of the exact physical unit in this order
-    const isDuplicateUnit = outwardOrder.items.some((it) =>
-      (it.scannedBarcodes || []).includes(barcode)
-    )
-    if (isDuplicateUnit) {
-      const event = addScanEvent({
-        barcode,
-        message: `Unit barcode ${barcode} has already been scanned in this order!`,
-        type: "warning",
-      })
-      toast.warning(event.message)
-      setBarcodeValue("")
-      return
-    }
-
-    // Match by exact barcode, SKU, or serialized unit code prefix
-    const cleanBarcode = barcode.toUpperCase()
-    const itemIndex = outwardOrder.items.findIndex(
-      (item) =>
-        item.barcode === barcode ||
-        item.sku === barcode ||
-        cleanBarcode.startsWith(item.sku.toUpperCase()) ||
-        cleanBarcode.includes(item.sku.toUpperCase()) ||
-        (item.lotNumber && item.lotNumber.toUpperCase() === cleanBarcode)
-    )
-
-    if (itemIndex === -1) {
-      const event = addScanEvent({
-        barcode,
-        message: "Barcode not found in this order",
-        type: "error",
-      })
-      toast.error(event.message)
-      setOutwardOrder((prev) => ({
-        ...prev,
-        status: "Exception",
-        scanHistory: [event, ...prev.scanHistory],
-      }))
-      setBarcodeValue("")
-      return
-    }
-
-    const matchedItem = outwardOrder.items[itemIndex]
-    const productName = matchedItem.productName || ""
-
-    if (matchedItem.scannedQty >= matchedItem.orderedQty) {
-      const event = addScanEvent({
-        barcode,
-        productName: matchedItem.productName,
-        message: `${matchedItem.productName} is already fully scanned`,
-        type: "warning",
-      })
-      toast.warning(event.message)
-      setOutwardOrder((prev) => ({
-        ...prev,
-        scanHistory: [event, ...prev.scanHistory],
-      }))
-      setBarcodeValue("")
-      return
-    }
-
     const outwardOrderId = Number(outwardOrder.outwardOrderId || outwardOrder.id || 0)
+    if (!outwardOrderId) {
+      toast.error("Invalid outward order ID")
+      return
+    }
 
-    // 1. POST /api/OrderOutward/{id}/Scan -> returns lotId & lotNumber
-    let returnedLotId: number | null = null
-    let returnedLotNumber: string | null = null
-
+    setIsScanning(true)
     try {
-      const scanPayload = {
-        scanId: 0,
-        outwardOrderId,
+      // POST /api/OrderOutward/{outwardOrderId}/Scan
+      const res = await orderOutwardApi.scanBarcode(outwardOrderId, { barcode })
+      const sData = (res as any)?.data || res
+      const scanResult: OutwardScanResultDto = sData?.data || sData
+
+      if (!scanResult || scanResult.outwardOrderItemId === undefined) {
+        throw new Error(sData?.message || "Invalid scan response received")
+      }
+
+      // Match line item by outwardOrderItemId, variantId, productId, or sku
+      const itemIndex = outwardOrder.items.findIndex(
+        (it) =>
+          (scanResult.outwardOrderItemId && Number(it.outwardOrderItemId) === Number(scanResult.outwardOrderItemId)) ||
+          (scanResult.variantId && it.variantId === scanResult.variantId) ||
+          (scanResult.productId && String(it.productId) === String(scanResult.productId)) ||
+          (scanResult.sku && it.sku.toLowerCase() === scanResult.sku.toLowerCase())
+      )
+
+      // Update line items with backend-assigned lot number and updated scannedQty
+      const nextItems = outwardOrder.items.map((item, idx) => {
+        const isMatched =
+          (scanResult.outwardOrderItemId && Number(item.outwardOrderItemId) === Number(scanResult.outwardOrderItemId)) ||
+          idx === itemIndex
+        if (!isMatched) return item
+
+        return {
+          ...item,
+          scannedQty: scanResult.scannedQty,
+          lotNumber: scanResult.lotNumber || item.lotNumber,
+          lotId: scanResult.lotId !== undefined ? scanResult.lotId : item.lotId,
+          locationCode: scanResult.locationCode || item.locationCode,
+          scannedBarcodes: [...(item.scannedBarcodes || []), barcode]
+        }
+      })
+
+      // Audio cues per API docs (order complete -> fanfare, item complete -> chime, default -> beep)
+      if (scanResult.isOrderComplete) {
+        playOrderComplete()
+      } else if (scanResult.isItemComplete) {
+        playItemComplete()
+      } else {
+        playScanSuccess()
+      }
+
+      // Friendly notification message
+      const scanMsg = scanResult.isOrderComplete
+        ? `Order #${outwardOrder.orderNumber} fully picked and ready for dispatch!`
+        : scanResult.isItemComplete
+          ? `${scanResult.productName} completed (${scanResult.scannedQty}/${scanResult.orderedQty})`
+          : `${scanResult.productName} (${scanResult.scannedQty}/${scanResult.orderedQty}) • Lot: ${scanResult.lotNumber}`
+
+      const event: OutwardScanEvent = {
+        id: `scan-${Date.now()}-${Math.random()}`,
         barcode,
-        message: " ",
-        scanType: "Pick",
-        productName,
-        scannedAt: new Date().toISOString()
+        productName: scanResult.productName,
+        message: scanMsg,
+        type: "success",
+        timestamp: new Date().toISOString()
       }
-      const scanRes = await orderOutwardApi.scanBarcode(outwardOrderId, scanPayload)
-      const sData = (scanRes as any)?.data || scanRes
-      returnedLotId = sData?.lotId ?? sData?.item?.lotId ?? null
-      returnedLotNumber = sData?.lotNumber ?? sData?.item?.lotNumber ?? null
-    } catch (apiErr) {
-      console.warn("POST /api/OrderOutward/{id}/Scan failed:", apiErr)
-    }
 
-    // 2. Update local items with scannedQty, lotId, and lotNumber
-    const nextItems = outwardOrder.items.map((item, idx) => {
-      if (idx !== itemIndex) return item
-      return {
-        ...item,
-        scannedQty: item.scannedQty + 1,
-        lotId: returnedLotId !== null ? returnedLotId : (item.lotId ?? null),
-        lotNumber: returnedLotNumber || item.lotNumber || null,
-        scannedBarcodes: [...(item.scannedBarcodes || []), barcode]
-      }
-    })
+      const nextStatus: OutwardStatus = scanResult.isOrderComplete
+        ? "Completed"
+        : resolveStatus(outwardOrder, nextItems, "success")
 
-    const updatedItem = nextItems[itemIndex]
-    const scanMsg =
-      updatedItem.scannedQty === updatedItem.orderedQty
-        ? `${updatedItem.productName} completed`
-        : `${updatedItem.scannedQty} of ${updatedItem.orderedQty} ${updatedItem.productName} scanned`
-
-    const event = addScanEvent({
-      barcode,
-      productName: updatedItem.productName,
-      message: scanMsg,
-      type: "success",
-    })
-    toast.success(scanMsg)
-
-    const nextStatus = resolveStatus(outwardOrder, nextItems, "success")
-    const updatedScanHistory = [event, ...outwardOrder.scanHistory]
-
-    // 3. PUT /api/OrderOutward/Update/{id} with full payload
-    try {
-      const updatePayload = {
-        outwardOrderId,
-        orderId: Number(outwardOrder.orderId || 0),
-        orderNumber: outwardOrder.orderNumber,
-        clientName: outwardOrder.clientName,
-        warehouseId: Number(outwardOrder.warehouseId || 0),
-        warehouseName: outwardOrder.warehouseName,
-        warehouseCode: outwardOrder.warehouseCode,
-        shippingAddress: outwardOrder.shippingAddress || "",
-        orderDate: formatIsoDate(outwardOrder.orderDate),
-        promisedDate: formatIsoDate(outwardOrder.promisedDate),
+      setLatestEvent(event)
+      setOutwardOrder((prev) => ({
+        ...prev,
         status: nextStatus,
-        priority: outwardOrder.priority || "Normal",
-        pickerName: outwardOrder.pickerName || currentUserName,
-        freight: Number(outwardOrder.freight || 0),
-        createdAt: formatIsoDate(outwardOrder.createdAt),
-        updatedAt: new Date().toISOString(),
-        items: nextItems.map((it) => ({
-          outwardOrderItemId: Number(it.outwardOrderItemId || 0),
-          outwardOrderId,
-          productId: Number(it.productId || 0),
-          variantId: Number(it.variantId || 0),
-          productName: it.productName,
-          variantName: it.variantName || "",
-          sku: it.sku,
-          barcode: it.barcode,
-          orderedQty: Number(it.orderedQty || 0),
-          scannedQty: Number(it.scannedQty || 0),
-          locationCode: it.locationCode || "A-1",
-          lotId: it.lotId ? Number(it.lotId) : null,
-          lotNumber: it.lotNumber || null
-        })),
-        scanHistory: updatedScanHistory.map((sh) => ({
-          scanId: Number(sh.scanId || 0),
-          outwardOrderId,
-          barcode: sh.barcode,
-          message: sh.message || " ",
-          scanType: sh.scanType || "Pick",
-          productName: sh.productName || "",
-          scannedAt: formatIsoDate(sh.timestamp)
-        }))
+        items: nextItems,
+        scanHistory: [event, ...prev.scanHistory],
+      }))
+
+      // Highlight the scanned row
+      const matchedRowId = scanResult.outwardOrderItemId ? String(scanResult.outwardOrderItemId) : (itemIndex !== -1 ? outwardOrder.items[itemIndex].id : null)
+      if (matchedRowId) {
+        setRecentlyScannedId(matchedRowId)
+        setTimeout(() => setRecentlyScannedId(null), 2500)
       }
 
-      await orderOutwardApi.update(outwardOrderId, updatePayload)
-    } catch (updateErr) {
-      console.warn("PUT /api/OrderOutward/Update/{id} failed:", updateErr)
-    }
+      toast.success(scanMsg)
 
-    // 4. If all items completed, automatically call PUT /api/OrderOutward/{id}/Status
-    const nextProgress = getOutwardProgress({ ...outwardOrder, items: nextItems })
-    if (nextProgress.isComplete) {
-      try {
-        await orderOutwardApi.updateStatus(
-          outwardOrderId,
-          "Completed",
-          "Order outward scanning completed"
-        )
-      } catch (statusErr) {
-        console.warn("PUT /api/OrderOutward/{id}/Status failed:", statusErr)
+      if (scanResult.isOrderComplete) {
+        setShowOrderCompleteModal(true)
       }
+    } catch (err: any) {
+      playScanError()
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.data?.message ||
+        err?.message ||
+        `Barcode '${barcode}' does not match any item in outward order #${outwardOrderId}.`
+
+      const event: OutwardScanEvent = {
+        id: `scan-${Date.now()}-${Math.random()}`,
+        barcode,
+        message: errorMsg,
+        type: "error",
+        timestamp: new Date().toISOString()
+      }
+
+      setLatestEvent(event)
+      setOutwardOrder((prev) => ({
+        ...prev,
+        status: prev.status === "Ready" ? "Scanning" : prev.status,
+        scanHistory: [event, ...prev.scanHistory],
+      }))
+
+      toast.error(errorMsg)
+    } finally {
+      setIsScanning(false)
+      setBarcodeValue("")
+      requestAnimationFrame(() => inputRef.current?.focus())
     }
-
-    setOutwardOrder({
-      ...outwardOrder,
-      status: nextStatus,
-      items: nextItems,
-      scanHistory: updatedScanHistory,
-    })
-
-    setBarcodeValue("")
-    requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -879,40 +836,107 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                   <CardTitle>Scan Console</CardTitle>
                   <CardDescription>Scan each product barcode against the order pick list.</CardDescription>
                 </div>
-                <Progress value={progress.percent} className="min-w-[240px] lg:w-[320px]">
-                  <ProgressLabel>Outward progress</ProgressLabel>
-                  <span className="ml-auto text-sm text-muted-foreground tabular-nums">{progress.percent}%</span>
-                </Progress>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleToggleSound}
+                    className="h-8 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    title={soundMuted ? "Unmute scan audio cues" : "Mute scan audio cues"}
+                  >
+                    {soundMuted ? (
+                      <>
+                        <VolumeX className="h-3.5 w-3.5 text-rose-500" />
+                        <span>Muted</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Sound On</span>
+                      </>
+                    )}
+                  </Button>
+                  <Progress value={progress.percent} className="min-w-[180px] lg:w-[240px]">
+                    <ProgressLabel>Outward progress</ProgressLabel>
+                    <span className="ml-auto text-sm text-muted-foreground tabular-nums">{progress.percent}%</span>
+                  </Progress>
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5 py-4">
+            <CardContent className="space-y-4 py-4">
               <form onSubmit={handleSubmit} className="grid gap-3 lg:grid-cols-[1fr_auto]">
-                <div className="space-y-2">
-                  <Label htmlFor="barcode-scan">Barcode scanner input</Label>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="barcode-scan">Barcode scanner input</Label>
+                    <span className="text-[11px] text-muted-foreground">Auto-focus active for physical scanners</span>
+                  </div>
                   <div className="relative">
                     <ScanBarcode className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                     <Input
                       ref={inputRef}
                       id="barcode-scan"
                       value={barcodeValue}
+                      disabled={isScanning}
                       onChange={(event) => setBarcodeValue(event.target.value)}
-                      placeholder="Scan or type barcode and press Enter"
+                      placeholder="Scan variant barcode, composite lot barcode, lot number, or SKU..."
                       className="h-11 pl-10 font-mono text-base"
+                      autoFocus
                     />
                   </div>
                 </div>
-                <Button type="submit" className="h-11 self-end gap-2">
-                  <Check className="h-4 w-4" />
-                  Validate Scan
+                <Button
+                  type="submit"
+                  disabled={isScanning || !barcodeValue.trim()}
+                  className="h-11 self-end gap-2 min-w-[140px]"
+                >
+                  {isScanning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Validating...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      Validate Scan
+                    </>
+                  )}
                 </Button>
               </form>
 
-              <div className="flex flex-wrap gap-2">
+              {/* Supported Barcode Formats Pills */}
+              <div className="rounded-lg bg-muted/40 p-2.5 border text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    Supported Formats:
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded bg-background px-2 py-0.5 font-medium border text-muted-foreground text-[11px]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+                    Variant Barcode
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded bg-background px-2 py-0.5 font-medium border text-muted-foreground text-[11px]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+                    Composite Lot Barcode
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded bg-background px-2 py-0.5 font-medium border text-muted-foreground text-[11px]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+                    Lot Number
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded bg-background px-2 py-0.5 font-medium border text-muted-foreground text-[11px]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    Product SKU
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-xs text-muted-foreground">Quick test:</span>
                 {outwardOrder.items.map((item) => (
                   <Button
                     key={item.id}
                     variant="outline"
                     size="sm"
+                    disabled={isScanning}
                     className="gap-2 font-mono text-xs"
                     onClick={() => handleScan(item.barcode)}
                   >
@@ -920,7 +944,13 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                     {item.barcode}
                   </Button>
                 ))}
-                <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => handleScan("UNKNOWN-442")}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isScanning}
+                  className="gap-2 text-xs"
+                  onClick={() => handleScan("UNKNOWN-442")}
+                >
                   <AlertTriangle className="h-3.5 w-3.5" />
                   Try wrong barcode
                 </Button>
@@ -959,9 +989,19 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                   {outwardOrder.items.map((item) => {
                     const pendingQty = Math.max(item.orderedQty - item.scannedQty, 0)
                     const itemProgress = item.orderedQty === 0 ? 0 : Math.round((item.scannedQty / item.orderedQty) * 100)
+                    const isRecentlyScanned =
+                      recentlyScannedId === item.id ||
+                      (item.outwardOrderItemId && recentlyScannedId === String(item.outwardOrderItemId))
 
                     return (
-                      <TableRow key={item.id}>
+                      <TableRow
+                        key={item.id}
+                        className={
+                          isRecentlyScanned
+                            ? "bg-emerald-500/10 dark:bg-emerald-500/15 transition-colors duration-500"
+                            : "transition-colors duration-200"
+                        }
+                      >
                         <TableCell>
                           <div className="font-medium">{item.productName}</div>
                           <div className="text-xs text-muted-foreground">{item.variantName}</div>
@@ -993,11 +1033,15 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                         </TableCell>
                         <TableCell>
                           {item.lotNumber ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
-                              {item.lotNumber}
-                            </span>
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800 shadow-2xs">
+                              <Boxes className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                              <span>{item.lotNumber}</span>
+                            </div>
                           ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
+                            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground italic">
+                              <span className="h-1.5 w-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                              Auto FIFO on scan
+                            </span>
                           )}
                         </TableCell>
                         <TableCell>
@@ -1007,7 +1051,13 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">{item.orderedQty}</TableCell>
-                        <TableCell className="text-right font-semibold">{item.scannedQty}</TableCell>
+                        <TableCell
+                          className={`text-right font-semibold ${
+                            item.scannedQty >= item.orderedQty ? "text-emerald-600 dark:text-emerald-400 font-bold" : ""
+                          }`}
+                        >
+                          {item.scannedQty}
+                        </TableCell>
                         <TableCell className="text-right">{pendingQty}</TableCell>
                         <TableCell>
                           <div className="space-y-2">
@@ -1098,6 +1148,64 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
           </Card>
         </div>
       </div>
+
+      {/* Order Complete Celebration & Dispatch Prompt Modal */}
+      <Dialog open={showOrderCompleteModal} onOpenChange={setShowOrderCompleteModal}>
+        <DialogContent className="sm:max-w-md text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400 mb-2">
+            <Sparkles className="h-7 w-7 animate-pulse" />
+          </div>
+          <DialogHeader className="text-center sm:text-center">
+            <DialogTitle className="text-xl font-bold text-center">
+              Picking Completed!
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm">
+              All items for Outward Order #{outwardOrder.orderNumber} have been successfully verified and assigned to FIFO lots.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="my-3 rounded-lg border bg-muted/40 p-4 text-left space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Client:</span>
+              <span className="font-semibold">{outwardOrder.clientName}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Total Units Picked:</span>
+              <span className="font-semibold text-emerald-600">{progress.scannedQty} / {progress.totalQty} (100%)</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Picker:</span>
+              <span className="font-medium">{outwardOrder.pickerName || "Warehouse Staff"}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Warehouse:</span>
+              <span className="font-medium">{outwardOrder.warehouseCode}</span>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setShowOrderCompleteModal(false)}
+            >
+              Review Pick List
+            </Button>
+            <Button
+              type="button"
+              className="w-full sm:w-auto gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => {
+                setShowOrderCompleteModal(false)
+                setIsDispatchDialogOpen(true)
+              }}
+            >
+              <PackageCheck className="h-4 w-4" />
+              Proceed to Dispatch
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -90,7 +90,8 @@ export function getItemScanStatus(item: OutwardOrderItem) {
 // Mapping functions to translate Api models to UI models
 // ---------------------------------------------------------------------------
 
-import type { ApiOutwardOrder, ApiOutwardOrderItem, ApiOutwardScanEvent } from "@/lib/api"
+import type { ApiOutwardOrder, ApiOutwardOrderItem, ApiOutwardScanEvent, OutwardScanRequest, OutwardScanResultDto } from "@/lib/api"
+export type { OutwardScanRequest, OutwardScanResultDto }
 
 export function mapApiOutwardOrderItem(raw: ApiOutwardOrderItem): OutwardOrderItem {
   return {

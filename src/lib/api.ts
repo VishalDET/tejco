@@ -1285,6 +1285,27 @@ export interface ApiOutwardScanEvent {
   scannedAt: string
 }
 
+export interface OutwardScanRequest {
+  barcode: string
+}
+
+export interface OutwardScanResultDto {
+  lotNumber: string
+  lotId: number | null
+  barcode: string
+  outwardOrderItemId: number
+  productId: number
+  variantId: number
+  productName: string
+  variantName: string
+  sku: string
+  orderedQty: number
+  scannedQty: number
+  locationCode: string | null
+  isItemComplete: boolean
+  isOrderComplete: boolean
+}
+
 export interface ApiOutwardOrder {
   outwardOrderId: number
   orderId: number
@@ -1313,8 +1334,8 @@ export const orderOutwardApi = {
   update: (id: number | string, data: ApiOutwardOrder) => apiClient.put<any>(`/api/OrderOutward/Update/${id}`, data),
   updateStatus: (id: number | string, newStatus: string, remarks: string) => 
     apiClient.put<void>(`/api/OrderOutward/${id}/Status`, { newStatus, remarks }),
-  scanBarcode: (id: number | string, scanEvent: Partial<ApiOutwardScanEvent>) => 
-    apiClient.post<any>(`/api/OrderOutward/${id}/Scan`, scanEvent),
+  scanBarcode: (id: number | string, data: OutwardScanRequest | { barcode: string }) => 
+    apiClient.post<any>(`/api/OrderOutward/${id}/Scan`, data),
   remove: (id: number | string) => apiClient.delete<void>(`/api/OrderOutward/Delete/${id}`),
 }
 

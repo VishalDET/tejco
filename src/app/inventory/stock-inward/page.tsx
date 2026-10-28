@@ -228,7 +228,7 @@ export default function StockInwardPage() {
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Vendor</th>
                     <th className="py-3 px-4">Warehouse</th>
-                    <th className="py-3 px-4">Lots / SKUs</th>
+                    {/* <th className="py-3 px-4">Lots / SKUs</th> */}
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -268,14 +268,14 @@ export default function StockInwardPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-muted-foreground">{order.warehouseName || `Warehouse #${order.warehouseId}`}</td>
-                        <td className="py-3 px-4">
+                        {/* <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
                             <Badge variant="outline" className="font-mono text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300">
                               {lotsCount} {lotsCount === 1 ? "Lot" : "Lots"}
                             </Badge>
                             <span className="text-muted-foreground text-[11px]">({order.items?.length || 0} SKUs)</span>
                           </div>
-                        </td>
+                        </td> */}
                         <td className="py-3 px-4">{getStatusBadge(order.status || "Draft")}</td>
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1">

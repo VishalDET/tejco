@@ -78,6 +78,7 @@ import {
 } from "@/components/ui/dialog"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
 import { BarcodePrintModal } from "@/components/inventory/barcode-print-modal"
+import { LotBarcodePrintModal } from "@/components/inventory/lot-barcode-print-modal"
 
 export default function ViewProductPage() {
     const navigate = useNavigate()
@@ -97,7 +98,7 @@ export default function ViewProductPage() {
     const [activeVariantTab, setActiveVariantTab] = React.useState<number | "all">("all")
     const [copiedKey, setCopiedKey] = React.useState<string | null>(null)
     const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string } | null>(null)
-    const [barcodeModal, setBarcodeModal] = React.useState<{ code: string; name: string; sku: string } | null>(null)
+    const [barcodeModal, setBarcodeModal] = React.useState<{ code: string; name: string; sku: string; lotNumber?: string; expiryDate?: string } | null>(null)
     const [isBarcodePrintModalOpen, setIsBarcodePrintModalOpen] = React.useState(false)
     const [printTargetVariantId, setPrintTargetVariantId] = React.useState<number | "all">("all")
 
@@ -106,9 +107,42 @@ export default function ViewProductPage() {
     const [loadingLotsMap, setLoadingLotsMap] = React.useState<Record<number, boolean>>({})
     const [expandedLots, setExpandedLots] = React.useState<Record<number, boolean>>({})
 
+    // Lot Barcode Printing State
+    const [lotPrintState, setLotPrintState] = React.useState<{
+        isOpen: boolean
+        variant?: any
+        lots: ProductLot[]
+        initialSelectedLotId?: number | "all"
+    }>({
+        isOpen: false,
+        lots: [],
+        initialSelectedLotId: "all"
+    })
+
     const handleOpenBarcodePrint = (variantId: number | "all" = "all") => {
         setPrintTargetVariantId(variantId)
         setIsBarcodePrintModalOpen(true)
+    }
+
+    const handleOpenLotBarcodePrint = (lot: ProductLot, variant?: any) => {
+        const varId = lot.variantId || variant?.variantId
+        const vLots = (varId && variantLotsMap[varId]?.length) ? variantLotsMap[varId] : [lot]
+        setLotPrintState({
+            isOpen: true,
+            variant: variant || { variantId: lot.variantId, variantName: lot.variantName, skuSuffix: lot.skuSuffix },
+            lots: vLots,
+            initialSelectedLotId: lot.lotId
+        })
+    }
+
+    const handleOpenVariantLotsPrint = (variant: any, vLots?: ProductLot[]) => {
+        const lotsToUse = (vLots && vLots.length) ? vLots : (variantLotsMap[variant.variantId] || [])
+        setLotPrintState({
+            isOpen: true,
+            variant,
+            lots: lotsToUse,
+            initialSelectedLotId: "all"
+        })
     }
 
     const buildCategoryPath = (p: any, categoriesList: any[]) => {
@@ -508,7 +542,7 @@ export default function ViewProductPage() {
                                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Product Name</p>
                                         <p className="text-base font-medium mt-1">{product.productName}</p>
                                     </div>
-                                    <div>
+                                    {/* <div>
                                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base SKU</p>
                                         <div className="flex items-center gap-1.5 mt-1">
                                             <span className="text-sm font-semibold">{product.baseSKU || "-"}</span>
@@ -522,7 +556,7 @@ export default function ViewProductPage() {
                                                 </button>
                                             )}
                                         </div>
-                                    </div>
+                                    </div> */}
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
@@ -769,7 +803,7 @@ export default function ViewProductPage() {
                                 </div>
                             )}
 
-                            {/* Quick Variant Switcher Bar (if more than 1 variant) */}
+                            {/* Quick Variant Switcher Bar (if more than 1 variant) 
                             {totalVariants > 1 && (
                                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mt-3 pt-3 border-t">
                                     <span className="text-xs font-semibold text-muted-foreground shrink-0 mr-1">Direct Jump:</span>
@@ -801,7 +835,7 @@ export default function ViewProductPage() {
                                         )
                                     })}
                                 </div>
-                            )}
+                            )}*/}
                         </div>
 
                         {/* Content Area */}
@@ -882,7 +916,7 @@ export default function ViewProductPage() {
                                                         </h3>
                                                     </div>
 
-                                                    {/* Full SKU Badge with Copy */}
+                                                    {/* Full SKU Badge with Copy 
                                                     <div className="shrink-0">
                                                         <button
                                                             type="button"
@@ -891,14 +925,14 @@ export default function ViewProductPage() {
                                                             title="Click to copy SKU"
                                                         >
                                                             <span className="text-muted-foreground text-[11px]">SKU:</span>
-                                                            <span className="font-bold">{fullSku}</span>
+                                                            <span className="font-bold">{v.barcode}</span>
                                                             {copiedKey === `sku-${v.variantId}` ? (
                                                                 <Check className="h-3 w-3 text-emerald-600 shrink-0" />
                                                             ) : (
                                                                 <Copy className="h-3 w-3 text-muted-foreground hover:text-foreground shrink-0" />
                                                             )}
                                                         </button>
-                                                    </div>
+                                                    </div>*/}
                                                 </div>
 
                                                 {/* Card Body */}
@@ -1028,7 +1062,7 @@ export default function ViewProductPage() {
                                                     >
                                                         <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                                                <Boxes className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                                                <Boxes className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
                                                                 Lot Stocks
                                                             </span>
                                                             {isLotsLoading ? (
@@ -1045,24 +1079,21 @@ export default function ViewProductPage() {
                                                                     </span>
                                                                 </div>
                                                             ) : (
-                                                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal text-muted-foreground text-white">
+                                                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal text-muted-foreground">
                                                                     No Lots Recorded
                                                                 </Badge>
                                                             )}
                                                         </div>
 
-                                                        <button
-                                                            type="button"
-                                                            className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
-                                                        >
+                                                        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
                                                             <span>{isExpanded ? "Hide Lots" : "View Lots"}</span>
                                                             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                                                        </button>
+                                                        </div>
                                                     </div>
 
                                                     {/* Expanded Lots Content */}
                                                     {isExpanded && (
-                                                        <div className="px-4 pb-4 pt-1 border-t bg-background/60 dark:bg-card/60">
+                                                        <div className="px-4 pb-4 pt-1 border-t bg-background/50 dark:bg-card/50">
                                                             {isLotsLoading ? (
                                                                 <div className="py-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
                                                                     <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
@@ -1073,7 +1104,7 @@ export default function ViewProductPage() {
                                                                     No specific lot or batch inward records found for this variation.
                                                                 </div>
                                                             ) : (
-                                                                <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1 mt-1">
+                                                                <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5 mt-1.5">
                                                                     {lots.map((lot, lIdx) => {
                                                                         const expiry = formatExpiryDate(lot.expiryDate)
                                                                         const wName = lot.warehouseName || warehousesMap[lot.warehouseId] || "Main Warehouse"
@@ -1083,19 +1114,21 @@ export default function ViewProductPage() {
                                                                         return (
                                                                             <div
                                                                                 key={lot.lotId || lIdx}
-                                                                                className="p-2.5 rounded-lg border bg-card hover:bg-card hover:border-indigo-200 dark:hover:border-indigo-900 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs shadow-2xs"
+                                                                                className="p-2.5 rounded-lg border bg-card/90 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all text-xs shadow-2xs space-y-2"
                                                                             >
-                                                                                {/* Lot Number & Warehouse */}
-                                                                                <div className="flex flex-col min-w-0">
-                                                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                                                        <span className="font-mono font-bold text-foreground tracking-tight">{lot.lotNumber}</span>
+                                                                                {/* Row 1: Lot Number, Status & Action Buttons */}
+                                                                                <div className="flex items-center justify-between gap-2">
+                                                                                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                                                                        <span className="font-mono font-bold text-foreground text-xs tracking-tight">
+                                                                                            {lot.lotNumber}
+                                                                                        </span>
                                                                                         <button
                                                                                             type="button"
                                                                                             onClick={(e) => {
                                                                                                 e.stopPropagation()
                                                                                                 handleCopy(lot.lotNumber, `lot-${lot.lotId}`, "Lot number")
                                                                                             }}
-                                                                                            className="text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                                                                                            className="text-muted-foreground hover:text-foreground transition-colors p-0.5 cursor-pointer shrink-0"
                                                                                             title="Copy Lot Number"
                                                                                         >
                                                                                             {copiedKey === `lot-${lot.lotId}` ? (
@@ -1107,46 +1140,83 @@ export default function ViewProductPage() {
                                                                                         {lot.status && (
                                                                                             <Badge
                                                                                                 variant={lot.status === "Active" ? "default" : "secondary"}
-                                                                                                className={`text-[9px] h-4 px-1 ${lot.status === "Active" ? "bg-emerald-600/90 text-white" : ""}`}
+                                                                                                className={`text-[9px] h-4 px-1.5 font-medium shrink-0 ${
+                                                                                                    lot.status === "Active" ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""
+                                                                                                }`}
                                                                                             >
                                                                                                 {lot.status}
                                                                                             </Badge>
                                                                                         )}
                                                                                     </div>
-                                                                                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-1">
-                                                                                        <Warehouse className="h-3 w-3 shrink-0 text-slate-500" />
+
+                                                                                    {/* Actions */}
+                                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="outline"
+                                                                                            size="sm"
+                                                                                            className="h-6.5 text-[11px] px-2 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 dark:border-indigo-800 dark:hover:bg-indigo-950/40 font-medium cursor-pointer"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation()
+                                                                                                handleOpenLotBarcodePrint(lot, v)
+                                                                                            }}
+                                                                                            title="Print Lot Barcode Label"
+                                                                                        >
+                                                                                            <Printer className="h-3 w-3" />
+                                                                                            <span>Print Label</span>
+                                                                                        </Button>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="sm"
+                                                                                            className="h-6.5 w-6.5 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                                                                            onClick={(e) => {
+                                                                                                e.stopPropagation()
+                                                                                                setBarcodeModal({
+                                                                                                    code: lot.lotBarcode || lot.lotNumber,
+                                                                                                    name: `${v.variantName} (Lot ${lot.lotNumber})`,
+                                                                                                    sku: fullSku,
+                                                                                                    lotNumber: lot.lotNumber,
+                                                                                                    expiryDate: lot.expiryDate
+                                                                                                })
+                                                                                            }}
+                                                                                            title="View Barcode"
+                                                                                        >
+                                                                                            <Eye className="h-3.5 w-3.5" />
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {/* Row 2: Location & Quantity / Expiry Metrics */}
+                                                                                <div className="flex items-center justify-between gap-2 pt-1.5 border-t text-[11px] text-muted-foreground flex-wrap sm:flex-nowrap">
+                                                                                    {/* Warehouse & Rack */}
+                                                                                    <div className="flex items-center gap-1.5 min-w-0 truncate">
+                                                                                        <Warehouse className="h-3 w-3 shrink-0 text-slate-400" />
                                                                                         <span className="truncate">{wName}</span>
                                                                                         {lot.rackLocation && (
-                                                                                            <span className="font-medium text-foreground bg-muted px-1.5 py-0.2 rounded text-[10px]">
+                                                                                            <span className="font-medium text-foreground bg-muted px-1.5 py-0.2 rounded text-[10px] shrink-0">
                                                                                                 Rack: {lot.rackLocation}
                                                                                             </span>
                                                                                         )}
                                                                                     </div>
-                                                                                </div>
 
-                                                                                {/* Stock Quantity & Expiry Date */}
-                                                                                <div className="flex items-center justify-between sm:justify-end gap-3.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0">
-                                                                                    {/* Quantity */}
-                                                                                    <div className="flex flex-col sm:items-end">
-                                                                                        <span className="text-[10px] text-muted-foreground font-semibold uppercase">Available</span>
+                                                                                    {/* Metrics: Available PCS & Expiry */}
+                                                                                    <div className="flex items-center gap-2.5 shrink-0 ml-auto">
                                                                                         <div className="flex items-baseline gap-1">
-                                                                                            <span className="font-bold text-sm text-foreground">{lotAvail}</span>
+                                                                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold">Avail:</span>
+                                                                                            <span className="font-bold text-xs text-foreground">{lotAvail}</span>
                                                                                             <span className="text-[10px] text-muted-foreground">PCS</span>
+                                                                                            {lotCurrent !== lotAvail && (
+                                                                                                <span className="text-[9px] text-muted-foreground font-normal ml-0.5">({lotCurrent})</span>
+                                                                                            )}
                                                                                         </div>
-                                                                                        {lotCurrent !== lotAvail && (
-                                                                                            <span className="text-[9px] text-muted-foreground">Current: {lotCurrent}</span>
-                                                                                        )}
-                                                                                    </div>
 
-                                                                                    {/* Expiry Date */}
-                                                                                    <div className="flex flex-col sm:items-end min-w-[95px]">
-                                                                                        <span className="text-[10px] text-muted-foreground font-semibold uppercase">Expiry Date</span>
                                                                                         <Badge
                                                                                             variant="outline"
-                                                                                            className={`text-[10px] h-5 px-1.5 font-semibold mt-0.5 ${expiry.badgeClass}`}
+                                                                                            className={`text-[10px] h-4.5 px-1.5 font-medium shrink-0 ${expiry.badgeClass}`}
                                                                                         >
                                                                                             <Calendar className="h-2.5 w-2.5 mr-1 shrink-0" />
-                                                                                            <span className="truncate">{expiry.label}</span>
+                                                                                            <span>{expiry.label}</span>
                                                                                         </Badge>
                                                                                     </div>
                                                                                 </div>
@@ -1159,49 +1229,122 @@ export default function ViewProductPage() {
                                                     )}
                                                 </div>
 
-                                                {/* Card Footer with Barcode Strip */}
-                                                {(v.barcodeNumber || fullSku) && (
-                                                    <div className="p-3 border-t bg-muted/15 flex items-center justify-between text-xs">
-                                                        {/* <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                                                {/* Card Footer with Barcode Strip & Print Options */}
+                                                <div className="p-3 border-t bg-muted/15 flex items-center justify-between text-xs flex-wrap gap-2">
+                                                    {lots && lots.length > 0 ? (
+                                                        <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                                                            <Barcode className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                                                            {lots.length === 1 ? (
+                                                                <>
+                                                                    <span className="font-semibold text-foreground">{lots[0].lotBarcode || lots[0].lotNumber}</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleCopy(lots[0].lotBarcode || lots[0].lotNumber, `bc-lot-${lots[0].lotId}`, "Lot Barcode")}
+                                                                        className="text-muted-foreground hover:text-foreground transition-colors p-0.5 cursor-pointer"
+                                                                        title="Copy Lot Barcode"
+                                                                    >
+                                                                        {copiedKey === `bc-lot-${lots[0].lotId}` ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+                                                                    </button>
+                                                                </>
+                                                            ) : (
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="font-semibold text-foreground">{lots.length} Lots Active</span>
+                                                                    <Badge variant="outline" className="text-[10px] h-4.5 px-1.5 bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                                                        {lots.reduce((acc, l) => acc + (Number(l.availableQuantity ?? l.currentQuantity) || 0), 0)} Available
+                                                                    </Badge>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ) : (v.barcodeNumber || fullSku) ? (
+                                                        <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
                                                             <Barcode className="h-3.5 w-3.5 text-slate-500" />
                                                             <span className="font-semibold text-foreground">{v.barcodeNumber || fullSku}</span>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleCopy(v.barcodeNumber || fullSku, `bc-${v.variantId}`, "Barcode")}
-                                                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                                                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 cursor-pointer"
                                                                 title="Copy barcode"
                                                             >
                                                                 {copiedKey === `bc-${v.variantId}` ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
                                                             </button>
-                                                        </div> */}
+                                                        </div>
+                                                    ) : (
+                                                        <div />
+                                                    )}
 
-                                                        <div className="flex items-center gap-1">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-7 text-xs px-2 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                                                                onClick={() => handleOpenBarcodePrint(v.variantId)}
-                                                                title="Print Barcode Label"
-                                                            >
-                                                                <Printer className="h-3 w-3" />
-                                                                Print Label
-                                                            </Button>
-                                                            {v.barcodeNumber && (
+                                                    <div className="flex items-center gap-1">
+                                                        {lots && lots.length > 0 ? (
+                                                            <>
                                                                 <Button
                                                                     type="button"
                                                                     variant="ghost"
                                                                     size="sm"
-                                                                    className="h-7 text-xs px-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
-                                                                    onClick={() => setBarcodeModal({ code: v.barcodeNumber, name: v.variantName, sku: fullSku })}
-                                                                    title="View Barcode"
+                                                                    className="h-7 text-xs px-2.5 gap-1.5 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-semibold cursor-pointer"
+                                                                    onClick={() => handleOpenVariantLotsPrint(v, lots)}
+                                                                    title="Print Lot Barcode Labels"
                                                                 >
-                                                                    <Eye className="h-3 w-3" />
+                                                                    <Printer className="h-3.5 w-3.5" />
+                                                                    <span>Print Lot Label{lots.length > 1 ? "s" : ""}</span>
                                                                 </Button>
-                                                            )}
-                                                        </div>
+                                                                {lots.length === 1 ? (
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-7 text-xs px-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                                                        onClick={() => setBarcodeModal({
+                                                                            code: lots[0].lotBarcode || lots[0].lotNumber,
+                                                                            name: `${v.variantName} (Lot ${lots[0].lotNumber})`,
+                                                                            sku: fullSku,
+                                                                            lotNumber: lots[0].lotNumber,
+                                                                            expiryDate: lots[0].expiryDate
+                                                                        })}
+                                                                        title="View Lot Barcode"
+                                                                    >
+                                                                        <Eye className="h-3.5 w-3.5" />
+                                                                    </Button>
+                                                                ) : (
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-7 text-xs px-2 gap-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                                                        onClick={() => handleOpenBarcodePrint(v.variantId)}
+                                                                        title="Print Product Variant Label"
+                                                                    >
+                                                                        <span>Catalog Label</span>
+                                                                    </Button>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                    className="h-7 text-xs px-2 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
+                                                                    onClick={() => handleOpenBarcodePrint(v.variantId)}
+                                                                    title="Print Barcode Label"
+                                                                >
+                                                                    <Printer className="h-3 w-3" />
+                                                                    <span>Print Label</span>
+                                                                </Button>
+                                                                {v.barcodeNumber && (
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-7 text-xs px-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                                                        onClick={() => setBarcodeModal({ code: v.barcodeNumber, name: v.variantName, sku: fullSku })}
+                                                                        title="View Barcode"
+                                                                    >
+                                                                        <Eye className="h-3 w-3" />
+                                                                    </Button>
+                                                                )}
+                                                            </>
+                                                        )}
                                                     </div>
-                                                )}
+                                                </div>
                                             </div>
                                         )
                                     })}
@@ -1415,15 +1558,28 @@ export default function ViewProductPage() {
                                                                                     </Badge>
                                                                                 )}
                                                                             </div>
-                                                                            <Button
-                                                                                type="button"
-                                                                                variant="ghost"
-                                                                                size="sm"
-                                                                                className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground cursor-pointer"
-                                                                                onClick={() => fetchLotsForVariant(v.variantId, true)}
-                                                                            >
-                                                                                <RefreshCcw className="h-3 w-3 mr-1" /> Refresh Lots
-                                                                            </Button>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                {lots && lots.length > 0 && (
+                                                                                    <Button
+                                                                                        type="button"
+                                                                                        variant="outline"
+                                                                                        size="sm"
+                                                                                        className="h-6 text-[11px] px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 cursor-pointer"
+                                                                                        onClick={() => handleOpenVariantLotsPrint(v, lots)}
+                                                                                    >
+                                                                                        <Printer className="h-3 w-3 mr-1" /> Print All Lots
+                                                                                    </Button>
+                                                                                )}
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    variant="ghost"
+                                                                                    size="sm"
+                                                                                    className="h-6 text-[11px] px-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                                                                                    onClick={() => fetchLotsForVariant(v.variantId, true)}
+                                                                                >
+                                                                                    <RefreshCcw className="h-3 w-3 mr-1" /> Refresh Lots
+                                                                                </Button>
+                                                                            </div>
                                                                         </div>
 
                                                                         {isLotsLoading ? (
@@ -1440,18 +1596,21 @@ export default function ViewProductPage() {
                                                                                     <TableHeader className="bg-muted/40">
                                                                                         <TableRow className="h-7 text-[11px]">
                                                                                             <TableHead className="py-1">Lot Number</TableHead>
+                                                                                            <TableHead className="py-1">Lot Barcode</TableHead>
                                                                                             <TableHead className="py-1">Warehouse</TableHead>
                                                                                             <TableHead className="py-1">Rack</TableHead>
                                                                                             <TableHead className="py-1 text-right">Available Qty</TableHead>
                                                                                             <TableHead className="py-1 text-right">Current Qty</TableHead>
                                                                                             <TableHead className="py-1">Expiry Date</TableHead>
                                                                                             <TableHead className="py-1 text-center">Status</TableHead>
+                                                                                            <TableHead className="py-1 text-right">Actions</TableHead>
                                                                                         </TableRow>
                                                                                     </TableHeader>
                                                                                     <TableBody>
                                                                                         {lots.map((lot, lIdx) => {
                                                                                             const expiry = formatExpiryDate(lot.expiryDate)
                                                                                             const wName = lot.warehouseName || warehousesMap[lot.warehouseId] || "Main Warehouse"
+                                                                                            const lotBc = lot.lotBarcode || lot.lotNumber
                                                                                             return (
                                                                                                 <TableRow key={lot.lotId || lIdx} className="h-8 text-xs hover:bg-muted/20">
                                                                                                     <TableCell className="font-mono font-medium py-1.5">
@@ -1464,6 +1623,24 @@ export default function ViewProductPage() {
                                                                                                                 title="Copy Lot Number"
                                                                                                             >
                                                                                                                 {copiedKey === `tbl-lot-${lot.lotId}` ? (
+                                                                                                                    <Check className="h-3 w-3 text-emerald-600" />
+                                                                                                                ) : (
+                                                                                                                    <Copy className="h-3 w-3" />
+                                                                                                                )}
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    </TableCell>
+                                                                                                    <TableCell className="font-mono text-xs py-1.5">
+                                                                                                        <div className="flex items-center gap-1.5">
+                                                                                                            <Barcode className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                                                                                                            <span className="font-medium text-foreground">{lotBc}</span>
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => handleCopy(lotBc, `tbl-lotbc-${lot.lotId}`, "Lot barcode")}
+                                                                                                                className="text-muted-foreground hover:text-foreground p-0.5 cursor-pointer"
+                                                                                                                title="Copy Lot Barcode"
+                                                                                                            >
+                                                                                                                {copiedKey === `tbl-lotbc-${lot.lotId}` ? (
                                                                                                                     <Check className="h-3 w-3 text-emerald-600" />
                                                                                                                 ) : (
                                                                                                                     <Copy className="h-3 w-3" />
@@ -1492,6 +1669,37 @@ export default function ViewProductPage() {
                                                                                                         >
                                                                                                             {lot.status || "Active"}
                                                                                                         </Badge>
+                                                                                                    </TableCell>
+                                                                                                    <TableCell className="py-1.5 text-right">
+                                                                                                        <div className="flex items-center justify-end gap-1">
+                                                                                                            <Button
+                                                                                                                type="button"
+                                                                                                                variant="ghost"
+                                                                                                                size="sm"
+                                                                                                                className="h-6 text-[11px] px-2 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-medium cursor-pointer"
+                                                                                                                onClick={() => handleOpenLotBarcodePrint(lot, v)}
+                                                                                                                title="Print Lot Barcode Label"
+                                                                                                            >
+                                                                                                                <Printer className="h-3 w-3" />
+                                                                                                                <span>Print</span>
+                                                                                                            </Button>
+                                                                                                            <Button
+                                                                                                                type="button"
+                                                                                                                variant="ghost"
+                                                                                                                size="icon"
+                                                                                                                className="h-6 w-6 text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                                                                                                onClick={() => setBarcodeModal({
+                                                                                                                    code: lotBc,
+                                                                                                                    name: `${v.variantName} (Lot ${lot.lotNumber})`,
+                                                                                                                    sku: fullSku,
+                                                                                                                    lotNumber: lot.lotNumber,
+                                                                                                                    expiryDate: lot.expiryDate
+                                                                                                                })}
+                                                                                                                title="View Barcode"
+                                                                                                            >
+                                                                                                                <Eye className="h-3 w-3" />
+                                                                                                            </Button>
+                                                                                                        </div>
                                                                                                     </TableCell>
                                                                                                 </TableRow>
                                                                                             )
@@ -1594,6 +1802,12 @@ export default function ViewProductPage() {
                         <DialogTitle className="text-base font-semibold">Barcode Display</DialogTitle>
                         <DialogDescription className="text-xs">
                             {barcodeModal?.name} ({barcodeModal?.sku})
+                            {barcodeModal?.lotNumber && (
+                                <span className="block mt-1 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                                    Lot: {barcodeModal.lotNumber}
+                                    {barcodeModal.expiryDate && ` • Expiry: ${formatExpiryDate(barcodeModal.expiryDate).label}`}
+                                </span>
+                            )}
                         </DialogDescription>
                     </DialogHeader>
                     {barcodeModal?.code && (
@@ -1610,6 +1824,16 @@ export default function ViewProductPage() {
                 onOpenChange={setIsBarcodePrintModalOpen}
                 product={product}
                 initialVariantId={printTargetVariantId}
+            />
+
+            {/* Lot-Specific Barcode Printing Module Dialog */}
+            <LotBarcodePrintModal
+                open={lotPrintState.isOpen}
+                onOpenChange={(open) => setLotPrintState(prev => ({ ...prev, isOpen: open }))}
+                product={product}
+                variant={lotPrintState.variant}
+                lots={lotPrintState.lots}
+                initialSelectedLotId={lotPrintState.initialSelectedLotId}
             />
         </div>
     )
