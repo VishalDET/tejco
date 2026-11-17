@@ -992,6 +992,7 @@ export interface SalesOrderGetAllParams {
   StartDate?: string
   EndDate?: string
   SalesPersonId?: number | string
+  PaymentType?: string
 }
 
 export const salesOrderApi = {
@@ -1027,6 +1028,9 @@ export const salesOrderApi = {
     if (params?.EndDate) {
       const endIso = params.EndDate.includes("T") ? params.EndDate : new Date(params.EndDate + "T23:59:59.999Z").toISOString()
       query.append("EndDate", endIso)
+    }
+    if (params?.PaymentType && params.PaymentType.trim()) {
+      query.append("PaymentType", params.PaymentType.trim())
     }
 
     const queryString = query.toString() ? `?${query.toString()}` : ""

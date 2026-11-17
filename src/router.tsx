@@ -20,6 +20,7 @@ import OrderDetailsPage from "@/app/sales/orders/[id]/page"
 import InvoicesPage from "@/app/sales/invoices/page"
 import InvoiceDetailsPage from "@/app/sales/invoices/[id]/page"
 import ChallansPage from "@/app/sales/challans/page"
+import InternationalSalesPage from "@/app/international-sales/page"
 
 // Inventory
 import ProductsPage from "@/app/inventory/products/page"
@@ -126,6 +127,8 @@ export const router = createBrowserRouter([
       { path: "sales/proforma-invoices/:id", element: <ProtectedRoute permission="ProformaInvoices.View"><ProformaDetailsPage /></ProtectedRoute> },
       { path: "sales/orders", element: <ProtectedRoute permission="SalesOrders.View"><OrdersPage /></ProtectedRoute> },
       { path: "sales/orders/:id", element: <ProtectedRoute permission="SalesOrders.View"><OrderDetailsPage /></ProtectedRoute> },
+      { path: "international-sales", element: <ProtectedRoute permission="SalesOrders.View"><InternationalSalesPage /></ProtectedRoute> },
+      { path: "international-sales/:id", element: <ProtectedRoute permission="SalesOrders.View"><OrderDetailsPage /></ProtectedRoute> },
       { path: "sales/invoices", element: <ProtectedRoute permission={["Invoices.View", "SalesOrders.View", "Sales.Invoice.Generate"]}><InvoicesPage /></ProtectedRoute> },
       { path: "sales/invoices/:id", element: <ProtectedRoute permission={["Invoices.View", "SalesOrders.View", "Sales.Invoice.Generate"]}><InvoiceDetailsPage /></ProtectedRoute> },
       { path: "sales/challans", element: <ProtectedRoute permission="SalesOrders.View"><ChallansPage /></ProtectedRoute> },

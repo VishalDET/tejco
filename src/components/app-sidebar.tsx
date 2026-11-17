@@ -11,6 +11,7 @@ import {
     Settings,
     ChevronRight,
     RotateCcw,
+    Globe,
 } from "lucide-react"
 
 import { useAuth } from "@/hooks/use-auth"
@@ -98,8 +99,15 @@ const data: { navMain: NavItem[] } = {
                 { title: "Quotations", url: "/sales/quotations", permission: "Quotations.View" },
                 { title: "Proforma Invoices", url: "/sales/proforma-invoices", permission: "ProformaInvoices.View" },
                 { title: "Sales Order", url: "/sales/orders", permission: "SalesOrders.View" },
+                { title: "International Sales", url: "/international-sales", permission: "SalesOrders.View" },
                 { title: "Invoices", url: "/sales/invoices", permission: ["Invoices.View", "SalesOrders.View", "Sales.Invoice.Generate"] },
             ],
+        },
+        {
+            title: "International Sales",
+            url: "/international-sales",
+            icon: Globe,
+            permission: "SalesOrders.View",
         },
         {
             title: "Goods Return",

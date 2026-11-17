@@ -1,0 +1,955 @@
+import * as React from "react"
+import { useNavigate } from "react-router-dom"
+import {
+  Search,
+  Plus,
+  Filter,
+  MoreVertical,
+  Eye,
+  FileDown,
+  Printer,
+  Edit,
+  Loader2,
+  RefreshCw,
+  Calendar,
+  X,
+  User,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Globe,
+  DollarSign,
+  TrendingUp,
+  PackageCheck,
+  Plane,
+} from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Order, OrderStatus, mapApiSalesOrder, salesOrderClientCache } from "@/app/sales/orders/types"
+import { OrderFormDialog } from "@/app/sales/orders/order-form-dialog"
+import { ClientSelector } from "@/components/sales/client-selector"
+import { salesOrderApi, clientsApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
+import { toast } from "sonner"
+
+function getPageNumbers(currentPage: number, totalPages: number): (number | string)[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1)
+  }
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "...", totalPages]
+  }
+  if (currentPage >= totalPages - 3) {
+    return [1, "...", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+  }
+  return [1, "...", currentPage - 1, currentPage, currentPage + 1, "...", totalPages]
+}
+
+const getStatusBadge = (status: OrderStatus) => {
+  switch (status) {
+    case "Pending":
+      return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-none font-medium">Pending Approval</Badge>
+    case "Approved":
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800 hover:bg-blue-100 border-none font-medium">Approved</Badge>
+    case "Packed":
+      return <Badge variant="secondary" className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-none font-medium">Packed for Export</Badge>
+    case "Dispatched":
+      return <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100 border-none font-medium">In Transit / Air Freight</Badge>
+    case "Delivered":
+      return <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border-none font-medium">Customs Cleared & Delivered</Badge>
+    case "Cancelled":
+      return <Badge variant="destructive">Cancelled</Badge>
+    default:
+      return <Badge variant="outline">{status}</Badge>
+  }
+}
+
+const formatUSD = (amount?: number) => {
+  const num = Number(amount || 0)
+  return `$${num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+export default function InternationalSalesPage() {
+  const navigate = useNavigate()
+  const [orders, setOrders] = React.useState<Order[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isRefreshing, setIsRefreshing] = React.useState(false)
+  const [isDialogOpen, setIsDialogOpen] = React.useState(false)
+  const [selectedOrder, setSelectedOrder] = React.useState<Order | null>(null)
+
+  // Server Filter States
+  const [searchTerm, setSearchTerm] = React.useState("")
+  const [debouncedSearch, setDebouncedSearch] = React.useState("")
+  const [selectedClientId, setSelectedClientId] = React.useState<string>("")
+  const [selectedClientName, setSelectedClientName] = React.useState<string>("")
+  const [statusFilter, setStatusFilter] = React.useState<string>("all")
+  const [paymentStatusFilter, setPaymentStatusFilter] = React.useState<string>("all")
+  const [startDate, setStartDate] = React.useState<string>("")
+  const [endDate, setEndDate] = React.useState<string>("")
+
+  // Pagination States
+  const [pageNumber, setPageNumber] = React.useState(1)
+  const [pageSize, setPageSize] = React.useState(10)
+  const [totalCount, setTotalCount] = React.useState(0)
+
+  // Aggregated KPI Metrics
+  const [metrics, setMetrics] = React.useState({
+    totalUsdAmount: 0,
+    totalCount: 0,
+    inTransitCount: 0,
+    deliveredCount: 0,
+  })
+
+  // Debounce search input
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+      setPageNumber(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  const { user } = useAuth()
+  const isSalesPerson =
+    Number(user?.roleId) === 3 ||
+    String(user?.role || "").toLowerCase().includes("sales person") ||
+    String(user?.role || "").toLowerCase() === "salesperson"
+  const currentSalesPersonId = isSalesPerson
+    ? String(user?.userId || user?.id || (user as any)?.salesPersonId || "")
+    : ""
+
+  const fetchInternationalOrders = React.useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true)
+    else setIsRefreshing(true)
+
+    try {
+      let list: any[] = []
+      let total = 0
+
+      if (isSalesPerson && currentSalesPersonId) {
+        // Salesperson specific fetching
+        const raw = await salesOrderApi.getBySalesPerson(currentSalesPersonId)
+        let rawList: any[] = []
+        if (Array.isArray(raw)) {
+          rawList = raw
+        } else if (raw?.data && Array.isArray(raw.data)) {
+          rawList = raw.data
+        } else if (raw?.items && Array.isArray(raw.items)) {
+          rawList = raw.items
+        }
+
+        // Strict filter to only include international / foreign orders
+        let filtered = rawList.filter((o: any) => {
+          const pt = String(o.paymentType || "").toLowerCase()
+          const ct = String(o.currencyType || "").toUpperCase()
+          return pt === "international" || pt === "foreign" || ct === "USD"
+        })
+
+        if (debouncedSearch) {
+          const lower = debouncedSearch.toLowerCase()
+          filtered = filtered.filter(
+            (o: any) =>
+              String(o.orderNumber || o.number || "").toLowerCase().includes(lower) ||
+              String(o.clientName || o.customerName || "").toLowerCase().includes(lower) ||
+              String(o.billingAddress || o.shippingAddress || "").toLowerCase().includes(lower)
+          )
+        }
+        if (selectedClientId && selectedClientId !== "0") {
+          filtered = filtered.filter((o: any) => String(o.clientId) === String(selectedClientId))
+        }
+        if (statusFilter !== "all") {
+          filtered = filtered.filter(
+            (o: any) => String(o.orderStatus || o.status || "").toLowerCase() === statusFilter.toLowerCase()
+          )
+        }
+        if (paymentStatusFilter !== "all") {
+          filtered = filtered.filter(
+            (o: any) => String(o.paymentStatus || "").toLowerCase() === paymentStatusFilter.toLowerCase()
+          )
+        }
+        if (startDate) {
+          const startTs = new Date(startDate).getTime()
+          filtered = filtered.filter((o: any) => {
+            const d = o.orderDate || o.date
+            return d && new Date(d).getTime() >= startTs
+          })
+        }
+        if (endDate) {
+          const endTs = new Date(endDate).getTime() + 24 * 60 * 60 * 1000 - 1
+          filtered = filtered.filter((o: any) => {
+            const d = o.orderDate || o.date
+            return d && new Date(d).getTime() <= endTs
+          })
+        }
+
+        total = filtered.length
+        const startIdx = (pageNumber - 1) * pageSize
+        list = filtered.slice(startIdx, startIdx + pageSize)
+      } else {
+        // Query backend with PaymentType=international
+        const raw = await salesOrderApi.getAll({
+          PageNumber: pageNumber,
+          PageSize: pageSize,
+          SearchTerm: debouncedSearch || undefined,
+          ClientId: selectedClientId && selectedClientId !== "0" ? selectedClientId : undefined,
+          Status: statusFilter !== "all" ? statusFilter : undefined,
+          StartDate: startDate || undefined,
+          EndDate: endDate || undefined,
+          PaymentType: "international",
+        })
+
+        if (Array.isArray(raw)) {
+          list = raw
+          total = raw.length
+        } else if (raw?.data && Array.isArray(raw.data)) {
+          list = raw.data
+          total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+        } else if (raw?.items && Array.isArray(raw.items)) {
+          list = raw.items
+          total = raw.totalCount ?? raw.total ?? raw.totalRecords ?? list.length
+        }
+
+        // Additional safeguard to ensure every order displayed has international / foreign markers
+        list = list.filter((o: any) => {
+          const pt = String(o.paymentType || "").toLowerCase()
+          const ct = String(o.currencyType || "").toUpperCase()
+          return pt === "international" || pt === "foreign" || ct === "USD" || !o.paymentType
+        })
+
+        if (paymentStatusFilter !== "all") {
+          list = list.filter(
+            (o: any) => String(o.paymentStatus || "").toLowerCase() === paymentStatusFilter.toLowerCase()
+          )
+        }
+      }
+
+      const data = list.map((rawOrder) => mapApiSalesOrder(rawOrder, salesOrderClientCache))
+      setOrders(data)
+      setTotalCount(total || data.length)
+
+      // Calculate summary metrics
+      const totalUsd = data.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)
+      const inTransit = data.filter((o) => o.status === "Dispatched" || o.status === "Packed").length
+      const delivered = data.filter((o) => o.status === "Delivered").length
+
+      setMetrics({
+        totalUsdAmount: totalUsd,
+        totalCount: total || data.length,
+        inTransitCount: inTransit,
+        deliveredCount: delivered,
+      })
+
+      // Resolve client metadata (country, doctorSpeciality) from client cache or master API
+      const clientIdsToFetch = Array.from(
+        new Set(
+          list
+            .filter(
+              (o: any) =>
+                o.clientId &&
+                String(o.clientId) !== "0" &&
+                !salesOrderClientCache.has(String(o.clientId))
+            )
+            .map((o: any) => String(o.clientId))
+        )
+      )
+
+      if (clientIdsToFetch.length > 0) {
+        Promise.allSettled(
+          clientIdsToFetch.map(async (cId) => {
+            try {
+              const client = await clientsApi.getById(cId)
+              if (client && client.name) {
+                salesOrderClientCache.set(cId, client)
+              }
+            } catch {
+              // ignore
+            }
+          })
+        ).then(() => {
+          setOrders((prev) =>
+            prev.map((order) => {
+              const cached = salesOrderClientCache.get(String(order.clientId))
+              if (cached && cached.name) {
+                return {
+                  ...order,
+                  clientName: cached.name,
+                  doctorSpeciality: order.doctorSpeciality || cached.doctorSpeciality || "",
+                  clientGSTIN: order.clientGSTIN || cached.gstin || "",
+                }
+              }
+              return order
+            })
+          )
+        })
+      }
+    } catch (error) {
+      console.error("Failed to fetch international sales orders:", error)
+      toast.error("Failed to load international sales orders. Please try again.")
+      setOrders([])
+      setTotalCount(0)
+    } finally {
+      setIsLoading(false)
+      setIsRefreshing(false)
+    }
+  }, [pageNumber, pageSize, debouncedSearch, selectedClientId, statusFilter, paymentStatusFilter, startDate, endDate, isSalesPerson, currentSalesPersonId])
+
+  React.useEffect(() => {
+    fetchInternationalOrders()
+  }, [fetchInternationalOrders])
+
+  const handleCreateOrder = () => {
+    setSelectedOrder(null)
+    setIsDialogOpen(true)
+  }
+
+  const handleEditOrder = (order: Order) => {
+    setSelectedOrder(order)
+    setIsDialogOpen(true)
+  }
+
+  const handleSaveOrder = () => {
+    fetchInternationalOrders(true)
+  }
+
+  const handleClearFilters = () => {
+    setSearchTerm("")
+    setDebouncedSearch("")
+    setSelectedClientId("")
+    setSelectedClientName("")
+    setStatusFilter("all")
+    setPaymentStatusFilter("all")
+    setStartDate("")
+    setEndDate("")
+    setPageNumber(1)
+  }
+
+  const hasActiveFilters = Boolean(
+    searchTerm ||
+    selectedClientId ||
+    statusFilter !== "all" ||
+    paymentStatusFilter !== "all" ||
+    startDate ||
+    endDate
+  )
+
+  const totalPages = Math.ceil(totalCount / pageSize) || 1
+
+  return (
+    <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8 animate-in fade-in duration-500">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-xl shadow-md">
+            <Globe className="h-7 w-7" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 bg-clip-text text-transparent">
+              International Sales
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              Global export sales orders, foreign client billing, and international freight dispatches (USD / Foreign).
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => fetchInternationalOrders(true)}
+            disabled={isLoading || isRefreshing}
+            title="Refresh"
+            className="border-slate-200"
+          >
+            <RefreshCw className={`h-4 w-4 text-slate-600 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
+          <Button
+            onClick={handleCreateOrder}
+            className="shadow-md gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+          >
+            <Plus className="h-4 w-4" />
+            New International Order
+          </Button>
+        </div>
+      </div>
+
+      {/* KPI Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Export Revenue */}
+        <Card className="border-slate-200 shadow-xs bg-gradient-to-br from-white to-blue-50/30">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Total Export Revenue
+              </span>
+              <div className="text-2xl font-bold text-blue-700 font-mono">
+                {formatUSD(metrics.totalUsdAmount)}
+              </div>
+              <span className="text-[11px] text-muted-foreground">Current filtered USD value</span>
+            </div>
+            <div className="p-2.5 bg-blue-100 text-blue-700 rounded-xl">
+              <DollarSign className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Total Export Orders */}
+        <Card className="border-slate-200 shadow-xs bg-gradient-to-br from-white to-indigo-50/30">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Export Orders
+              </span>
+              <div className="text-2xl font-bold text-indigo-700 font-mono">
+                {metrics.totalCount}
+              </div>
+              <span className="text-[11px] text-muted-foreground">Cross-border shipments</span>
+            </div>
+            <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl">
+              <Globe className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* In Transit */}
+        <Card className="border-slate-200 shadow-xs bg-gradient-to-br from-white to-purple-50/30">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                In Transit / Customs
+              </span>
+              <div className="text-2xl font-bold text-purple-700 font-mono">
+                {metrics.inTransitCount}
+              </div>
+              <span className="text-[11px] text-muted-foreground">Air / ocean freight active</span>
+            </div>
+            <div className="p-2.5 bg-purple-100 text-purple-700 rounded-xl">
+              <Plane className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Delivered Exports */}
+        <Card className="border-slate-200 shadow-xs bg-gradient-to-br from-white to-emerald-50/30">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="space-y-1">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Completed Deliveries
+              </span>
+              <div className="text-2xl font-bold text-emerald-700 font-mono">
+                {metrics.deliveredCount}
+              </div>
+              <span className="text-[11px] text-muted-foreground">Fully cleared & received</span>
+            </div>
+            <div className="p-2.5 bg-emerald-100 text-emerald-700 rounded-xl">
+              <PackageCheck className="h-5 w-5" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs for quick Status Filter */}
+      <Tabs
+        value={statusFilter.toLowerCase()}
+        onValueChange={(val) => {
+          setStatusFilter(val)
+          setPageNumber(1)
+        }}
+        className="w-full"
+      >
+        <div className="flex items-center justify-between pb-2 border-b border-slate-200 overflow-x-auto">
+          <TabsList className="bg-transparent h-auto p-0 gap-6">
+            <TabsTrigger
+              value="all"
+              className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 py-2 text-sm font-medium"
+            >
+              All Export Orders
+            </TabsTrigger>
+            <TabsTrigger
+              value="pending"
+              className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 py-2 text-sm font-medium"
+            >
+              Pending Approval
+            </TabsTrigger>
+            <TabsTrigger
+              value="approved"
+              className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 py-2 text-sm font-medium"
+            >
+              Approved
+            </TabsTrigger>
+            <TabsTrigger
+              value="packed"
+              className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 py-2 text-sm font-medium"
+            >
+              Packed for Export
+            </TabsTrigger>
+            <TabsTrigger
+              value="dispatched"
+              className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 py-2 text-sm font-medium"
+            >
+              In Transit
+            </TabsTrigger>
+            <TabsTrigger
+              value="delivered"
+              className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 py-2 text-sm font-medium"
+            >
+              Delivered
+            </TabsTrigger>
+            <TabsTrigger
+              value="cancelled"
+              className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-blue-600 rounded-none px-0 py-2 text-sm font-medium"
+            >
+              Cancelled
+            </TabsTrigger>
+          </TabsList>
+        </div>
+      </Tabs>
+
+      {/* Filter Control Bar */}
+      <Card className="shadow-xs border-slate-200">
+        <CardContent className="p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+            {/* Search Input */}
+            <div className="lg:col-span-4 space-y-1">
+              <Label className="text-xs text-muted-foreground">Search International Orders</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Order #, client name, foreign city..."
+                  className="pl-8 h-9 text-xs border-slate-200"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Client Filter */}
+            <div className="lg:col-span-3 space-y-1 min-w-0">
+              <Label className="text-xs text-muted-foreground">Overseas Client / Doctor</Label>
+              <div className="flex items-center gap-1.5">
+                <div className="flex-1 min-w-0">
+                  <ClientSelector
+                    selectedClientId={selectedClientId}
+                    selectedClientName={selectedClientName}
+                    onSelect={(c) => {
+                      setSelectedClientId(c.id)
+                      setSelectedClientName(c.name)
+                      setPageNumber(1)
+                    }}
+                  />
+                </div>
+                {selectedClientId && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 shrink-0 text-slate-500 hover:text-slate-700"
+                    onClick={() => {
+                      setSelectedClientId("")
+                      setSelectedClientName("")
+                      setPageNumber(1)
+                    }}
+                    title="Clear client filter"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Payment Status Filter */}
+            <div className="lg:col-span-2 space-y-1">
+              <Label className="text-xs text-muted-foreground">Payment Status</Label>
+              <Select
+                value={paymentStatusFilter}
+                onValueChange={(val) => {
+                  setPaymentStatusFilter(val || "all")
+                  setPageNumber(1)
+                }}
+              >
+                <SelectTrigger className="h-9 text-xs border-slate-200">
+                  <SelectValue placeholder="All Payments">
+                    {paymentStatusFilter === "all"
+                      ? "All Payments"
+                      : paymentStatusFilter}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" label="All Payments">All Payments</SelectItem>
+                  <SelectItem value="Paid" label="Paid">Paid (Wire / L/C)</SelectItem>
+                  <SelectItem value="Unpaid" label="Unpaid">Unpaid</SelectItem>
+                  <SelectItem value="Partial" label="Partial">Partial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Start Date */}
+            <div className="lg:col-span-1.5 space-y-1">
+              <Label className="text-xs text-muted-foreground">Start Date</Label>
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value)
+                  setPageNumber(1)
+                }}
+                className="h-9 text-xs border-slate-200"
+              />
+            </div>
+
+            {/* End Date */}
+            <div className="lg:col-span-1.5 space-y-1">
+              <Label className="text-xs text-muted-foreground">End Date</Label>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value)
+                  setPageNumber(1)
+                }}
+                className="h-9 text-xs border-slate-200"
+              />
+            </div>
+
+            {/* Clear Filters Button */}
+            <div className="lg:col-span-1">
+              {hasActiveFilters && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearFilters}
+                  className="w-full h-9 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" /> Reset
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Orders Table Card */}
+      <Card className="shadow-sm border-slate-200 overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 border-b bg-slate-50/50">
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Globe className="h-4 w-4 text-blue-600" />
+              <span>International Orders List</span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {totalCount} total international export orders found
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader className="bg-muted/40">
+              <TableRow>
+                <TableHead className="w-[140px] font-semibold text-xs">Order Number</TableHead>
+                <TableHead className="font-semibold text-xs">Overseas Client / Doctor</TableHead>
+                <TableHead className="font-semibold text-xs">Order Date</TableHead>
+                <TableHead className="font-semibold text-xs">Products</TableHead>
+                <TableHead className="text-right font-semibold text-xs">Export Value ($ USD)</TableHead>
+                <TableHead className="font-semibold text-xs">Shipment Status</TableHead>
+                <TableHead className="font-semibold text-xs">Payment</TableHead>
+                <TableHead className="text-right font-semibold text-xs">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-blue-600 mb-2" />
+                    Loading international sales orders...
+                  </TableCell>
+                </TableRow>
+              ) : orders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="h-32 text-center text-muted-foreground italic">
+                    {hasActiveFilters
+                      ? "No international orders found matching your filters."
+                      : "No international export orders recorded yet."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                orders.map((order) => (
+                  <TableRow
+                    key={order.id || (order as any).orderId}
+                    className="hover:bg-blue-50/20 transition-colors"
+                  >
+                    <TableCell className="font-medium font-mono text-primary text-xs">
+                      <div className="font-bold text-blue-700">{order.orderNumber}</div>
+                      <div className="flex items-center gap-1 flex-wrap mt-1">
+                        <span className="text-[10px] font-sans font-semibold text-blue-800 bg-blue-100/70 rounded px-1.5 py-0.5 border border-blue-200">
+                          INTL / USD
+                        </span>
+                        {order.sourceLead && (
+                          <span className="text-[10px] font-sans font-medium text-slate-600 bg-slate-100 rounded px-1.5 py-0.5 border border-slate-200">
+                            {order.sourceLead}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium text-xs">
+                      <div className="font-semibold text-slate-900">{order.clientName}</div>
+                      {(order as any).doctorSpeciality && (
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
+                          {(order as any).doctorSpeciality}
+                        </div>
+                      )}
+                      {(order.shippingAddress || order.billingAddress) && (
+                        <div className="text-[10px] text-muted-foreground truncate max-w-[200px] mt-0.5">
+                          {order.shippingAddress || order.billingAddress}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {order.date ? new Date(order.date).toLocaleDateString("en-GB") : "—"}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {(order.items || []).length} {order.items?.length === 1 ? "item" : "items"}
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-xs text-blue-700 font-mono">
+                      {formatUSD(order.totalAmount)}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(order.status)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          order.paymentStatus === "Paid"
+                            ? "text-emerald-700 border-emerald-300 bg-emerald-50"
+                            : "text-amber-700 border-amber-300 bg-amber-50"
+                        }
+                      >
+                        {order.paymentStatus}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-500 hover:text-slate-800"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() => handleEditOrder(order)}
+                          >
+                            <Edit className="h-4 w-4" /> Edit Export Order
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() =>
+                              navigate(`/sales/orders/${order.id || (order as any).orderId}`)
+                            }
+                          >
+                            <Eye className="h-4 w-4" /> View Details & Commercials
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="gap-2 cursor-pointer"
+                            onClick={() =>
+                              navigate(`/sales/orders/${order.id || (order as any).orderId}`)
+                            }
+                          >
+                            <Printer className="h-4 w-4" /> Print Export Invoice / Packing List
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+
+          {/* Pagination Footer */}
+          {(() => {
+            const currentPage = pageNumber
+            const startRow = totalCount === 0 ? 0 : (pageNumber - 1) * pageSize + 1
+            const endRow = Math.min(pageNumber * pageSize, totalCount)
+            const pageNumbers = getPageNumbers(currentPage, totalPages)
+
+            return (
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-6 py-4 border-t text-xs bg-slate-50/40">
+                {/* Left side: Item Count & Rows Per Page */}
+                <div className="flex flex-wrap items-center gap-4 text-muted-foreground w-full md:w-auto justify-between md:justify-start">
+                  <div>
+                    Showing <span className="font-semibold text-foreground">{startRow}</span> to{" "}
+                    <span className="font-semibold text-foreground">{endRow}</span> of{" "}
+                    <span className="font-semibold text-foreground">{totalCount}</span> export orders
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="whitespace-nowrap">Rows per page</span>
+                    <Select
+                      value={String(pageSize)}
+                      onValueChange={(val) => {
+                        if (val) {
+                          setPageSize(Number(val))
+                          setPageNumber(1)
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 w-[72px] text-xs border-slate-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[10, 20, 30, 50, 100].map((size) => (
+                          <SelectItem key={size} value={String(size)} className="text-xs">
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Right side: Page Navigation */}
+                <div className="flex items-center gap-1 sm:gap-1.5 w-full md:w-auto justify-center md:justify-end">
+                  <div className="text-xs text-muted-foreground font-medium mr-2 whitespace-nowrap bg-white px-2.5 py-1 rounded-md border border-slate-200">
+                    Page <span className="font-bold text-foreground">{totalCount === 0 ? 0 : currentPage}</span> of{" "}
+                    <span className="font-bold text-foreground">{totalCount === 0 ? 0 : totalPages}</span>
+                  </div>
+
+                  {/* First Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 border-slate-200"
+                    onClick={() => setPageNumber(1)}
+                    disabled={pageNumber <= 1 || isLoading || totalCount === 0}
+                    title="First page"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+
+                  {/* Previous Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 border-slate-200"
+                    onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
+                    disabled={pageNumber <= 1 || isLoading || totalCount === 0}
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  {/* Direct Page Numbers */}
+                  {totalCount > 0 && (
+                    <div className="hidden sm:flex items-center gap-1">
+                      {pageNumbers.map((p, idx) => {
+                        if (p === "...") {
+                          return (
+                            <span
+                              key={`ellipsis-${idx}`}
+                              className="px-1 text-xs text-muted-foreground select-none"
+                            >
+                              ...
+                            </span>
+                          )
+                        }
+                        const pageNum = p as number
+                        const isSelected = pageNum === currentPage
+                        return (
+                          <Button
+                            key={pageNum}
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            disabled={isLoading}
+                            className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${
+                              isSelected
+                                ? "bg-blue-600 text-white shadow-xs font-semibold"
+                                : "hover:bg-muted border-slate-200"
+                            }`}
+                            onClick={() => setPageNumber(pageNum)}
+                          >
+                            {pageNum}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Next Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 border-slate-200"
+                    onClick={() => setPageNumber((p) => Math.min(totalPages, p + 1))}
+                    disabled={pageNumber >= totalPages || isLoading || totalCount === 0}
+                    title="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+
+                  {/* Last Page */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 w-8 p-0 border-slate-200"
+                    onClick={() => setPageNumber(totalPages)}
+                    disabled={pageNumber >= totalPages || isLoading || totalCount === 0}
+                    title="Last page"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )
+          })()}
+        </CardContent>
+      </Card>
+
+      <OrderFormDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        order={selectedOrder}
+        onSave={handleSaveOrder}
+        defaultPaymentType="Foreign"
+      />
+    </div>
+  )
+}
+

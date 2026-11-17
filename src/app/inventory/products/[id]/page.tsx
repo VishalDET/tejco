@@ -53,7 +53,6 @@ export default function EditProductPage() {
     const { user } = useAuth()
     const isSuperAdmin = user?.roleId === 1 || String(user?.roleId) === "1" || user?.role?.toLowerCase() === "super admin"
     const navigate = useNavigate()
-    const router = useNavigate()
     const params = useParams()
     const [isLoading, setIsLoading] = React.useState(true)
     const [isSaving, setIsSaving] = React.useState(false)

@@ -41,6 +41,7 @@ import {
   returnApi,
   warehousesApi,
   salesOrderApi,
+  productsApi,
   type ReturnReason,
   type ReturnRequestDto,
 } from "@/lib/api"
@@ -91,6 +92,8 @@ export function ReturnIntakeDialog({
   const [receivedBy, setReceivedBy] = React.useState<string>("")
   const [remarks, setRemarks] = React.useState<string>("")
   const [items, setItems] = React.useState<ReturnItem[]>([])
+  const [orderItemsOptions, setOrderItemsOptions] = React.useState<any[]>([])
+  const [loadingProducts, setLoadingProducts] = React.useState(false)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
   // Load reasons and warehouses
@@ -166,6 +169,46 @@ export function ReturnIntakeDialog({
           itemCondition: it.itemCondition || "Restockable",
         }))
       )
+
+      if (returnRequest.orderId) {
+        setLoadingProducts(true)
+        salesOrderApi
+          .getById(String(returnRequest.orderId))
+          .then(async (fo) => {
+            const orderData = (fo as any)?.data || fo
+            const rawItems = orderData?.lineItems || orderData?.items || []
+            if (Array.isArray(rawItems) && rawItems.length > 0) {
+              const enriched = await Promise.all(
+                rawItems.map(async (it: any) => {
+                  let pName = it.productName || it.itemName || it.name
+                  const pId = Number(it.productId || 0)
+                  if ((!pName || pName === "Product" || pName === "na" || pName === "null") && pId) {
+                    try {
+                      const pRes = await productsApi.getById(pId)
+                      const pData = (pRes as any)?.data || pRes
+                      pName = pData?.name || pData?.productName || pName
+                    } catch {}
+                  }
+                  return {
+                    productId: pId,
+                    productName: pName || (pId ? `Product #${pId}` : "Product"),
+                    variantId: Number(it.variantId || 0),
+                    variantName: it.variantName || it.sku || "Default",
+                    lotId: it.lotId ? Number(it.lotId) : null,
+                    lotNumber: it.lotNumber || null,
+                    returnQuantity: 1,
+                    unitPrice: Number(it.unitPrice || it.price || 0),
+                    totalPrice: Number(it.unitPrice || it.price || 0),
+                    itemCondition: (it.itemCondition as ItemCondition) || "Restockable",
+                  }
+                })
+              )
+              setOrderItemsOptions(enriched)
+            }
+          })
+          .catch((err) => console.warn("Could not load order products for edit:", err))
+          .finally(() => setLoadingProducts(false))
+      }
     } else {
       const today = new Date().toISOString().slice(0, 10)
       const currentUserName =
@@ -183,6 +226,7 @@ export function ReturnIntakeDialog({
       setReceivedBy(currentUserName || "Dock Personnel")
       setRemarks("")
       setItems([])
+      setOrderItemsOptions([])
     }
   }, [returnRequest, open, user])
 
@@ -197,47 +241,123 @@ export function ReturnIntakeDialog({
       setClientId(Number(matched.clientId) || 0)
       setClientName(matched.clientName || "")
 
-      // Populate items from order line items
+      // Fetch and populate products from the selected sales order
+      setLoadingProducts(true)
       try {
         const fullOrder = await salesOrderApi.getById(String(sId))
-        const orderItems = fullOrder?.items || (fullOrder as any)?.lineItems || []
-        if (orderItems.length > 0) {
-          const mappedItems: ReturnItem[] = orderItems.map((it: any) => ({
-            productId: Number(it.productId) || 0,
-            productName: it.productName || it.name || "Product",
-            variantId: Number(it.variantId) || 0,
-            variantName: it.variantName || it.sku || "Default",
-            lotId: it.lotId ? Number(it.lotId) : null,
-            lotNumber: it.lotNumber || null,
-            returnQuantity: 1,
-            unitPrice: Number(it.unitPrice || it.price || 0),
-            totalPrice: Number(it.unitPrice || it.price || 0),
-            itemCondition: "Restockable",
-          }))
-          setItems(mappedItems)
+        const orderData = (fullOrder as any)?.data || fullOrder
+        const rawItems =
+          orderData?.lineItems ||
+          orderData?.items ||
+          matched?.lineItems ||
+          (matched as any)?.items ||
+          []
+
+        if (Array.isArray(rawItems) && rawItems.length > 0) {
+          const enrichedItems: ReturnItem[] = await Promise.all(
+            rawItems.map(async (it: any) => {
+              let pName = it.productName || it.itemName || it.name
+              const pId = Number(it.productId || 0)
+
+              if ((!pName || pName === "Product" || pName === "na" || pName === "null") && pId) {
+                try {
+                  const pRes = await productsApi.getById(pId)
+                  const pData = (pRes as any)?.data || pRes
+                  pName = pData?.name || pData?.productName || pName
+                } catch {
+                  // ignore
+                }
+              }
+
+              const vName = it.variantName || it.sku || "Default"
+              const unitPrice = Number(it.unitPrice || it.price || 0)
+              const initQty = it.quantity ? Math.min(Number(it.quantity), 1) : 1
+
+              return {
+                productId: pId,
+                productName: pName || (pId ? `Product #${pId}` : "Product"),
+                variantId: Number(it.variantId || 0),
+                variantName: vName,
+                lotId: it.lotId ? Number(it.lotId) : null,
+                lotNumber: it.lotNumber || null,
+                returnQuantity: initQty,
+                unitPrice: unitPrice,
+                totalPrice: parseFloat((unitPrice * initQty).toFixed(2)),
+                itemCondition: "Restockable",
+              }
+            })
+          )
+
+          setOrderItemsOptions(enrichedItems)
+          setItems(enrichedItems)
+          toast.success(
+            `Loaded ${enrichedItems.length} product${enrichedItems.length === 1 ? "" : "s"} from Order ${orderData.orderNumber || matched.orderNumber || sId}`
+          )
+        } else {
+          setOrderItemsOptions([])
+          setItems([])
+          toast.info(
+            `No line items found on Order ${orderData.orderNumber || matched.orderNumber || sId}. You can add lines manually below.`
+          )
         }
       } catch (err) {
         console.warn("Could not prefill order items:", err)
+        toast.error("Could not fetch products for this order. You can add lines manually.")
+      } finally {
+        setLoadingProducts(false)
       }
     }
   }
 
   const handleAddItem = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        productId: 0,
-        productName: "",
-        variantId: 0,
-        variantName: "",
-        lotId: null,
-        lotNumber: "",
-        returnQuantity: 1,
-        unitPrice: 0,
-        totalPrice: 0,
-        itemCondition: "Restockable",
-      },
-    ])
+    // If order has products not yet in the return list, pick the first one
+    const unadded = orderItemsOptions.find(
+      (oi: any) =>
+        !items.some(
+          (it) =>
+            Number(it.productId) === Number(oi.productId) &&
+            Number(it.variantId) === Number(oi.variantId || 0)
+        )
+    )
+
+    if (unadded) {
+      setItems((prev) => [
+        ...prev,
+        {
+          productId: Number(unadded.productId) || 0,
+          productName:
+            unadded.productName ||
+            unadded.itemName ||
+            unadded.name ||
+            unadded.sku ||
+            "Product",
+          variantId: Number(unadded.variantId) || 0,
+          variantName: unadded.variantName || unadded.sku || "Default",
+          lotId: unadded.lotId ? Number(unadded.lotId) : null,
+          lotNumber: unadded.lotNumber || null,
+          returnQuantity: 1,
+          unitPrice: Number(unadded.unitPrice || unadded.price || 0),
+          totalPrice: Number(unadded.unitPrice || unadded.price || 0),
+          itemCondition: "Restockable",
+        },
+      ])
+    } else {
+      setItems((prev) => [
+        ...prev,
+        {
+          productId: 0,
+          productName: "",
+          variantId: 0,
+          variantName: "",
+          lotId: null,
+          lotNumber: "",
+          returnQuantity: 1,
+          unitPrice: 0,
+          totalPrice: 0,
+          itemCondition: "Restockable",
+        },
+      ])
+    }
   }
 
   const handleRemoveItem = (index: number) => {
@@ -314,7 +434,7 @@ export function ReturnIntakeDialog({
         const res = await returnApi.update(returnRequest.returnId, updatePayload)
         toast.success(
           res.message ||
-            `Return request ${returnRequest.returnNumber} updated successfully with status "${targetStatus}".`
+          `Return request ${returnRequest.returnNumber} updated successfully with status "${targetStatus}".`
         )
       } else {
         const createPayload = {
@@ -336,7 +456,7 @@ export function ReturnIntakeDialog({
         const res = await returnApi.create(createPayload)
         toast.success(
           res.message ||
-            `Return request created successfully with status "${targetStatus}".`
+          `Return request created successfully with status "${targetStatus}".`
         )
       }
 
@@ -346,8 +466,8 @@ export function ReturnIntakeDialog({
       console.error("Failed to save return intake:", err)
       toast.error(
         err?.info?.message ||
-          err?.message ||
-          "Failed to save return intake. Please check all fields."
+        err?.message ||
+        "Failed to save return intake. Please check all fields."
       )
     } finally {
       setIsSubmitting(false)
@@ -356,7 +476,7 @@ export function ReturnIntakeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-6xl md:max-w-7xl lg:max-w-[1400px] w-[95vw] max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 rounded-lg">
@@ -382,7 +502,11 @@ export function ReturnIntakeDialog({
               <Label className="text-xs font-semibold">Sales Order *</Label>
               {isEditMode ? (
                 <Input
-                  value={`${orderNumber} (Order #${orderId})`}
+                  value={
+                    orderNumber
+                      ? `${orderNumber}${clientName ? ` — ${clientName}` : ""}`
+                      : `Order #${orderId}`
+                  }
                   disabled
                   className="bg-muted font-mono text-xs"
                 />
@@ -397,20 +521,35 @@ export function ReturnIntakeDialog({
                       placeholder={
                         loadingOrders ? "Loading orders..." : "Select Sales Order"
                       }
-                    />
+                    >
+                      {(() => {
+                        if (!orderId) return null
+                        const matched = orders.find(
+                          (o) => Number(o.id || o.orderId) === Number(orderId)
+                        )
+                        if (matched) {
+                          return `${matched.orderNumber} — ${matched.clientName || ""}`
+                        }
+                        return orderNumber || null
+                      })()}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent className="max-h-60">
-                    {orders.map((o) => (
-                      <SelectItem
-                        key={o.id || o.orderId}
-                        value={String(o.id || o.orderId)}
-                      >
-                        <span className="font-mono font-medium">{o.orderNumber}</span>
-                        <span className="text-muted-foreground ml-2">
-                          — {o.clientName}
-                        </span>
-                      </SelectItem>
-                    ))}
+                    {orders.map((o) => {
+                      const orderLabel = `${o.orderNumber} — ${o.clientName || ""}`
+                      return (
+                        <SelectItem
+                          key={o.id || o.orderId}
+                          value={String(o.id || o.orderId)}
+                          label={orderLabel}
+                        >
+                          <span className="font-mono font-medium">{o.orderNumber}</span>
+                          <span className="text-muted-foreground ml-2">
+                            — {o.clientName}
+                          </span>
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               )}
@@ -435,17 +574,35 @@ export function ReturnIntakeDialog({
                 onValueChange={(val) => setWarehouseId(Number(val))}
               >
                 <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select Warehouse" />
+                  <SelectValue placeholder="Select Warehouse">
+                    {(() => {
+                      if (!warehouseId) return null
+                      const matched = warehouses.find(
+                        (w: any) => Number(w.warehouseId || w.id) === Number(warehouseId)
+                      )
+                      return (
+                        matched?.warehouseName ||
+                        matched?.name ||
+                        returnRequest?.warehouseName ||
+                        null
+                      )
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {warehouses.map((w: any) => (
-                    <SelectItem
-                      key={w.warehouseId || w.id}
-                      value={String(w.warehouseId || w.id)}
-                    >
-                      {w.warehouseName || w.name}
-                    </SelectItem>
-                  ))}
+                  {warehouses.map((w: any) => {
+                    const wName =
+                      w.warehouseName || w.name || `Warehouse #${w.warehouseId || w.id}`
+                    return (
+                      <SelectItem
+                        key={w.warehouseId || w.id}
+                        value={String(w.warehouseId || w.id)}
+                        label={wName}
+                      >
+                        {wName}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             </div>
@@ -476,15 +633,31 @@ export function ReturnIntakeDialog({
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Return Reason *</Label>
               <Select
-                value={String(reasonId)}
+                value={reasonId ? String(reasonId) : ""}
                 onValueChange={(val) => setReasonId(Number(val))}
               >
                 <SelectTrigger className="h-9 text-xs">
-                  <SelectValue placeholder="Select Reason" />
+                  <SelectValue placeholder="Select Reason">
+                    {(() => {
+                      if (!reasonId) return null
+                      const matched = reasons.find(
+                        (r) => Number(r.reasonId) === Number(reasonId)
+                      )
+                      return (
+                        matched?.reasonText ||
+                        returnRequest?.reasonText ||
+                        null
+                      )
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {reasons.map((r) => (
-                    <SelectItem key={r.reasonId} value={String(r.reasonId)}>
+                    <SelectItem
+                      key={r.reasonId}
+                      value={String(r.reasonId)}
+                      label={r.reasonText}
+                    >
                       {r.reasonText}
                     </SelectItem>
                   ))}
@@ -527,14 +700,22 @@ export function ReturnIntakeDialog({
           {/* Return Items Section */}
           <div className="space-y-2 pt-2">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Returned Products & QC Condition
-              </Label>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Returned Products & QC Condition
+                </Label>
+                {loadingProducts && (
+                  <span className="flex items-center gap-1.5 text-xs text-indigo-600 font-medium">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Fetching order products...
+                  </span>
+                )}
+              </div>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 onClick={handleAddItem}
+                disabled={loadingProducts}
                 className="h-7 text-xs gap-1"
               >
                 <Plus className="h-3.5 w-3.5" /> Add Line
@@ -555,13 +736,27 @@ export function ReturnIntakeDialog({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.length === 0 ? (
+                  {loadingProducts ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={7}
+                        className="h-24 text-center text-xs text-muted-foreground"
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                          <span>Fetching products from Sales Order...</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : items.length === 0 ? (
                     <TableRow>
                       <TableCell
                         colSpan={7}
                         className="h-20 text-center text-xs text-muted-foreground italic"
                       >
-                        No items added yet. Click &quot;Add Line&quot; to insert returned products.
+                        {orderId
+                          ? "No items added yet. Click \"Add Line\" to insert returned products."
+                          : "Please select a Sales Order above to fetch its products."}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -569,14 +764,117 @@ export function ReturnIntakeDialog({
                       <TableRow key={idx}>
                         {/* Product & Variant */}
                         <TableCell className="p-2">
-                          <Input
-                            placeholder="Product name / Variant"
-                            value={it.productName || ""}
-                            onChange={(e) =>
-                              handleItemFieldChange(idx, "productName", e.target.value)
-                            }
-                            className="h-8 text-xs"
-                          />
+                          <div className="space-y-1">
+                            {orderItemsOptions.length > 0 ? (
+                              <Select
+                                value={
+                                  it.productId && it.variantId
+                                    ? `${it.productId}-${it.variantId}`
+                                    : it.productId
+                                    ? String(it.productId)
+                                    : ""
+                                }
+                                onValueChange={(val) => {
+                                  if (!val) return
+                                  const selectedOption = orderItemsOptions.find(
+                                    (oi: any) =>
+                                      `${oi.productId}-${oi.variantId || 0}` === val ||
+                                      String(oi.productId) === val ||
+                                      (oi.id && String(oi.id) === val)
+                                  )
+                                  if (selectedOption) {
+                                    handleItemFieldChange(
+                                      idx,
+                                      "productId",
+                                      Number(selectedOption.productId) || 0
+                                    )
+                                    handleItemFieldChange(
+                                      idx,
+                                      "variantId",
+                                      Number(selectedOption.variantId) || 0
+                                    )
+                                    handleItemFieldChange(
+                                      idx,
+                                      "productName",
+                                      selectedOption.productName ||
+                                        selectedOption.itemName ||
+                                        selectedOption.name ||
+                                        ""
+                                    )
+                                    handleItemFieldChange(
+                                      idx,
+                                      "variantName",
+                                      selectedOption.variantName ||
+                                        selectedOption.sku ||
+                                        "Default"
+                                    )
+                                    handleItemFieldChange(
+                                      idx,
+                                      "unitPrice",
+                                      Number(
+                                        selectedOption.unitPrice ||
+                                          selectedOption.price ||
+                                          0
+                                      )
+                                    )
+                                    if (selectedOption.lotNumber) {
+                                      handleItemFieldChange(
+                                        idx,
+                                        "lotNumber",
+                                        selectedOption.lotNumber
+                                      )
+                                    }
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-8 text-xs font-medium">
+                                  <SelectValue placeholder="Select item from order">
+                                    {it.productName || "Select product"}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent className="max-h-56">
+                                  {orderItemsOptions.map((oi: any, oiIdx: number) => {
+                                    const pName =
+                                      oi.productName ||
+                                      oi.itemName ||
+                                      oi.name ||
+                                      oi.sku ||
+                                      `Item ${oiIdx + 1}`
+                                    const optVal = `${oi.productId}-${oi.variantId || 0}`
+                                    return (
+                                      <SelectItem
+                                        key={`${optVal}-${oiIdx}`}
+                                        value={optVal}
+                                        label={pName}
+                                      >
+                                        <div className="flex flex-col text-left">
+                                          <span className="font-medium">{pName}</span>
+                                          {oi.sku && (
+                                            <span className="text-[10px] text-muted-foreground font-mono">
+                                              SKU: {oi.sku}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </SelectItem>
+                                    )
+                                  })}
+                                </SelectContent>
+                              </Select>
+                            ) : null}
+                            <Input
+                              placeholder="Product name / Variant"
+                              value={it.productName || ""}
+                              onChange={(e) =>
+                                handleItemFieldChange(idx, "productName", e.target.value)
+                              }
+                              className="h-8 text-xs font-medium"
+                            />
+                            {it.variantName && it.variantName !== "Default" && (
+                              <span className="text-[10px] text-muted-foreground block font-mono">
+                                Variant: {it.variantName}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
 
                         {/* Lot Number */}
@@ -636,12 +934,35 @@ export function ReturnIntakeDialog({
                             }}
                           >
                             <SelectTrigger className="h-8 text-xs">
-                              <SelectValue />
+                              <SelectValue>
+                                {it.itemCondition === "Restockable"
+                                  ? "Restockable (Back to shelf)"
+                                  : it.itemCondition === "Quarantine"
+                                  ? "Quarantine (Lab check)"
+                                  : it.itemCondition === "Scrap"
+                                  ? "Scrap (Damaged)"
+                                  : it.itemCondition}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Restockable">Restockable (Back to shelf)</SelectItem>
-                              <SelectItem value="Quarantine">Quarantine (Lab check)</SelectItem>
-                              <SelectItem value="Scrap">Scrap (Damaged)</SelectItem>
+                              <SelectItem
+                                value="Restockable"
+                                label="Restockable (Back to shelf)"
+                              >
+                                Restockable (Back to shelf)
+                              </SelectItem>
+                              <SelectItem
+                                value="Quarantine"
+                                label="Quarantine (Lab check)"
+                              >
+                                Quarantine (Lab check)
+                              </SelectItem>
+                              <SelectItem
+                                value="Scrap"
+                                label="Scrap (Damaged)"
+                              >
+                                Scrap (Damaged)
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                         </TableCell>

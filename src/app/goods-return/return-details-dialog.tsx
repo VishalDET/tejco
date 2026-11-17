@@ -214,7 +214,7 @@ export function ReturnDetailsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-5xl md:max-w-6xl lg:max-w-7xl w-[95vw] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-2">

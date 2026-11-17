@@ -23,6 +23,7 @@ interface OrderFormDialogProps {
   onOpenChange: (open: boolean) => void
   order: Order | null
   onSave: (data: Partial<Order>) => void
+  defaultPaymentType?: string
 }
 
 const GST_RATES = [0, 5, 12, 18, 28]
@@ -38,7 +39,7 @@ const SOURCE_LEAD_OPTIONS = [
   "Proforma Invoice",
 ] as const
 
-export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderFormDialogProps) {
+export function OrderFormDialog({ open, onOpenChange, order, onSave, defaultPaymentType }: OrderFormDialogProps) {
   const { user } = useAuth()
   const [form, setForm] = useState<Partial<Order>>({})
   const [isSaving, setIsSaving] = useState(false)
@@ -245,14 +246,15 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
         const currentUserCell = user?.phone || user?.mobile || user?.mobileNumber || ""
         const currentUserId = user?.userId !== undefined ? String(user.userId) : (user?.id !== undefined ? String(user.id) : undefined)
 
+        const isForeignDefault = defaultPaymentType === "Foreign" || defaultPaymentType?.toLowerCase() === "international"
         setForm({
           orderNumber: `SO-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
           date: new Date().toISOString().split('T')[0],
           status: "Pending",
           paymentStatus: "Unpaid",
           sourceLead: "Direct Call",
-          paymentType: "Domestic",
-          currencyType: "INR",
+          paymentType: defaultPaymentType || "Domestic",
+          currencyType: isForeignDefault ? "USD" : "INR",
           doctorSpeciality: "",
           clientGSTIN: "",
           salesPersonName: currentUserName,
@@ -269,7 +271,7 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave }: OrderForm
     if (open) {
       initForm()
     }
-  }, [order, open, user])
+  }, [order, open, user, defaultPaymentType])
 
   // Auto-match salesperson name to user list, or resolve mock/invalid salesPersonId
   useEffect(() => {

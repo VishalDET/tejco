@@ -100,7 +100,7 @@ export function CreditNoteDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl w-[90vw] max-h-[92vh] flex flex-col p-0 overflow-hidden print:max-w-none print:w-full print:h-auto print:border-none print:shadow-none print:m-0 print:p-0">
+      <DialogContent className="sm:max-w-6xl md:max-w-7xl w-[95vw] max-h-[92vh] flex flex-col p-0 overflow-hidden print:max-w-none print:w-full print:h-auto print:border-none print:shadow-none print:m-0 print:p-0">
         {/* Screen Dialog Header (Hidden in Print) */}
         <DialogHeader className="p-6 border-b bg-gradient-to-r from-amber-50 to-orange-50 flex flex-row items-center justify-between print:hidden">
           <div className="flex items-center gap-3">

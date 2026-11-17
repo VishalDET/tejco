@@ -22,6 +22,7 @@ import {
   RotateCcw,
   FileText,
   DollarSign,
+  IndianRupee,
   AlertCircle,
   Building,
 } from "lucide-react"
@@ -327,7 +328,7 @@ export default function CreditNotesPage() {
               <p className="text-xs text-muted-foreground mt-0.5">Value of returned goods</p>
             </div>
             <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
-              <DollarSign className="h-5 w-5" />
+              <IndianRupee className="h-5 w-5" />
             </div>
           </CardContent>
         </Card>
@@ -489,10 +490,10 @@ export default function CreditNotesPage() {
                       <TableCell className="text-xs text-slate-500">
                         {note.createdAt
                           ? new Date(note.createdAt).toLocaleDateString("en-IN", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                            })
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })
                           : "N/A"}
                       </TableCell>
 
@@ -567,9 +568,8 @@ export default function CreditNotesPage() {
                       key={idx}
                       variant={currentPage === p ? "default" : "outline"}
                       size="sm"
-                      className={`h-8 w-8 p-0 text-xs ${
-                        currentPage === p ? "bg-amber-600 hover:bg-amber-700 text-white" : ""
-                      }`}
+                      className={`h-8 w-8 p-0 text-xs ${currentPage === p ? "bg-amber-600 hover:bg-amber-700 text-white" : ""
+                        }`}
                       onClick={() => setCurrentPage(p)}
                     >
                       {p}
