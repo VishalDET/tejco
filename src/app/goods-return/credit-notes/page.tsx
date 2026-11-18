@@ -70,6 +70,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/use-auth"
 import { creditNoteApi } from "@/lib/api"
 import type { CreditNote } from "./types"
 import { CreditNoteDialog } from "./credit-note-dialog"
@@ -89,6 +90,10 @@ function getPageNumbers(currentPage: number, totalPages: number): (number | stri
 }
 
 export default function CreditNotesPage() {
+  const { hasPermission } = useAuth()
+  const canCreate = hasPermission("CreditNotes.Create")
+  const canEdit = hasPermission("CreditNotes.Edit")
+  const canDelete = hasPermission("CreditNotes.Delete")
   const [creditNotes, setCreditNotes] = useState<CreditNote[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -286,16 +291,18 @@ export default function CreditNotesPage() {
             Refresh
           </Button>
 
-          <Button
-            onClick={() => {
-              setSelectedForEdit(null)
-              setIsFormOpen(true)
-            }}
-            className="bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm"
-          >
-            <Plus className="h-4 w-4" />
-            New Credit Note
-          </Button>
+          {canCreate && (
+            <Button
+              onClick={() => {
+                setSelectedForEdit(null)
+                setIsFormOpen(true)
+              }}
+              className="bg-amber-600 hover:bg-amber-700 text-white gap-2 shadow-sm"
+            >
+              <Plus className="h-4 w-4" />
+              New Credit Note
+            </Button>
+          )}
         </div>
       </div>
 
@@ -512,18 +519,24 @@ export default function CreditNotesPage() {
                               <Eye className="h-4 w-4 text-slate-500" />
                               View Voucher
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEdit(note)} className="gap-2 cursor-pointer">
-                              <Edit className="h-4 w-4 text-slate-500" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => setDeleteConfirmId(note.creditNoteId)}
-                              className="gap-2 text-red-600 focus:text-red-600 cursor-pointer"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
+                            {canEdit && (
+                              <DropdownMenuItem onClick={() => handleEdit(note)} className="gap-2 cursor-pointer">
+                                <Edit className="h-4 w-4 text-slate-500" />
+                                Edit
+                              </DropdownMenuItem>
+                            )}
+                            {canDelete && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => setDeleteConfirmId(note.creditNoteId)}
+                                  className="gap-2 text-red-600 focus:text-red-600 cursor-pointer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>

@@ -59,6 +59,12 @@ import { ReturnDetailsDialog } from "./return-details-dialog"
 
 export default function GoodsReturnIndexPage() {
   const { hasPermission } = useAuth()
+  const canCreate =
+    hasPermission("Returns.Create") ||
+    hasPermission("GoodsReturn.Create")
+  const canEdit =
+    hasPermission("Returns.Edit") ||
+    hasPermission("GoodsReturn.Edit")
   const canApprove =
     hasPermission("Returns.Approve") ||
     hasPermission("GoodsReturn.Edit") ||
@@ -239,14 +245,16 @@ export default function GoodsReturnIndexPage() {
             Refresh
           </Button>
 
-          <Button
-            size="sm"
-            onClick={() => openIntakeModal()}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            New Return Intake
-          </Button>
+          {canCreate && (
+            <Button
+              size="sm"
+              onClick={() => openIntakeModal()}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              New Return Intake
+            </Button>
+          )}
         </div>
       </div>
 
@@ -524,7 +532,7 @@ export default function GoodsReturnIndexPage() {
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
 
-                          {isDraftOrSubmitted && (
+                          {isDraftOrSubmitted && canEdit && (
                             <Button
                               size="sm"
                               variant="outline"

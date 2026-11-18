@@ -1,0 +1,67 @@
+{
+  "superAdminLogin": true,
+  "userCreation": {
+    "status": "created",
+    "statusCode": 200,
+    "response": {
+      "statusCode": 200,
+      "success": true,
+      "message": "User created successfully",
+      "data": {
+        "userId": 14
+      },
+      "totalCount": null,
+      "error": null
+    },
+    "email": "accounts.dept@tejcovision.com"
+  },
+  "accountsLogin": true,
+  "permissionsResolved": [],
+  "operations": {
+    "completedOrdersQueue": {
+      "status": 200,
+      "success": true,
+      "recordCount": 10
+    },
+    "proformaInvoices": {
+      "status": 200,
+      "success": true,
+      "recordCount": 16
+    },
+    "quotations": {
+      "status": 200,
+      "success": true,
+      "recordCount": 16
+    },
+    "salesOrders": {
+      "status": 200,
+      "success": true,
+      "recordCount": 20
+    },
+    "creditNotes": {
+      "status": 200,
+      "success": true,
+      "recordCount": 6
+    },
+    "returnRequests": {
+      "status": 200,
+      "success": true,
+      "recordCount": 4
+    }
+  },
+  "rbacRestrictions": {
+    "userManagement": {
+      "status": 200,
+      "blockedOrAllowed": "HTTP 200"
+    },
+    "rolesManagement": {
+      "status": 403,
+      "blockedOrAllowed": "BLOCKED (Expected)"
+    },
+    "warehouses": {
+      "status": 404,
+      "blockedOrAllowed": "HTTP 404"
+    }
+  },
+  "summary": ""
+}

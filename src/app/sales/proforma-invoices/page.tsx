@@ -219,7 +219,10 @@ export default function ProformaInvoicesPage() {
     loadClients()
   }, [])
 
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
+  const canCreate = hasPermission("ProformaInvoices.Create")
+  const canEdit = hasPermission("ProformaInvoices.Edit")
+  const canConvert = hasPermission("SalesOrders.Create") || hasPermission("ProformaInvoices.Convert")
   const isSalesPerson =
     Number(user?.roleId) === 3 ||
     String(user?.role || "").toLowerCase().includes("sales person") ||
@@ -719,9 +722,11 @@ export default function ProformaInvoicesPage() {
           >
             {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
-          <Button onClick={handleCreate} className="gap-2 shadow-md hover:shadow-lg transition-all duration-200">
-            <Plus className="h-4 w-4" /> New Proforma
-          </Button>
+          {canCreate && (
+            <Button onClick={handleCreate} className="gap-2 shadow-md hover:shadow-lg transition-all duration-200">
+              <Plus className="h-4 w-4" /> New Proforma
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1050,12 +1055,14 @@ export default function ProformaInvoicesPage() {
                             <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
                               Management
                             </DropdownMenuLabel>
-                            <DropdownMenuItem
-                              onClick={() => handleEdit(p)}
-                              className="gap-2 cursor-pointer text-xs"
-                            >
-                              <Edit className="h-3.5 w-3.5 text-muted-foreground" /> Edit Details
-                            </DropdownMenuItem>
+                            {canEdit && (
+                              <DropdownMenuItem
+                                onClick={() => handleEdit(p)}
+                                className="gap-2 cursor-pointer text-xs"
+                              >
+                                <Edit className="h-3.5 w-3.5 text-muted-foreground" /> Edit Details
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => navigate(`/sales/proforma-invoices/${p.id}`)}
                               className="gap-2 cursor-pointer text-xs"
@@ -1066,7 +1073,7 @@ export default function ProformaInvoicesPage() {
                             <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
                               Operations
                             </DropdownMenuLabel>
-                            {p.status?.toLowerCase() !== "converted to sales order" && (
+                            {canConvert && p.status?.toLowerCase() !== "converted to sales order" && (
                               <DropdownMenuItem
                                 className="gap-2 text-emerald-600 font-semibold cursor-pointer text-xs focus:bg-emerald-50"
                                 onClick={() => handleConvertToOrder(p)}

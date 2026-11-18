@@ -325,7 +325,9 @@ export default function QuotationsPage() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
+  const canCreate = hasPermission("Quotations.Create")
+  const canEdit = hasPermission("Quotations.Edit")
   const isSalesPerson =
     Number(user?.roleId) === 3 ||
     String(user?.role || "").toLowerCase().includes("sales person") ||
@@ -550,14 +552,16 @@ export default function QuotationsPage() {
             <span className="hidden sm:inline">Refresh</span>
           </Button>
 
-          <Button
-            onClick={handleCreate}
-            size="sm"
-            className="h-9 px-3.5 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Quotation</span>
-          </Button>
+          {canCreate && (
+            <Button
+              onClick={handleCreate}
+              size="sm"
+              className="h-9 px-3.5 gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Quotation</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -939,12 +943,14 @@ export default function QuotationsPage() {
                               <DropdownMenuLabel className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
                                 Management
                               </DropdownMenuLabel>
-                              <DropdownMenuItem
-                                onClick={() => handleEdit(q)}
-                                className="gap-2 cursor-pointer text-xs"
-                              >
-                                <Edit className="h-3.5 w-3.5 text-muted-foreground" /> Edit Quotation
-                              </DropdownMenuItem>
+                              {canEdit && (
+                                <DropdownMenuItem
+                                  onClick={() => handleEdit(q)}
+                                  className="gap-2 cursor-pointer text-xs"
+                                >
+                                  <Edit className="h-3.5 w-3.5 text-muted-foreground" /> Edit Quotation
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 onClick={() => navigate(`/sales/quotations/${q.id}`)}
                                 className="gap-2 cursor-pointer text-xs"

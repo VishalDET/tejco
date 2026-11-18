@@ -1489,23 +1489,49 @@ export const stockInwardApi = {
 // ---------------------------------------------------------------------------
 
 export interface ReportFilterDto {
-  startDate?: string   // ISO date string e.g. "2025-01-01"
-  endDate?: string     // ISO date string e.g. "2025-12-31"
-  [key: string]: unknown  // allow any extra filter fields the backend may accept
+  startDate?: string   // ISO date string e.g. "2025-01-01T00:00:00.000Z"
+  endDate?: string     // ISO date string e.g. "2026-12-31T23:59:59.000Z"
+  clientId?: number
+  clientName?: string
+  categoryId?: number
+  [key: string]: unknown
 }
 
 export const reportsApi = {
-  /** POST /api/Report/sales */
+  /** POST /api/Reports/sales */
   getSales: (filter: ReportFilterDto) =>
-    apiClient.post<any>("/api/Report/sales", filter),
+    apiClient.post<any>("/api/Reports/sales", filter),
 
-  /** POST /api/Report/orders-outward */
+  /** POST /api/Reports/orders-outward */
   getOrdersOutward: (filter: ReportFilterDto) =>
-    apiClient.post<any>("/api/Report/orders-outward", filter),
+    apiClient.post<any>("/api/Reports/orders-outward", filter),
 
-  /** POST /api/Report/inventory-inward */
+  /** POST /api/Reports/inventory-inward */
   getInventoryInward: (filter: ReportFilterDto) =>
-    apiClient.post<any>("/api/Report/inventory-inward", filter),
+    apiClient.post<any>("/api/Reports/inventory-inward", filter),
+
+  /** TGLLP/QC/F/IMRR/04 — Uses inventory-inward endpoint */
+  getInwardMaterialRejection: (filter: ReportFilterDto) =>
+    apiClient.post<any>("/api/Reports/inventory-inward", filter),
+
+  /** TGLLP/STR/F/OR/02 — Uses orders-outward endpoint */
+  getOutwardRegister: (filter: ReportFilterDto) =>
+    apiClient.post<any>("/api/Reports/orders-outward", filter),
+
+  /** TGLLP/STR/F/IR/01 — Uses inventory-inward endpoint */
+  getInwardRegister: (filter: ReportFilterDto) =>
+    apiClient.post<any>("/api/Reports/inventory-inward", filter),
+
+  /** TGLLP/MRK/F/CL/01 — GET /api/Client/GetAll?pageNumber=1&pageSize=1000&sortBy=ClientId&sortDir=DESC */
+  getCustomerList: (params?: { pageNumber?: number; pageSize?: number; sortBy?: string; sortDir?: string }) => {
+    const pageNumber = params?.pageNumber ?? 1
+    const pageSize = params?.pageSize ?? 1000
+    const sortBy = params?.sortBy ?? "ClientId"
+    const sortDir = params?.sortDir ?? "DESC"
+    return apiClient.get<any>(
+      `/api/Client/GetAll?pageNumber=${pageNumber}&pageSize=${pageSize}&sortBy=${sortBy}&sortDir=${sortDir}`
+    )
+  },
 }
 
 // ---------------------------------------------------------------------------

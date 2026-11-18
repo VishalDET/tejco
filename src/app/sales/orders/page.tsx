@@ -129,7 +129,9 @@ export default function OrdersPage() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
+  const canCreate = hasPermission("SalesOrders.Create")
+  const canEdit = hasPermission("SalesOrders.Edit")
   const isSalesPerson =
     Number(user?.roleId) === 3 ||
     String(user?.role || "").toLowerCase().includes("sales person") ||
@@ -357,10 +359,12 @@ export default function OrdersPage() {
           >
             <RefreshCw className={`h-4 w-4 text-slate-600 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
-          <Button onClick={handleCreateOrder} className="shadow-md gap-2">
-            <Plus className="h-4 w-4" />
-            Create Order
-          </Button>
+          {canCreate && (
+            <Button onClick={handleCreateOrder} className="shadow-md gap-2">
+              <Plus className="h-4 w-4" />
+              Create Order
+            </Button>
+          )}
         </div>
       </div>
 
@@ -613,9 +617,11 @@ export default function OrdersPage() {
                           }
                         />
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => handleEditOrder(order)}>
-                            <Edit className="h-4 w-4" /> Edit Order
-                          </DropdownMenuItem>
+                          {canEdit && (
+                            <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => handleEditOrder(order)}>
+                              <Edit className="h-4 w-4" /> Edit Order
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="gap-2 cursor-pointer"
                             onClick={() => navigate(`/sales/orders/${order.id || (order as any).orderId}`)}
