@@ -28,16 +28,6 @@ interface OrderFormDialogProps {
 
 const GST_RATES = [0, 5, 12, 18, 28]
 
-const SOURCE_LEAD_OPTIONS = [
-  "Direct Call",
-  "Website / Portal",
-  "Doctor Referral",
-  "Exhibition / Conference",
-  "Field Sales Visit",
-  "WhatsApp",
-  "Quotation",
-  "Proforma Invoice",
-] as const
 
 export function OrderFormDialog({ open, onOpenChange, order, onSave, defaultPaymentType }: OrderFormDialogProps) {
   const { user } = useAuth()
@@ -685,21 +675,12 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave, defaultPaym
               </div>
               <div className="space-y-2">
                 <Label>Source Lead</Label>
-                <Select
-                  value={(form as any).sourceLead || "Direct Call"}
-                  onValueChange={(val) => set("sourceLead" as any, val)}
-                >
-                  <SelectTrigger className="border-slate-200 w-full">
-                    <SelectValue placeholder="Select Source Lead" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SOURCE_LEAD_OPTIONS.map((lead) => (
-                      <SelectItem key={lead} value={lead}>
-                        {lead}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  value={(form as any).sourceLead || ""}
+                  onChange={(e) => set("sourceLead" as any, e.target.value)}
+                  placeholder="Enter source lead (e.g. Direct Call, Website)"
+                  className="border-slate-200"
+                />
               </div>
             </div>
 
@@ -1010,6 +991,14 @@ export function OrderFormDialog({ open, onOpenChange, order, onSave, defaultPaym
                       <span className="text-slate-500 font-medium">Total GST</span>
                       <span className="text-emerald-600 font-medium">{getCurrencySymbol(form.currencyType)}{form.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
+
+                    {/* Freight Charges */}
+                    {Number((form as any).freight || (order as any)?.freight || 0) > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500 font-medium">Freight Charges</span>
+                        <span className="text-slate-900 font-medium">{getCurrencySymbol(form.currencyType)}{Number((form as any).freight || (order as any)?.freight || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
                   </>
                 )}
 

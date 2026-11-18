@@ -31,6 +31,7 @@ import type { Warehouse } from "@/app/supply-chain/warehouse/types"
 import type { Vendor } from "@/app/supply-chain/vendors/types"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { encodeCode128B, formatLocalVariantBarcode, parseVariantBarcodeSegments } from "@/lib/barcode-utils"
+import { useAuth } from "@/hooks/use-auth"
 
 interface Subcategory {
     subcategoryId: number;
@@ -50,6 +51,7 @@ interface Category {
 }
 
 export default function AddProductPage() {
+    const { isSuperAdmin } = useAuth()
     const navigate = useNavigate()
     const router = useNavigate()
     const [isLoading, setIsLoading] = React.useState(false)
@@ -847,33 +849,46 @@ export default function AddProductPage() {
 
                                         {/* Column 2: Pricing & Breakdown */}
                                         <div className="md:col-span-4 grid gap-4 border-l pl-6">
+                                            {!isSuperAdmin && (
+                                                <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+                                                    <span>Price lock active: Master product prices can only be set by Super Admin.</span>
+                                                </div>
+                                            )}
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Cost Price (₹)</Label>
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Cost Price (₹) {!isSuperAdmin && <span className="text-[10px] lowercase font-normal text-muted-foreground">(locked)</span>}
+                                                    </Label>
                                                     <div className="relative">
                                                         <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                                         <Input
                                                             type="number"
                                                             step="any"
-                                                            className="pl-8"
+                                                            className={`pl-8 ${!isSuperAdmin ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}`}
                                                             placeholder="0.00"
                                                             value={v.costPrice}
                                                             onChange={(e) => handleVariantChange(v.id, "costPrice", e.target.value)}
+                                                            disabled={!isSuperAdmin}
+                                                            title={!isSuperAdmin ? "Only Super Admin is authorized to set product prices." : ""}
                                                             required
                                                         />
                                                     </div>
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Base Price (₹)</Label>
+                                                    <Label className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                                                        Base Price (₹) {!isSuperAdmin && <span className="text-[10px] lowercase font-normal text-muted-foreground">(locked)</span>}
+                                                    </Label>
                                                     <div className="relative">
                                                         <IndianRupee className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                                         <Input
                                                             type="number"
                                                             step="any"
-                                                            className="pl-8 font-medium"
+                                                            className={`pl-8 font-medium ${!isSuperAdmin ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}`}
                                                             placeholder="0.00"
                                                             value={v.basePrice ?? ""}
                                                             onChange={(e) => handleVariantChange(v.id, "basePrice", e.target.value)}
+                                                            disabled={!isSuperAdmin}
+                                                            title={!isSuperAdmin ? "Only Super Admin is authorized to set product prices." : ""}
                                                             required
                                                         />
                                                     </div>
@@ -909,16 +924,20 @@ export default function AddProductPage() {
                                                     </div>
                                                 </div>
                                                 <div className="grid gap-2 col-span-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Sale Price (INTL) ($)</Label>
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Sale Price (INTL) ($) {!isSuperAdmin && <span className="text-[10px] lowercase font-normal text-muted-foreground">(locked)</span>}
+                                                    </Label>
                                                     <div className="relative">
                                                         <span className="absolute left-3 top-2.5 text-sm font-semibold text-muted-foreground">$</span>
                                                         <Input
                                                             type="number"
                                                             step="any"
-                                                            className="pl-8"
+                                                            className={`pl-8 ${!isSuperAdmin ? "bg-muted text-muted-foreground cursor-not-allowed" : ""}`}
                                                             placeholder="0.00"
                                                             value={v.exportSalesPrice}
                                                             onChange={(e) => handleVariantChange(v.id, "exportSalesPrice", e.target.value)}
+                                                            disabled={!isSuperAdmin}
+                                                            title={!isSuperAdmin ? "Only Super Admin is authorized to set product prices." : ""}
                                                             required
                                                         />
                                                     </div>

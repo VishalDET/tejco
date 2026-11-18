@@ -49,6 +49,7 @@ import { toast } from "sonner"
 import { useAuth } from "@/hooks/use-auth"
 import {
   accountsApi,
+  usersApi,
   type InvoicingQueueItem,
 } from "@/lib/api"
 import { GenerateInvoiceDialog } from "./generate-invoice-dialog"
@@ -82,6 +83,76 @@ export default function InvoicesPage() {
   const [adjustDialogOpen, setAdjustDialogOpen] = React.useState(false)
   const [selectedOrder, setSelectedOrder] = React.useState<InvoicingQueueItem | null>(null)
 
+  // User name cache for invoicedBy
+  const [userNames, setUserNames] = React.useState<Record<string, string>>({})
+  const userCacheRef = React.useRef<Record<string, string>>({})
+
+  React.useEffect(() => {
+    const rawIds = items
+      .map((item) => (item.invoicedBy != null ? String(item.invoicedBy).trim() : ""))
+      .filter(Boolean)
+
+    const numericIdsToFetch = Array.from(
+      new Set(
+        rawIds.filter((id) => /^\d+$/.test(id) && !userCacheRef.current[id])
+      )
+    )
+
+    if (numericIdsToFetch.length === 0) return
+
+    numericIdsToFetch.forEach((id) => {
+      userCacheRef.current[id] = `User #${id}`
+    })
+
+    let isMounted = true
+
+    Promise.allSettled(
+      numericIdsToFetch.map(async (id) => {
+        try {
+          const res = await usersApi.getById(id)
+          const userData = res?.data ?? res
+          const fullName =
+            (userData?.name ||
+              `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim()) ||
+            userData?.username ||
+            userData?.userName ||
+            userData?.email ||
+            `User #${id}`
+          return { id, name: fullName }
+        } catch (err) {
+          console.error(`Failed to fetch user #${id}:`, err)
+          return { id, name: `User #${id}` }
+        }
+      })
+    ).then((results) => {
+      if (!isMounted) return
+      const updates: Record<string, string> = {}
+      results.forEach((r) => {
+        if (r.status === "fulfilled" && r.value) {
+          userCacheRef.current[r.value.id] = r.value.name
+          updates[r.value.id] = r.value.name
+        }
+      })
+      if (Object.keys(updates).length > 0) {
+        setUserNames((prev) => ({ ...prev, ...updates }))
+      }
+    })
+
+    return () => {
+      isMounted = false
+    }
+  }, [items])
+
+  const getUserDisplayName = React.useCallback(
+    (invoicedBy: string | number | null | undefined): string => {
+      if (invoicedBy == null || invoicedBy === "") return "—"
+      const str = String(invoicedBy).trim()
+      if (!/^\d+$/.test(str)) return str
+      return userNames[str] || userCacheRef.current[str] || `User #${str}`
+    },
+    [userNames]
+  )
+
   const fetchData = React.useCallback(
     async (isManualRefresh = false) => {
       if (isManualRefresh) setIsRefreshing(true)
@@ -105,8 +176,8 @@ export default function InvoicesPage() {
         console.error("Failed to load accounts invoicing data:", err)
         toast.error(
           err?.info?.message ||
-            err?.message ||
-            "Failed to load invoicing queue data."
+          err?.message ||
+          "Failed to load invoicing queue data."
         )
         setItems([])
         setTotalCount(0)
@@ -166,7 +237,7 @@ export default function InvoicesPage() {
                 Accounts Invoicing
               </h1>
               <p className="text-sm text-muted-foreground">
-                Generate official GST tax invoices for physically dispatched sales orders.
+                Generate official GST tax invoices for sales orders to proceed to dispatch.
               </p>
             </div>
           </div>
@@ -229,7 +300,7 @@ export default function InvoicesPage() {
                 Workflow Stage
               </p>
               <p className="text-sm font-semibold mt-1 text-slate-800 dark:text-slate-200">
-                Dispatch Completed → Invoice Gen
+                Invoice Gen → Dispatch
               </p>
             </div>
             <div className="p-2.5 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400">
@@ -353,7 +424,7 @@ export default function InvoicesPage() {
                     className="h-36 text-center text-muted-foreground italic"
                   >
                     {activeTab === "queue"
-                      ? "No completed orders currently waiting in the invoicing queue."
+                      ? "No orders currently waiting in the invoicing queue."
                       : "No invoiced historical orders found."}
                   </TableCell>
                 </TableRow>
@@ -395,6 +466,10 @@ export default function InvoicesPage() {
                           {item.outwardOrderId ? (
                             <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300 font-medium">
                               Outward #{item.outwardOrderId}
+                            </span>
+                          ) : isInvoiced ? (
+                            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                              Pending Dispatch
                             </span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
@@ -455,9 +530,9 @@ export default function InvoicesPage() {
                                   {new Date(item.invoiceDate).toLocaleDateString("en-GB")}
                                 </span>
                               )}
-                              {item.invoicedBy && (
+                              {item.invoicedBy != null && item.invoicedBy !== "" && (
                                 <span className="text-[10px] text-muted-foreground">
-                                  By: {item.invoicedBy}
+                                  Generated by: {getUserDisplayName(item.invoicedBy)}
                                 </span>
                               )}
                             </div>
@@ -481,7 +556,7 @@ export default function InvoicesPage() {
                             </Button>
                           )}
 
-                          {!isInvoiced && canAdjustCommercial && (
+                          {/* {!isInvoiced && canAdjustCommercial && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -492,7 +567,7 @@ export default function InvoicesPage() {
                               <Sliders className="h-3.5 w-3.5" />
                               Adjust
                             </Button>
-                          )}
+                          )} */}
 
                           <Link to={`/sales/orders/${item.orderId}`}>
                             <Button

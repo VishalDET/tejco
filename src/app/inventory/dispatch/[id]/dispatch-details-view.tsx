@@ -44,6 +44,7 @@ import {
   type OrderDispatch,
 } from "../types"
 import { dispatchApi } from "@/lib/api"
+import { useAuth } from "@/hooks/use-auth"
 import { PrintLayout, executePrint } from "@/components/common/print"
 import { DEFAULT_TEJCO_COMPANY } from "@/components/common/print/company-config"
 
@@ -77,6 +78,7 @@ function cloneDispatch(dispatch: OrderDispatch): OrderDispatch {
 }
 
 export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
+  const { user } = useAuth()
   const navigate = useNavigate()
   const router = useNavigate()
   const [form, setForm] = React.useState<OrderDispatch>(() => cloneDispatch(dispatch))
@@ -112,8 +114,8 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
       return
     }
 
-    if (!readiness.isReady) {
-      toast.error("Add delivery partner, tracking number, package count, and dispatch date first.")
+    if (!form.partnerName?.trim()) {
+      toast.error("Please provide a delivery partner name.")
       return
     }
 
@@ -122,15 +124,30 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
       const apiPayload = mapOrderDispatchToApi(form)
       await dispatchApi.update(form.id, apiPayload)
 
-      // 2. Transition status on server
+      // 2. Confirm dispatch
+      await dispatchApi.confirm({
+        dispatchId: form.dispatchId ?? parseInt(form.id) ?? 0,
+        items: form.items.map((item) => ({
+          dispatchItemId: item.dispatchItemId ?? parseInt(item.id) ?? 0,
+          variantId: item.variantId ?? 0,
+          sku: item.sku || "",
+          quantity: item.quantity || 0,
+          lotId: item.lotId ?? 0,
+          lotNumber: item.lotNumber || "",
+        })),
+        remarks: form.remarks || "Order marked as Dispatched",
+        userId: Number(user?.userId ?? user?.id ?? 0),
+      })
+
+      // 3. Transition status on server
       await dispatchApi.updateStatus(form.id, "Dispatched", "Order marked as Dispatched")
 
-      // 3. Update local state
+      // 4. Update local state
       const nextTimeline = [
         {
           id: `tl-${Date.now()}`,
           label: "Dispatched",
-          description: `${form.partnerName} tracking ${form.trackingNumber} recorded.`,
+          description: `${form.partnerName} tracking ${form.trackingNumber || "N/A"} recorded.`,
           timestamp: new Date().toISOString(),
           status: "current",
         },
@@ -210,6 +227,9 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-3xl font-bold tracking-tight">{form.orderNumber}</h1>
+              <Badge variant="secondary" className="font-mono text-xs">
+                Order ID: {form.orderId}
+              </Badge>
               {getStatusBadge(form.status)}
               <Badge variant="outline" className="gap-1">
                 <Truck className="h-3.5 w-3.5" />
@@ -288,12 +308,12 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
         </Card>
       </div>
 
-      {!readiness.isReady && (
+      {!form.partnerName?.trim() && (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">
           <AlertTriangle className="text-amber-600" />
           <AlertTitle>Dispatch details incomplete</AlertTitle>
           <AlertDescription>
-            Add delivery partner, tracking number, package count, and dispatch date before marking this order dispatched.
+            Add delivery partner name before marking this order dispatched.
           </AlertDescription>
         </Alert>
       )}
@@ -309,19 +329,12 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
               {/* Delivery Partner — full width */}
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="partnerName">Delivery Partner (Company Name) *</Label>
-                <select
+                <Input
                   id="partnerName"
                   value={form.partnerName}
                   onChange={(event) => updateField("partnerName", event.target.value)}
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-                >
-                  <option value="">Select delivery partner</option>
-                  {deliveryPartners.map((partner) => (
-                    <option key={partner} value={partner}>
-                      {partner}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="e.g. Blue Dart, Delhivery, DTDC..."
+                />
               </div>
 
               {/* Tracking Number */}
@@ -357,7 +370,9 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
                   min={0}
                   value={form.freightCharges ?? ""}
                   placeholder="0"
-                  onChange={(event) => updateField("freightCharges", Number(event.target.value))}
+                  readOnly
+                  disabled
+                  className="bg-muted cursor-not-allowed"
                 />
               </div>
 
@@ -384,7 +399,8 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
                 <TableHeader className="bg-muted/50">
                   <TableRow>
                     <TableHead>Product</TableHead>
-                    <TableHead>SKU</TableHead>
+                    <TableHead>Variant</TableHead>
+                    <TableHead>Lot Number</TableHead>
                     <TableHead className="text-right">Quantity</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -392,7 +408,8 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
                   {form.items.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.productName}</TableCell>
-                      <TableCell className="font-mono text-xs">{item.sku}</TableCell>
+                      <TableCell className="text-muted-foreground">{item.variantName || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs">{item.lotNumber || "—"}</TableCell>
                       <TableCell className="text-right font-semibold">{item.quantity}</TableCell>
                     </TableRow>
                   ))}
@@ -561,6 +578,10 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm py-4">
               <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Order ID</span>
+                <span className="font-mono text-xs font-medium">{form.orderId || "—"}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <Truck className="h-4 w-4" />
                   Partner
@@ -672,6 +693,12 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
                   <span className="text-slate-600 font-medium">Order / Slip No:</span>
                   <span className="font-mono font-bold text-slate-900">{form.orderNumber}</span>
                 </div>
+                {form.orderId && (
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-600 font-medium">Order ID:</span>
+                    <span className="font-mono text-slate-900">{form.orderId}</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-600 font-medium">Dispatch Date:</span>
                   <span className="font-semibold text-slate-900">
@@ -725,7 +752,8 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
                 <tr className="bg-slate-100/80 text-slate-800 font-semibold border-b border-slate-200">
                   <th className="py-2 px-2 text-center w-10 border-r border-slate-200">#</th>
                   <th className="py-2 px-3 text-left border-r border-slate-200">Item Name / Description</th>
-                  <th className="py-2 px-3 text-left border-r border-slate-200">SKU / Code</th>
+                  <th className="py-2 px-3 text-left border-r border-slate-200">Variant</th>
+                  <th className="py-2 px-3 text-left border-r border-slate-200">Lot Number</th>
                   <th className="py-2 px-3 text-right w-24">Qty Dispatched</th>
                 </tr>
               </thead>
@@ -738,8 +766,11 @@ export function DispatchDetailsView({ dispatch }: DispatchDetailsViewProps) {
                     <td className="py-2 px-3 border-r border-slate-100 font-medium text-slate-900">
                       {item.productName}
                     </td>
+                    <td className="py-2 px-3 border-r border-slate-100 text-slate-700">
+                      {item.variantName || "—"}
+                    </td>
                     <td className="py-2 px-3 border-r border-slate-100 font-mono text-slate-600">
-                      {item.sku || "—"}
+                      {item.lotNumber || "—"}
                     </td>
                     <td className="py-2 px-3 text-right font-bold text-slate-900">
                       {item.quantity}

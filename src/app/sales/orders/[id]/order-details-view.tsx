@@ -480,6 +480,14 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                           <span className="text-muted-foreground">Total GST</span>
                           <span className="text-emerald-600 font-medium">{getCurrencySymbol(order.currencyType)}{order.taxAmount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
+
+                        {/* Freight Charges */}
+                        {Number((order as any).freight || 0) > 0 && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Freight Charges</span>
+                            <span className="text-slate-900 font-medium">{getCurrencySymbol(order.currencyType)}{Number((order as any).freight || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
                       </>
                     )}
 
@@ -912,6 +920,18 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                       </td>
                     </tr>
                   </>
+                )}
+
+                {Number((order as any).freight || 0) > 0 && (
+                  <tr>
+                    <td colSpan={2} className="py-1.5 px-3 text-right text-slate-500 border-r border-slate-200 text-[11px]">
+                      Freight Charges:
+                    </td>
+                    <td className="py-1.5 px-3 text-right font-normal text-slate-800 text-[11px]">
+                      {getPrintCurrencySymbol(order.currencyType)}{" "}
+                      {Number((order as any).freight || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
                 )}
 
                 <tr className="border-t border-slate-300 bg-slate-100/90 text-slate-900">

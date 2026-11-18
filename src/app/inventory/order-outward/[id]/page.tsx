@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { mapApiOutwardOrder, type OutwardOrder } from "../types"
 import { mapApiSalesOrder } from "../../../sales/orders/types"
 import { Loader } from "@/components/ui/loader"
+import { toast } from "sonner"
 
 export default function OrderOutwardScanPage() {
   const params = useParams()
@@ -77,8 +78,8 @@ export default function OrderOutwardScanPage() {
             rawSalesOrder = (salesOrderData as any)?.data || salesOrderData
           } catch {
             // If getById fails, find order in GetAll
-            const allApproved = await salesOrderApi.getAll({ Status: "Approved", PageSize: 500 }).catch(() => [])
-            const list = Array.isArray(allApproved) ? allApproved : ((allApproved as any)?.data || [])
+            const allInvoiceGenerated = await salesOrderApi.getAll({ Status: "Invoice Generated", PageSize: 500 }).catch(() => [])
+            const list = Array.isArray(allInvoiceGenerated) ? allInvoiceGenerated : ((allInvoiceGenerated as any)?.data || [])
             rawSalesOrder = list.find((o: any) => 
               String(o.orderId) === String(id) || 
               String(o.id) === String(id) || 
@@ -87,6 +88,13 @@ export default function OrderOutwardScanPage() {
           }
 
           if (rawSalesOrder && (rawSalesOrder.orderId || rawSalesOrder.orderNumber)) {
+            const orderStatus = (rawSalesOrder.orderStatus || rawSalesOrder.status || "").toLowerCase().trim()
+            const isInvoiceGenerated = orderStatus === "invoice generated" || Boolean(rawSalesOrder.invoiceNumber)
+            if (!isInvoiceGenerated) {
+              toast.error("Outward scanning is only allowed for orders with Invoice Generated.")
+              setLoading(false)
+              return
+            }
             const mappedSales = mapApiSalesOrder(rawSalesOrder)
 
             // If some products weren't in productCatalog, fetch individual product details

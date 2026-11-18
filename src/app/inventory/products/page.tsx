@@ -106,6 +106,7 @@ import { toast } from "sonner"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { warehousesApi, categoriesApi } from "@/lib/api"
 import { StatCard, StatGrid } from "@/components/common/cards"
+import { useAuth } from "@/hooks/use-auth"
 
 // --- API Types ---
 interface ApiVariant {
@@ -301,6 +302,7 @@ function ProductVariantsExpandedRow({
     viewMode?: "cards" | "table"
     onViewModeChange?: (mode: "cards" | "table") => void
 }) {
+    const { isSalesPerson } = useAuth()
     const product = row.original
     const variants: any[] = product.rawVariants || []
     const [copiedKey, setCopiedKey] = React.useState<string | null>(null)
@@ -459,16 +461,18 @@ function ProductVariantsExpandedRow({
                                     </div>
 
                                     {/* Pricing Grid */}
-                                    <div className="grid grid-cols-2 gap-2 mt-2.5 pt-2.5 border-t text-xs">
-                                        <div>
-                                            <span className="text-[10px] text-muted-foreground block uppercase font-semibold tracking-wider">Cost Price</span>
-                                            <span className="font-semibold text-foreground text-xs mt-0.5 block">{formatCurrency(v.purchasePrice)}</span>
-                                        </div>
-                                        <div className="text-right">
+                                    <div className={`grid ${isSalesPerson ? "grid-cols-1" : "grid-cols-2"} gap-2 mt-2.5 pt-2.5 border-t text-xs`}>
+                                        {!isSalesPerson && (
+                                            <div>
+                                                <span className="text-[10px] text-muted-foreground block uppercase font-semibold tracking-wider">Cost Price</span>
+                                                <span className="font-semibold text-foreground text-xs mt-0.5 block">{formatCurrency(v.purchasePrice)}</span>
+                                            </div>
+                                        )}
+                                        <div className={isSalesPerson ? "text-left" : "text-right"}>
                                             <span className="text-[10px] text-muted-foreground block uppercase font-semibold tracking-wider">Sale Price (IND)</span>
-                                            <div className="flex items-center justify-end gap-1 mt-0.5">
+                                            <div className={`flex items-center ${isSalesPerson ? "justify-start" : "justify-end"} gap-1 mt-0.5`}>
                                                 <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">{formatCurrency(v.sellingPrice)}</span>
-                                                {margin !== null && (
+                                                {!isSalesPerson && margin !== null && (
                                                     <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/60 px-1 py-0.2 rounded">
                                                         +{margin}%
                                                     </span>
@@ -757,6 +761,7 @@ function getPageNumbers(currentPage: number, totalPages: number): (number | stri
 }
 
 export default function ProductListPage() {
+    const { isSalesPerson } = useAuth()
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
 
@@ -1051,10 +1056,10 @@ export default function ProductListPage() {
                 )
             },
         },
-        {
+        ...(isSalesPerson ? [] : [{
             accessorKey: "costPrice",
             header: () => <div className="text-right">COST</div>,
-            cell: ({ row }) => {
+            cell: ({ row }: { row: any }) => {
                 const min = row.original.costPrice
                 const max = row.original.costPriceMax
                 const formatted = min && max && min !== max
@@ -1062,7 +1067,7 @@ export default function ProductListPage() {
                     : formatCurrency(min || 0)
                 return <div className="text-right font-medium text-sm text-foreground">{formatted}</div>
             },
-        },
+        }]),
         {
             accessorKey: "sellingPrice",
             header: () => <div className="text-right">Sale</div>,
@@ -1113,7 +1118,7 @@ export default function ProductListPage() {
             enableHiding: false,
             cell: ({ row }) => <ActionsCell row={row} onNavigate={navigate} />,
         },
-    ], [navigate, categoriesMap])
+    ], [navigate, categoriesMap, isSalesPerson])
 
     // Table — pagination is handled server-side; we pass manualPagination
     const tablePagination: PaginationState = { pageIndex, pageSize }
@@ -1154,24 +1159,31 @@ export default function ProductListPage() {
         products.forEach(p => {
             const rawVars = p.rawVariants && p.rawVariants.length > 0 ? p.rawVariants : [null]
             rawVars.forEach(v => {
-                rows.push({
+                const rowData: Record<string, any> = {
                     "Product ID": p.id,
                     "Product Name": p.name,
                     "Base SKU": p.sku || "",
                     "HSN Code": p.hsnCode || "",
-                    "Vendor Name": p.vendorName || "",
-                    "Category": p.category || "",
-                    "Variant Name": v?.variantName || "Default",
-                    "Size": v?.size || (v as any)?.Size || "",
-                    "SKU Suffix": v?.skuSuffix || "",
-                    "Full SKU": `${p.sku || ""}${v?.skuSuffix || ""}`,
-                    "Cost Price (₹)": v ? Number(v.purchasePrice) || 0 : p.costPrice,
-                    "Selling Price (₹)": v ? Number(v.sellingPrice) || 0 : p.sellingPrice,
-                    "Stock Quantity": v ? Number(v.currentQuantity) || 0 : p.stock,
-                    "Reorder Level": v ? Number(v.reorderLevel) || 0 : "",
-                    "Rack Location": v?.rackLocation || "",
-                    "Status": p.status,
-                })
+                }
+                if (!isSalesPerson) {
+                    rowData["Vendor Name"] = p.vendorName || ""
+                }
+                rowData["Category"] = p.category || ""
+                rowData["Variant Name"] = v?.variantName || "Default"
+                rowData["Size"] = v?.size || (v as any)?.Size || ""
+                rowData["SKU Suffix"] = v?.skuSuffix || ""
+                rowData["Full SKU"] = `${p.sku || ""}${v?.skuSuffix || ""}`
+                if (!isSalesPerson) {
+                    rowData["Cost Price (₹)"] = v ? Number(v.purchasePrice) || 0 : p.costPrice
+                }
+                rowData["Selling Price (₹)"] = v ? Number(v.sellingPrice) || 0 : p.sellingPrice
+                rowData["Stock Quantity"] = v ? Number(v.currentQuantity) || 0 : p.stock
+                rowData["Reorder Level"] = v ? Number(v.reorderLevel) || 0 : ""
+                if (!isSalesPerson) {
+                    rowData["Rack Location"] = v?.rackLocation || ""
+                }
+                rowData["Status"] = p.status
+                rows.push(rowData)
             })
         })
 

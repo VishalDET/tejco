@@ -148,7 +148,7 @@ export const router = createBrowserRouter([
       { path: "inventory/stock-inward/add", element: <ProtectedRoute permission={["StockInward.Create", "StockInward.View", "Inventory.StockInward"]}><StockInwardFormPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/:id", element: <ProtectedRoute permission={["StockInward.View", "Inventory.StockInward", "Inventory.View"]}><StockInwardDetailsPage /></ProtectedRoute> },
       { path: "inventory/stock-inward/:id/edit", element: <ProtectedRoute permission={["StockInward.Edit", "StockInward.View", "Inventory.StockInward"]}><StockInwardFormPage /></ProtectedRoute> },
-      { path: "inventory/units", element: <ProtectedRoute permission={["Inventory.View", "Products.View"]}><InventoryUnitsPage /></ProtectedRoute> },
+      { path: "inventory/units", element: <ProtectedRoute permission={["Inventory.Lots.View", "Products.FullView"]}><InventoryUnitsPage /></ProtectedRoute> },
 
       // Goods Return & Credit Notes
       { path: "goods-return", element: <ProtectedRoute permission="GoodsReturn.View"><GoodsReturnIndexPage /></ProtectedRoute> },

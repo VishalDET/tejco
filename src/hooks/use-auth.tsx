@@ -84,6 +84,9 @@ interface AuthContextType {
     isAuthenticated: boolean
     user: UserProfile | null
     permissions: string[]
+    isSuperAdmin: boolean
+    isSalesPerson: boolean
+    canEditMasterPrice: boolean
     hasPermission: (permission: string | string[]) => boolean
     hasAnyPermission: (permissions: string[]) => boolean
     refreshPermissions: () => Promise<void>
@@ -353,11 +356,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return () => window.removeEventListener("storage", handleStorage)
     }, [navigate])
 
+    const isSuperAdmin = React.useMemo(() => {
+        return (
+            Number(user?.roleId) === 1 ||
+            String(user?.roleId) === "1" ||
+            String(user?.role || "").toLowerCase() === "super admin" ||
+            String(user?.role || "").toLowerCase() === "administrator" ||
+            permissions.includes("*")
+        )
+    }, [user?.roleId, user?.role, permissions])
+
+    const isSalesPerson = React.useMemo(() => {
+        return (
+            Number(user?.roleId) === 3 ||
+            String(user?.roleId) === "3" ||
+            String(user?.role || "").toLowerCase().includes("sales person") ||
+            String(user?.role || "").toLowerCase() === "salesperson"
+        )
+    }, [user?.roleId, user?.role])
+
+    const canEditMasterPrice = isSuperAdmin
+
     const contextValue = React.useMemo(
         () => ({
             isAuthenticated,
             user,
             permissions,
+            isSuperAdmin,
+            isSalesPerson,
+            canEditMasterPrice,
             hasPermission,
             hasAnyPermission,
             refreshPermissions,
@@ -365,7 +392,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logout,
             setIsAuthenticated,
         }),
-        [isAuthenticated, user, permissions, hasPermission, hasAnyPermission, refreshPermissions, login, logout, setIsAuthenticated]
+        [isAuthenticated, user, permissions, isSuperAdmin, isSalesPerson, canEditMasterPrice, hasPermission, hasAnyPermission, refreshPermissions, login, logout, setIsAuthenticated]
     )
 
     return (
@@ -387,10 +414,26 @@ export function useAuth(): AuthContextType {
             storedUser = raw ? JSON.parse(raw) : null
         } catch {}
 
+        const isSuperAdminFallback =
+            Number(storedUser?.roleId) === 1 ||
+            String(storedUser?.roleId) === "1" ||
+            String(storedUser?.role || "").toLowerCase() === "super admin" ||
+            String(storedUser?.role || "").toLowerCase() === "administrator" ||
+            storedPerms.includes("*")
+
+        const isSalesPersonFallback =
+            Number(storedUser?.roleId) === 3 ||
+            String(storedUser?.roleId) === "3" ||
+            String(storedUser?.role || "").toLowerCase().includes("sales person") ||
+            String(storedUser?.role || "").toLowerCase() === "salesperson"
+
         return {
             isAuthenticated: !!token,
             user: storedUser,
             permissions: storedPerms,
+            isSuperAdmin: isSuperAdminFallback,
+            isSalesPerson: isSalesPersonFallback,
+            canEditMasterPrice: isSuperAdminFallback,
             hasPermission: (required: string | string[]) => {
                 if (!required) return true
                 if (storedPerms.includes("*")) return true

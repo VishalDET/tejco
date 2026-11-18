@@ -188,7 +188,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
     expectedDeliveryDate: "",
     packageCount: "1",
     grossWeightKg: "",
-    freightCharges: "0",
+    freightCharges: String(outwardOrder.freight || "0"),
     freightPaymentMode: "Prepaid",
     vehicleNumber: "",
     driverName: "",
@@ -224,7 +224,7 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
         expectedDeliveryDate: dispatchForm.expectedDeliveryDate ? new Date(dispatchForm.expectedDeliveryDate).toISOString() : new Date().toISOString(),
         packageCount: Number(dispatchForm.packageCount) || 0,
         grossWeightKg: Number(dispatchForm.grossWeightKg) || 0,
-        freightCharges: Number(dispatchForm.freightCharges) || 0,
+        freightCharges: Number(outwardOrder.freight ?? dispatchForm.freightCharges) || 0,
         freightPaymentMode: dispatchForm.freightPaymentMode,
         vehicleNumber: dispatchForm.vehicleNumber,
         driverName: dispatchForm.driverName,
@@ -671,13 +671,11 @@ export function OutwardScanView({ order }: OutwardScanViewProps) {
                 {/* Freight */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="freightCharges">Freight Charges (INR)</Label>
-                    <Input
-                      id="freightCharges"
-                      type="number"
-                      value={dispatchForm.freightCharges}
-                      onChange={(e) => setDispatchForm(prev => ({ ...prev, freightCharges: e.target.value }))}
-                    />
+                    <Label>Freight Charges (from Order)</Label>
+                    <div className="h-10 px-3 py-2 rounded-md border bg-muted/40 text-sm font-medium flex items-center justify-between text-foreground">
+                      <span>₹{Number(outwardOrder.freight ?? dispatchForm.freightCharges ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded border">From Sales Order</span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label>Freight Payment Mode</Label>

@@ -32,6 +32,7 @@ export interface Order {
   items: OrderItem[]
   subtotal: number
   taxAmount: number
+  freight?: number
   totalAmount: number
   billingAddress: string
   shippingAddress: string
@@ -229,6 +230,7 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
     items,
     subtotal,
     taxAmount,
+    freight: Number(raw.freight || 0),
     totalAmount,
     billingAddress: raw.billingAddress || raw.clientAddress || "",
     shippingAddress: raw.shippingAddress || raw.billingAddress || raw.clientAddress || "",

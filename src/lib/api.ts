@@ -921,7 +921,7 @@ export const usersApi = {
   getAll: () => apiClient.get<any[]>("/api/User/GetAll"),
 
   /** GET /api/User/GetById/{id} */
-  getById: (id: string) => apiClient.get<any>(`/api/User/GetById/${id}`),
+  getById: (id: string | number) => apiClient.get<any>(`/api/User/GetById/${id}`),
 
   /** POST /api/User/Create */
   create: (data: any) => apiClient.post<any>("/api/User/Create", data),
@@ -1355,8 +1355,28 @@ export interface ApiDispatchItem {
   dispatchItemId: number
   dispatchId: number
   productName: string
+  variantId?: number | null
+  variantName?: string | null
   sku: string
   quantity: number
+  lotId?: number | null
+  lotNumber?: string | null
+}
+
+export interface DispatchConfirmItem {
+  dispatchItemId: number
+  variantId: number
+  sku: string
+  quantity: number
+  lotId: number
+  lotNumber: string
+}
+
+export interface DispatchConfirmPayload {
+  dispatchId: number
+  items: DispatchConfirmItem[]
+  remarks: string
+  userId: number
 }
 
 export interface ApiDispatchTimelineEvent {
@@ -1410,6 +1430,7 @@ export const dispatchApi = {
   update: (id: number | string, data: ApiDispatch) => apiClient.put<ApiDispatch>(`/api/Dispatch/Update/${id}`, data),
   updateStatus: (id: number | string, newStatus: string, remarks: string) =>
     apiClient.put<void>(`/api/Dispatch/${id}/Status`, { newStatus, remarks }),
+  confirm: (data: DispatchConfirmPayload) => apiClient.post<any>("/api/Dispatch/Confirm", data),
   remove: (id: number | string) => apiClient.delete<void>(`/api/Dispatch/Delete/${id}`),
 }
 
@@ -2057,7 +2078,7 @@ export interface InvoicingQueueItem {
   totalAmount: number
   invoiceNumber?: string | null
   invoiceDate?: string | null
-  invoicedBy?: string | null
+  invoicedBy?: string | number | null
   orderNotes?: string | null
   outwardOrderId?: number | null
   outwardStatus?: string | null

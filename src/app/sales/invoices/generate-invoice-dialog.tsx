@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { FileCheck, IndianRupee, Loader2 } from "lucide-react"
+import { FileCheck, IndianRupee, Loader2, Truck } from "lucide-react"
 import { accountsApi, type InvoicingQueueItem, type GenerateInvoicePayload } from "@/lib/api"
 
 interface GenerateInvoiceDialogProps {
@@ -84,7 +84,7 @@ export function GenerateInvoiceDialog({
       const res = await accountsApi.generateInvoice(order.orderId, payload)
       toast.success(
         res.message ||
-          `Tax Invoice "${invoiceNumber}" generated successfully for Order #${order.orderNumber}.`
+        `Tax Invoice "${invoiceNumber}" generated successfully for Order #${order.orderNumber}. Order is ready for dispatch.`
       )
       onOpenChange(false)
       onSuccess()
@@ -102,7 +102,7 @@ export function GenerateInvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max md:min-w-[600px] max-sm:w-md-w-xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
@@ -111,17 +111,23 @@ export function GenerateInvoiceDialog({
             <div>
               <DialogTitle>Generate Tax Invoice</DialogTitle>
               <DialogDescription>
-                Convert dispatched Order{" "}
+                Generate an official GST Tax Invoice for Order{" "}
                 <span className="font-mono font-semibold text-foreground">
                   {order.orderNumber}
                 </span>{" "}
-                into an official GST Tax Invoice.
+                to move it to dispatch.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          {/* Workflow Notice */}
+          <div className="p-2.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/60 text-xs text-blue-800 dark:text-blue-300 flex items-center gap-2">
+            <Truck className="h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+            <span>Once the invoice is generated, this order will be queued for dispatch.</span>
+          </div>
+
           {/* Order Summary Pill */}
           <div className="p-3 bg-muted/40 rounded-lg text-xs space-y-1 border">
             <div className="flex justify-between text-muted-foreground">

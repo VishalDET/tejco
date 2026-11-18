@@ -18,8 +18,12 @@ export interface DispatchItem {
   id: string
   dispatchItemId?: number
   productName: string
+  variantId?: number
+  variantName?: string
   sku: string
   quantity: number
+  lotId?: number
+  lotNumber?: string
 }
 
 export interface DispatchTimelineEvent {
@@ -71,13 +75,17 @@ export interface OrderDispatch {
 
 import type { ApiDispatch, ApiDispatchItem, ApiDispatchTimelineEvent } from "@/lib/api"
 
-export function mapApiDispatchItem(raw: ApiDispatchItem): DispatchItem {
+export function mapApiDispatchItem(raw: ApiDispatchItem | any): DispatchItem {
   return {
     id: String(raw.dispatchItemId || `di-${Math.random()}`),
     dispatchItemId: raw.dispatchItemId,
     productName: raw.productName || "Unknown Product",
+    variantId: raw.variantId ?? undefined,
+    variantName: raw.variantName || undefined,
     sku: raw.sku || "",
     quantity: raw.quantity || 0,
+    lotId: raw.lotId ?? undefined,
+    lotNumber: raw.lotNumber || undefined,
   }
 }
 
@@ -234,8 +242,12 @@ export function mapOrderDispatchToApi(ui: OrderDispatch): ApiDispatch {
       dispatchItemId: item.dispatchItemId || parseInt(item.id) || 0,
       dispatchId: ui.dispatchId || parseInt(ui.id) || 0,
       productName: item.productName,
+      variantId: item.variantId,
+      variantName: item.variantName,
       sku: item.sku,
-      quantity: item.quantity
+      quantity: item.quantity,
+      lotId: item.lotId,
+      lotNumber: item.lotNumber,
     })),
     timeline: ui.timeline.map(event => ({
       timelineId: event.timelineId || parseInt(event.id) || 0,

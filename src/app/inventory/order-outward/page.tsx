@@ -177,8 +177,8 @@ export default function OrderOutwardPage() {
     try {
       // Parallel fetch for Sales Orders, Products Catalog, Warehouses, and Outward Orders
       const [resOrders, resProducts, resWarehouses, resOutward] = await Promise.all([
-        salesOrderApi.getAll({ Status: "Approved", PageSize: 500 }).catch((e) => {
-          console.error("Failed to fetch approved sales orders:", e)
+        salesOrderApi.getAll({ Status: "Invoice Generated", PageSize: 500 }).catch((e) => {
+          console.error("Failed to fetch invoice generated sales orders:", e)
           return []
         }),
         productsApi.getAll().catch(() => []),
@@ -195,25 +195,35 @@ export default function OrderOutwardPage() {
         rawList = resOrders.items
       }
 
-      // Fallback: If Status=Approved returned empty, fetch general list
+      // Filter to only include Invoice Generated orders
+      rawList = rawList.filter((o: any) => {
+        const st = (o.orderStatus || o.status || "").toLowerCase().trim()
+        return st === "invoice generated" || Boolean(o.invoiceNumber)
+      })
+
+      // Fallback: If Status="Invoice Generated" returned empty, fetch general list and filter client-side
       if (rawList.length === 0) {
         try {
           const fallbackRes = await salesOrderApi.getAll({ PageSize: 500 })
+          let allList: any[] = []
           if (Array.isArray(fallbackRes)) {
-            rawList = fallbackRes
+            allList = fallbackRes
           } else if (fallbackRes?.data && Array.isArray(fallbackRes.data)) {
-            rawList = fallbackRes.data
+            allList = fallbackRes.data
           } else if (fallbackRes?.items && Array.isArray(fallbackRes.items)) {
-            rawList = fallbackRes.items
+            allList = fallbackRes.items
           }
+          rawList = allList.filter((o: any) => {
+            const st = (o.orderStatus || o.status || "").toLowerCase().trim()
+            return st === "invoice generated" || Boolean(o.invoiceNumber)
+          })
         } catch (e) {
           console.warn("Fallback sales order fetch failed:", e)
         }
       }
 
       const mappedOrders = rawList.map((order) => mapApiSalesOrder(order))
-      // Every order returned by Status=Approved API call is an approved sales order
-      const approvedOrders = mappedOrders
+      const invoiceGeneratedOrders = mappedOrders
 
       // Process product catalog to map SKU to Barcode
       const productCatalog = Array.isArray(resProducts) ? resProducts : (Array.isArray((resProducts as any)?.data) ? (resProducts as any).data : [])
@@ -252,8 +262,8 @@ export default function OrderOutwardPage() {
       const outwardOrders: OutwardOrder[] = []
       const processedOrderIds = new Set<number>()
 
-      // 1. Add all approved Sales Orders first
-      approvedOrders.forEach((order: any) => {
+      // 1. Add all Invoice Generated Sales Orders first
+      invoiceGeneratedOrders.forEach((order: any) => {
         const oId = Number(order.orderId || order.id || 0)
         if (oId) processedOrderIds.add(oId)
 
@@ -295,7 +305,7 @@ export default function OrderOutwardPage() {
         })
       })
 
-      // 2. Add any standalone outward orders from DB not linked to fetched approved sales orders
+      // 2. Add any standalone outward orders from DB not linked to fetched sales orders
       rawOutwardList.forEach((out: any) => {
         try {
           const oId = Number(out.orderId || 0)
@@ -313,7 +323,7 @@ export default function OrderOutwardPage() {
 
       setOrders(outwardOrders)
     } catch (err) {
-      console.error("Failed to load outward orders from approved sales orders:", err)
+      console.error("Failed to load outward orders from invoice generated sales orders:", err)
       setOrders([])
     } finally {
       setIsLoading(false)
@@ -383,7 +393,7 @@ export default function OrderOutwardPage() {
             </Badge>
           </div>
           <p className="text-muted-foreground">
-            Pick, scan, validate, and prepare approved sales orders for dispatch.
+            Pick, scan, validate, and prepare invoice-generated sales orders for dispatch.
           </p>
         </div>
         <div className="flex items-center gap-2">
