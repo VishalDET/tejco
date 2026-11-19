@@ -605,6 +605,7 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
           footerProps={{
             documentNumber: order.orderNumber,
             showBankDetails: true,
+            bankDetailsType: order.paymentType === "Foreign" ? "international" : "domestic",
             showComputerGeneratedDisclaimer: true,
             authorizedSignatoryLabel: `FOR ${COMPANY.name}`,
             customSignatures: (

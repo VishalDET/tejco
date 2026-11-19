@@ -1,3 +1,20 @@
+export interface BankDetailsInfo {
+  title?: string
+  bankName?: string
+  accountName?: string
+  accountNumber?: string
+  accountType?: string
+  ifscCode?: string
+  swiftCode?: string
+  branch?: string
+  lines?: string[]
+}
+
+export interface CompanyBankDetails extends BankDetailsInfo {
+  domestic: BankDetailsInfo
+  international: BankDetailsInfo
+}
+
 export interface CompanyPrintInfo {
   name: string
   legalName?: string
@@ -15,16 +32,45 @@ export interface CompanyPrintInfo {
   email?: string
   phone?: string
   website?: string
-  bankDetails?: {
-    title?: string
-    bankName?: string
-    accountName?: string
-    accountNumber?: string
-    accountType?: string
-    ifscCode?: string
-    branch?: string
-    lines?: string[]
-  }
+  bankDetails?: CompanyBankDetails
+}
+
+export const DOMESTIC_BANK_DETAILS: BankDetailsInfo = {
+  title: "DOMESTIC BANK DETAILS (INR)",
+  accountName: "TEJCO GLOBAL LLP",
+  bankName: "Indian Overseas Bank",
+  branch: "Bandra (West), Mumbai – 400 050",
+  accountNumber: "012800000002727",
+  accountType: "Current Account",
+  ifscCode: "IOBA0000128",
+  lines: [
+    "Name of Company: TEJCO GLOBAL LLP",
+    "Bank: Indian Overseas Bank",
+    "Branch Name: Bandra (West), Mumbai – 400 050",
+    "Bank Account No: 012800000002727",
+    "Type of Account: Current Account",
+    "IFSC Code: IOBA0000128",
+  ],
+}
+
+export const INTERNATIONAL_BANK_DETAILS: BankDetailsInfo = {
+  title: "INTERNATIONAL BANK DETAILS (USD / FOREX)",
+  accountName: "TEJCO GLOBAL LLP",
+  bankName: "Indian Overseas Bank",
+  branch: "Bandra (West), Mumbai – 400 050, India",
+  accountNumber: "012800000002727",
+  accountType: "Current / EEFC Account",
+  ifscCode: "IOBA0000128",
+  swiftCode: "IOBAINBB128",
+  lines: [
+    "Beneficiary Name: TEJCO GLOBAL LLP",
+    "Bank: Indian Overseas Bank",
+    "Branch Name: Bandra (West), Mumbai – 400 050, India",
+    "Bank Account No: 012800000002727",
+    "Type of Account: Current / EEFC Account",
+    "SWIFT / BIC Code: IOBAINBB128",
+    "IFSC Code: IOBA0000128",
+  ],
 }
 
 export const DEFAULT_TEJCO_COMPANY: CompanyPrintInfo = {
@@ -43,20 +89,8 @@ export const DEFAULT_TEJCO_COMPANY: CompanyPrintInfo = {
   phone: "+91 9820096805",
   website: "www.tejcoglobal.com",
   bankDetails: {
-    title: "INR BANK DETAILS",
-    accountName: "TEJCO GLOBAL LLP",
-    bankName: "Indian Overseas Bank",
-    branch: "Bandra (West), Mumbai – 400 050",
-    accountNumber: "012800000002727",
-    accountType: "Current Account",
-    ifscCode: "IOBA0000128",
-    lines: [
-      "Name of Company: TEJCO GLOBAL LLP",
-      "Bank: Indian Overseas Bank",
-      "Branch Name: Bandra (West), Mumbai – 400 050",
-      "Bank Account No: 012800000002727",
-      "Type of Account: Current Account",
-      "IFSC Code: IOBA0000128",
-    ],
+    domestic: DOMESTIC_BANK_DETAILS,
+    international: INTERNATIONAL_BANK_DETAILS,
+    ...DOMESTIC_BANK_DETAILS,
   },
 }

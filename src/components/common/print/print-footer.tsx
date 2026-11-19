@@ -7,6 +7,8 @@ export interface PrintFooterProps {
   /** Optional bank details override or boolean to display default company bank details */
   showBankDetails?: boolean
   bankDetailsOverride?: string[]
+  /** Select which bank details to show: "domestic" (default), "international", or "both" */
+  bankDetailsType?: "domestic" | "international" | "both"
   /** Optional label for the verified / inspected signature box */
   verifiedByLabel?: string
   /** Optional label for the authorized signatory box */
@@ -27,6 +29,7 @@ export function PrintFooter({
   terms,
   showBankDetails = false,
   bankDetailsOverride,
+  bankDetailsType = "domestic",
   verifiedByLabel = "Prepared / Verified By",
   authorizedSignatoryLabel,
   company = DEFAULT_TEJCO_COMPANY,
@@ -46,12 +49,23 @@ export function PrintFooter({
       minute: "2-digit",
     })
 
+  const selectedBank =
+    bankDetailsType === "international"
+      ? company.bankDetails?.international || company.bankDetails
+      : company.bankDetails?.domestic || company.bankDetails
+
   const bankLines =
     bankDetailsOverride ||
-    (company.bankDetails?.lines ? company.bankDetails.lines : [])
+    (selectedBank?.lines ? selectedBank.lines : company.bankDetails?.lines ? company.bankDetails.lines : [])
 
   const defaultAuthorizer =
     authorizedSignatoryLabel || `Authorized Signatory (FOR ${company.legalName || company.name})`
+
+  const hasBankContent =
+    showBankDetails &&
+    (bankDetailsType === "both"
+      ? Boolean(company.bankDetails?.domestic || company.bankDetails?.international)
+      : bankLines.length > 0)
 
   return (
     <div
@@ -63,7 +77,7 @@ export function PrintFooter({
       }}
     >
       {/* ── Terms / Bank Details Section (Optional) ── */}
-      {(terms && terms.length > 0 || (showBankDetails && bankLines.length > 0)) && (
+      {(terms && terms.length > 0 || hasBankContent) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs border-t pt-3">
           {terms && terms.length > 0 && (
             <div className="border rounded-md p-3 bg-slate-50/50 space-y-1">
@@ -78,18 +92,49 @@ export function PrintFooter({
             </div>
           )}
 
-          {showBankDetails && bankLines.length > 0 && (
-            <div className="border rounded-md p-3 bg-slate-50/50 space-y-1">
-              <div className="font-bold text-[10px] uppercase tracking-wider text-blue-700">
-                {company.bankDetails?.title || "Bank Details"}:
-              </div>
-              <div className="text-[11px] text-slate-600 space-y-0.5">
-                {bankLines.map((line, idx) => (
-                  <div key={idx} className={idx === 0 ? "font-bold text-slate-800" : ""}>
-                    {line}
+          {showBankDetails && (
+            <div className="border rounded-md p-3 bg-slate-50/50 space-y-2">
+              {bankDetailsType === "both" && company.bankDetails?.domestic && company.bankDetails?.international ? (
+                <div className="space-y-3">
+                  <div>
+                    <div className="font-bold text-[10px] uppercase tracking-wider text-blue-700">
+                      {company.bankDetails.domestic.title || "Domestic Bank Details"}:
+                    </div>
+                    <div className="text-[11px] text-slate-600 space-y-0.5 mt-0.5">
+                      {company.bankDetails.domestic.lines?.map((line, idx) => (
+                        <div key={idx} className={idx === 0 ? "font-bold text-slate-800" : ""}>
+                          {line}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                  <div className="pt-2 border-t border-slate-200">
+                    <div className="font-bold text-[10px] uppercase tracking-wider text-blue-700">
+                      {company.bankDetails.international.title || "International Bank Details"}:
+                    </div>
+                    <div className="text-[11px] text-slate-600 space-y-0.5 mt-0.5">
+                      {company.bankDetails.international.lines?.map((line, idx) => (
+                        <div key={idx} className={idx === 0 ? "font-bold text-slate-800" : ""}>
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : bankLines.length > 0 ? (
+                <div>
+                  <div className="font-bold text-[10px] uppercase tracking-wider text-blue-700">
+                    {selectedBank?.title || company.bankDetails?.title || "Bank Details"}:
+                  </div>
+                  <div className="text-[11px] text-slate-600 space-y-0.5 mt-0.5">
+                    {bankLines.map((line, idx) => (
+                      <div key={idx} className={idx === 0 ? "font-bold text-slate-800" : ""}>
+                        {line}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>

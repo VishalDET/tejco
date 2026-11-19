@@ -960,6 +960,7 @@ export function ProformaDetailsView({ proforma: initialProforma }: ProformaDetai
           footerProps={{
             documentNumber: proforma.number || proforma.proformaNumber,
             showBankDetails: true,
+            bankDetailsType: proforma.paymentType === "Foreign" ? "international" : "domestic",
             showComputerGeneratedDisclaimer: true,
             authorizedSignatoryLabel: `FOR ${COMPANY.name}`,
             customSignatures: (
