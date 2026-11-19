@@ -24,26 +24,44 @@ const emptyAddress: Address = {
   country: "India"
 }
 
-export const DOCTOR_SPECIALITIES = [
-  "Dermatologist",
-  "Dermatologist/Cosmetology",
-  "Hair Transplant",
-  "Hair Transplant, Dermatologist/Cosmetology",
-  "Plastic Surgeon",
-  "Dentist",
-  "ENT Doctor",
-  "Chain Clinic",
-  "Hospital",
-  "International Doctor",
-  "Pharma",
-  "Reseller India",
-  "Reseller International",
+export const CLIENT_TYPES = [
+  "Doctor",
+  "Reseller india",
+  "Reseller international",
   "Technician",
+  "Hospital",
+  "Pharmaceutical company",
+  "Chain clinic",
+  "Doctor india",
+  "Doctor international",
+  "Salon",
   "Magnifier",
-  "General Physician",
-  "Trichologist",
-  "Surgeon",
-  "Others"
+  "FMCG",
+  "Distributor",
+] as const
+
+export const DOCTOR_SPECIALITIES = [
+  "Hair transplant",
+  "Dermatologist/Cosmetologist",
+  "Ent doctor",
+  "Dentist",
+  "Spine surgeon",
+  "Vet doctor",
+  "Plastic Surgeon",
+  "Maxelo facial surgeon",
+  "Others",
+] as const
+
+export const LEAD_SOURCES = [
+  "IndiaMART",
+  "Referral",
+  "Website",
+  "insta",
+  "Facebook",
+  "LinkedIn",
+  "Conference",
+  "Training",
+  "Others",
 ] as const
 
 interface ClientFormDialogProps {
@@ -67,6 +85,10 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
   const [isOtherSpeciality, setIsOtherSpeciality] = useState(false)
   const [otherSpecialityText, setOtherSpecialityText] = useState("")
 
+  // Custom lead source state for "Others" selection
+  const [isOtherLeadSource, setIsOtherLeadSource] = useState(false)
+  const [otherLeadSourceText, setOtherLeadSourceText] = useState("")
+
   const downloadTemplate = () => {
     const headers = [
       "Client Name",
@@ -74,6 +96,8 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       "GSTIN",
       "Client Status",
       "Client Type",
+      "Doctor Speciality",
+      "Source of Lead",
       "Primary Email",
       "Primary Phone",
       "Website",
@@ -111,7 +135,9 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       "Tejco",
       "22AAAAA0000A1Z5",
       "Lead",
-      "Clinic",
+      "Doctor",
+      "Dermatologist/Cosmetologist",
+      "IndiaMART",
       "info@tejco.com",
       "+91 9876543210",
       "https://tejco.com",
@@ -170,7 +196,9 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
         const shortName = firstRow["Short Name / Alias"] || firstRow["Short Name"] || ""
         const gstin = firstRow["GSTIN"] || ""
         const clientStatus = firstRow["Client Status"] || "Lead"
-        const clientType = firstRow["Client Type"] || "Clinic"
+        const clientType = firstRow["Client Type"] || "Doctor"
+        const doctorSpeciality = firstRow["Doctor Speciality"] || firstRow["Speciality"] || ""
+        const leadSource = firstRow["Source of Lead"] || firstRow["Lead Source"] || ""
         const email = firstRow["Primary Email"] || firstRow["Email"] || ""
         const phone = firstRow["Primary Phone"] || firstRow["Phone"] || ""
         const website = firstRow["Website"] || ""
@@ -239,7 +267,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
         })
 
         setPreviewData({
-          client: { name: clientName, company: shortName, gstin, status: clientStatus, clientType, email, phone, website, billingAddress, shippingAddress },
+          client: { name: clientName, company: shortName, gstin, status: clientStatus, clientType, doctorSpeciality, leadSource, email, phone, website, billingAddress, shippingAddress },
           contacts,
           branches
         })
@@ -283,8 +311,9 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
     const initialClient = client ?? {
       contacts: [],
       branches: [],
-      clientType: "Clinic",
+      clientType: "Doctor",
       doctorSpeciality: "",
+      leadSource: "",
       hasBranches: false,
       status: "Lead",
       billingAddress: { ...emptyAddress },
@@ -300,6 +329,16 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       setIsOtherSpeciality(false)
       setOtherSpecialityText("")
     }
+
+    const ls = (initialClient.leadSource || "").trim()
+    if (ls && !LEAD_SOURCES.filter(s => s !== "Others").includes(ls as any)) {
+      setIsOtherLeadSource(true)
+      setOtherLeadSourceText(ls)
+    } else {
+      setIsOtherLeadSource(false)
+      setOtherLeadSourceText("")
+    }
+
     setError(null)
   }, [client, open])
 
@@ -409,6 +448,10 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
     setIsSaving(true)
     setError(null)
 
+    const specValue = (isOtherSpeciality ? otherSpecialityText : (form.doctorSpeciality || "")).trim()
+    const leadSourceValue = (isOtherLeadSource ? otherLeadSourceText : (form.leadSource || "")).trim()
+    const doctorSpecialityArray = specValue ? [specValue] : []
+
     const payload: CreateClientPayload = {
       clientId: client?.id ? (Number(client.id) || 0) : 0,
       name: (form.name || "").trim(),
@@ -417,8 +460,8 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       email: (form.email || "").trim(),
       phone: (form.phone || "").trim(),
       status: form.status || "Active",
-      clientType: form.clientType || "Clinic",
-      doctorSpeciality: (isOtherSpeciality ? otherSpecialityText : (form.doctorSpeciality || "")).trim(),
+      clientType: form.clientType || "Doctor",
+      doctorSpeciality: doctorSpecialityArray,
       hasBranches: (form.branches && form.branches.length > 0) || Boolean(form.hasBranches),
       gstin: (form.gstin || "").trim(),
       joinedDate: form.joinedDate
@@ -428,6 +471,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
       dateOfBirth: form.dateOfBirth
         ? (form.dateOfBirth.includes("T") ? form.dateOfBirth : new Date(form.dateOfBirth).toISOString())
         : new Date().toISOString(),
+      leadSource: leadSourceValue,
       billingAddress: {
         street1: (form.billingAddress?.street1 || "").trim(),
         street2: (form.billingAddress?.street2 || "").trim(),
@@ -478,12 +522,24 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
         const res = await clientsApi.create(payload)
         toast.success("Client created successfully")
         const newClientId = res?.data?.clientId || res?.clientId || res?.data?.id || res?.id || 0
-        onSave({ ...form, ...payload, id: String(newClientId || "") } as Partial<Client>)
+        onSave({
+          ...form,
+          ...payload,
+          doctorSpeciality: specValue,
+          leadSource: leadSourceValue,
+          id: String(newClientId || "")
+        } as Partial<Client>)
       } else {
         // ── UPDATE ──
         await clientsApi.update(client.id, payload)
         toast.success("Client profile updated successfully")
-        onSave({ ...form, ...payload, id: String(client.id) } as Partial<Client>)
+        onSave({
+          ...form,
+          ...payload,
+          doctorSpeciality: specValue,
+          leadSource: leadSourceValue,
+          id: String(client.id)
+        } as Partial<Client>)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save client. Please try again.")
@@ -546,16 +602,21 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="clientType">Client Type</Label>
-                  <Select value={form.clientType ?? "Clinic"} onValueChange={(v) => set("clientType", v as ClientType)}>
+                  <Select value={form.clientType ?? "Doctor"} onValueChange={(v) => set("clientType", v as ClientType)}>
                     <SelectTrigger id="clientType">
-                      <SelectValue />
+                      <SelectValue placeholder="Select client type" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Clinic">Clinic</SelectItem>
-                      <SelectItem value="Doctor">Doctor</SelectItem>
-                      <SelectItem value="Hospital">Hospital</SelectItem>
-                      <SelectItem value="Retail">Retail</SelectItem>
-                      <SelectItem value="Others">Others</SelectItem>
+                      {CLIENT_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                      {form.clientType && !CLIENT_TYPES.includes(form.clientType as any) && (
+                        <SelectItem value={form.clientType}>
+                          {form.clientType}
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -588,6 +649,11 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                           {spec}
                         </SelectItem>
                       ))}
+                      {form.doctorSpeciality && !isOtherSpeciality && !DOCTOR_SPECIALITIES.includes(form.doctorSpeciality as any) && (
+                        <SelectItem value={form.doctorSpeciality}>
+                          {form.doctorSpeciality}
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
 
@@ -610,11 +676,70 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 </div>
               </div>
 
+              {/* Source of Lead & Primary Contact Person */}
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="leadSource">Source of Lead</Label>
+                  <Select
+                    value={
+                      isOtherLeadSource
+                        ? "Others"
+                        : form.leadSource || "none"
+                    }
+                    onValueChange={(v) => {
+                      if (v === "Others") {
+                        setIsOtherLeadSource(true)
+                        set("leadSource", otherLeadSourceText.trim())
+                      } else {
+                        setIsOtherLeadSource(false)
+                        setOtherLeadSourceText("")
+                        set("leadSource", v === "none" ? "" : v)
+                      }
+                    }}
+                  >
+                    <SelectTrigger id="leadSource">
+                      <SelectValue placeholder="Select source of lead" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">-- None / Not Specified --</SelectItem>
+                      {LEAD_SOURCES.map((source) => (
+                        <SelectItem key={source} value={source}>
+                          {source}
+                        </SelectItem>
+                      ))}
+                      {form.leadSource && !isOtherLeadSource && !LEAD_SOURCES.includes(form.leadSource as any) && (
+                        <SelectItem value={form.leadSource}>
+                          {form.leadSource}
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+
+                  {isOtherLeadSource && (
+                    <div className="pt-1.5 animate-in fade-in-50 duration-200">
+                      <Input
+                        id="otherLeadSource"
+                        placeholder="Enter source of lead..."
+                        value={otherLeadSourceText}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          setOtherLeadSourceText(val)
+                          set("leadSource", val)
+                        }}
+                        autoFocus
+                        className="text-sm bg-muted/20 border-primary/40 focus-visible:ring-primary/20"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="contactPerson">Primary Contact Person</Label>
                   <Input id="contactPerson" placeholder="Dr. John Doe" value={form.contactPerson ?? ""} onChange={(e) => set("contactPerson", e.target.value)} />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <div className="relative">
@@ -622,17 +747,17 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                     <Input id="email" className="pl-9" type="email" placeholder="john@example.com" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <div className="relative">
-                  <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input id="phone" className="pl-9" placeholder="+91 99999 99999" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input id="phone" className="pl-9" placeholder="+91 99999 99999" value={form.phone ?? ""} onChange={(e) => set("phone", e.target.value)} />
+                  </div>
                 </div>
               </div>
 
-              {form.clientType === "Doctor" && (
+              {Boolean(form.clientType?.toLowerCase().includes("doctor")) && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="dateOfBirth">Date of Birth</Label>
@@ -655,10 +780,17 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
                 </div>
               )}
 
-              {(form.clientType === "Hospital" || form.clientType === "Clinic") && (
+              {Boolean(
+                form.clientType === "Hospital" ||
+                form.clientType === "Chain clinic" ||
+                form.clientType === "Clinic" ||
+                form.clientType === "Distributor" ||
+                form.clientType?.toLowerCase().includes("reseller") ||
+                form.hasBranches
+              ) && (
                 <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/10">
                   <div className="flex-1">
-                    <Label className="text-sm font-bold">Does this {form.clientType.toLowerCase()} have multiple branches?</Label>
+                    <Label className="text-sm font-bold">Does this {form.clientType?.toLowerCase() || "client"} have multiple branches?</Label>
                     <p className="text-xs text-muted-foreground">Toggle to add and manage different branch locations.</p>
                   </div>
                   <Button
@@ -672,7 +804,7 @@ export function ClientFormDialog({ open, onOpenChange, client, onSave }: ClientF
               )}
             </div>
 
-            {form.hasBranches && (form.clientType === "Hospital" || form.clientType === "Clinic") && (
+            {form.hasBranches && (
               <>
                 <Separator />
                 <div className="space-y-4">

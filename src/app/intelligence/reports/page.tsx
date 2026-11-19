@@ -74,59 +74,59 @@ interface ReportConfig {
 // ---------------------------------------------------------------------------
 
 const IMRR_COLUMNS: ColumnDef[] = [
-    { key: "srNo",                  label: "Sr. No.", minWidth: "70px", align: "center" },
-    { key: "date",                  label: "Date", minWidth: "110px" },
-    { key: "inwardMaterialName",    label: "Name of the Inward Material", wrap: true, minWidth: "200px", maxWidth: "300px" },
-    { key: "supplierName",          label: "Supplier Name", wrap: true, minWidth: "160px", maxWidth: "240px" },
-    { key: "poNo",                  label: "P.O. No.", minWidth: "110px" },
-    { key: "poDate",                label: "P.O. Date", minWidth: "110px" },
-    { key: "inwardMaterialQty",     label: "Inward Material Quantity", minWidth: "120px", align: "right" },
-    { key: "conditionOnReceipt",    label: "Condition of Product when received", wrap: true, minWidth: "180px", maxWidth: "260px" },
-    { key: "acceptedQty",           label: "Accepted Quantity", minWidth: "110px", align: "right" },
-    { key: "rejectedQty",           label: "Rejected Quantity", minWidth: "110px", align: "right" },
-    { key: "warehouse",             label: "Warehouse", wrap: true, minWidth: "140px", maxWidth: "200px" },
-    { key: "checkedBy",             label: "Checked By", minWidth: "130px" },
-    { key: "verifiedBy",            label: "Verified By", minWidth: "130px" },
-    { key: "reasonForRejection",    label: "Reason for Rejection", wrap: true, minWidth: "220px", maxWidth: "340px" },
+    { key: "srNo", label: "Sr. No.", minWidth: "70px", align: "center" },
+    { key: "date", label: "Date", minWidth: "110px" },
+    { key: "inwardMaterialName", label: "Name of the Inward Meterial", wrap: true, minWidth: "200px", maxWidth: "300px" },
+    { key: "supplierName", label: "Supplier Name", wrap: true, minWidth: "160px", maxWidth: "240px" },
+    { key: "poNo", label: "P.O. No.", minWidth: "110px" },
+    { key: "poDate", label: "P.O. Date", minWidth: "110px" },
+    { key: "inwardMaterialQty", label: "Inward Material Quantity", minWidth: "120px", align: "right" },
+    { key: "conditionOnReceipt", label: "Condition of Product when received", wrap: true, minWidth: "180px", maxWidth: "260px" },
+    { key: "acceptedQty", label: "Accepted Quantity", minWidth: "110px", align: "right" },
+    { key: "rejectedQty", label: "Rejected Quantity", minWidth: "110px", align: "right" },
+    { key: "warehouse", label: "Warehouse", wrap: true, minWidth: "140px", maxWidth: "200px" },
+    { key: "checkedBy", label: "Checked By", minWidth: "130px" },
+    { key: "verifiedBy", label: "Verified By", minWidth: "130px" },
+    { key: "reasonForRejection", label: "Reason for Rejection", wrap: true, minWidth: "220px", maxWidth: "340px" },
 ]
 
 const OUTWARD_REGISTER_COLUMNS: ColumnDef[] = [
-    { key: "customerName",          label: "Customer Name", wrap: true, minWidth: "180px", maxWidth: "260px" },
-    { key: "lotNo",                 label: "Lot No.", minWidth: "120px" },
-    { key: "productName",           label: "Product Name", wrap: true, minWidth: "200px", maxWidth: "300px" },
-    { key: "quantity",              label: "Quantity", minWidth: "100px", align: "right" },
-    { key: "orderGivenBy",          label: "Order Given By", wrap: true, minWidth: "140px", maxWidth: "200px" },
-    { key: "deliveryTo",            label: "Delivery To", wrap: true, minWidth: "180px", maxWidth: "280px" },
-    { key: "warehouse",             label: "Warehouse", wrap: true, minWidth: "140px", maxWidth: "200px" },
-    { key: "vehicleContainerNo",    label: "Vehicle / Container Number", minWidth: "150px" },
-    { key: "driverNameMobile",      label: "Driver's Name & Mobile No.", wrap: true, minWidth: "170px", maxWidth: "250px" },
-    { key: "outTime",               label: "Out Time", minWidth: "110px" },
-    { key: "grnNo",                 label: "GRN No.", minWidth: "120px" },
-    { key: "supervisorSignature",   label: "Supervisor's Signature", minWidth: "140px" },
+    { key: "customerName", label: "Customer Name", wrap: true, minWidth: "180px", maxWidth: "260px" },
+    { key: "lotNo", label: "Lot No.", minWidth: "120px" },
+    { key: "productName", label: "Product Name", wrap: true, minWidth: "200px", maxWidth: "300px" },
+    { key: "quantity", label: "Quantity", minWidth: "100px", align: "right" },
+    { key: "orderGivenBy", label: "Order Given By", wrap: true, minWidth: "140px", maxWidth: "200px" },
+    { key: "deliveryTo", label: "Delivery To", wrap: true, minWidth: "180px", maxWidth: "280px" },
+    { key: "warehouse", label: "Warehouse", wrap: true, minWidth: "140px", maxWidth: "200px" },
+    { key: "vehicleContainerNo", label: "Vehicle / Container Number", minWidth: "150px" },
+    { key: "driverNameMobile", label: "Driver's Name & Mobile No.", wrap: true, minWidth: "170px", maxWidth: "250px" },
+    { key: "outTime", label: "Out Time", minWidth: "110px" },
+    { key: "grnNo", label: "GRN No.", minWidth: "120px" },
+    { key: "supervisorSignature", label: "Supervisor's Signature", minWidth: "140px" },
 ]
 
 const INWARD_REGISTER_COLUMNS: ColumnDef[] = [
-    { key: "date",                  label: "Date", minWidth: "110px" },
-    { key: "supplierName",          label: "Supplier Name", wrap: true, minWidth: "180px", maxWidth: "260px" },
-    { key: "location",              label: "Location", wrap: true, minWidth: "140px", maxWidth: "220px" },
-    { key: "grnNo",                 label: "GRN No.", minWidth: "120px" },
-    { key: "lotNo",                 label: "Lot No.", minWidth: "120px" },
-    { key: "productName",           label: "Product Name", wrap: true, minWidth: "200px", maxWidth: "300px" },
+    { key: "date", label: "Date", minWidth: "110px" },
+    { key: "supplierName", label: "Supplier Name", wrap: true, minWidth: "180px", maxWidth: "260px" },
+    { key: "location", label: "Location", wrap: true, minWidth: "140px", maxWidth: "220px" },
+    { key: "grnNo", label: "GRN No.", minWidth: "120px" },
+    { key: "lotNo", label: "Lot No.", minWidth: "120px" },
+    { key: "productName", label: "Product Name", wrap: true, minWidth: "200px", maxWidth: "300px" },
     { key: "testCertificateReceived", label: "Test Certificate Received [YES/NO]", wrap: true, minWidth: "150px", maxWidth: "200px", align: "center" },
-    { key: "qty",                   label: "QTY", minWidth: "90px", align: "right" },
-    { key: "inKg",                  label: "IN/KG", minWidth: "80px", align: "center" },
-    { key: "warehouse",             label: "Warehouse", wrap: true, minWidth: "140px", maxWidth: "200px" },
-    { key: "vehicleContainerNo",    label: "Vehicle / Container Number", minWidth: "150px" },
-    { key: "driverName",            label: "Driver's Name", minWidth: "130px" },
-    { key: "inTime",                label: "In Time", minWidth: "110px" },
-    { key: "supervisorSignature",   label: "Supervisor's Signature", minWidth: "140px" },
+    { key: "qty", label: "QTY", minWidth: "90px", align: "right" },
+    { key: "inKg", label: "IN/KG", minWidth: "80px", align: "center" },
+    { key: "warehouse", label: "Warehouse", wrap: true, minWidth: "140px", maxWidth: "200px" },
+    { key: "vehicleContainerNo", label: "Vehicle / Container Number", minWidth: "150px" },
+    { key: "driverName", label: "Driver's Name", minWidth: "130px" },
+    { key: "inTime", label: "In Time", minWidth: "110px" },
+    { key: "supervisorSignature", label: "Supervisor's Signature", minWidth: "140px" },
 ]
 
 const CUSTOMER_LIST_COLUMNS: ColumnDef[] = [
-    { key: "srNo",          label: "Sr. No.", minWidth: "70px", align: "center" },
-    { key: "customerName",  label: "Name of Customer", wrap: true, minWidth: "190px", maxWidth: "270px" },
-    { key: "address",       label: "Address", wrap: true, minWidth: "260px", maxWidth: "420px" },
-    { key: "products",      label: "Products", wrap: true, minWidth: "160px", maxWidth: "260px" },
+    { key: "srNo", label: "Sr. No.", minWidth: "70px", align: "center" },
+    { key: "customerName", label: "Name of Customer", wrap: true, minWidth: "190px", maxWidth: "270px" },
+    { key: "address", label: "Address", wrap: true, minWidth: "260px", maxWidth: "420px" },
+    { key: "products", label: "Products", wrap: true, minWidth: "160px", maxWidth: "260px" },
     { key: "contactPerson", label: "Contact Person", wrap: true, minWidth: "150px", maxWidth: "220px" },
     { key: "contactNumber", label: "Contact Number", minWidth: "140px" },
 ]
@@ -137,22 +137,22 @@ const CUSTOMER_LIST_COLUMNS: ColumnDef[] = [
 
 const REPORTS: ReportConfig[] = [
     // --- PDF reports (exact match) ---
-    {
-        id: "inward-material-rejection",
-        label: "Inward Material Rejection Record",
-        docNo: "TGLLP/QC/F/IMRR/04",
-        description: "QC rejection log — accepted & rejected inward quantities with reasons",
-        icon: ClipboardList,
-        color: "text-rose-600",
-        bgColor: "bg-rose-50 dark:bg-rose-950/30",
-        borderColor: "border-rose-200 dark:border-rose-800",
-        columns: IMRR_COLUMNS,
-    },
+    // {
+    //     id: "inward-material-rejection",
+    //     label: "Inward Material Rejection Record",
+    //     docNo: "TGLLP/QC/F/IMRR/04",
+    //     description: "QC rejection log — accepted & rejected inward quantities with reasons",
+    //     icon: ClipboardList,
+    //     color: "text-rose-600",
+    //     bgColor: "bg-rose-50 dark:bg-rose-950/30",
+    //     borderColor: "border-rose-200 dark:border-rose-800",
+    //     columns: IMRR_COLUMNS,
+    // },
     {
         id: "outward-register",
         label: "Outward Register",
         docNo: "TGLLP/STR/F/OR/02",
-        description: "Dispatched goods — customer, lot, vehicle & GRN details",
+        description: "",
         icon: Truck,
         color: "text-blue-600",
         bgColor: "bg-blue-50 dark:bg-blue-950/30",
@@ -163,7 +163,7 @@ const REPORTS: ReportConfig[] = [
         id: "inward-register",
         label: "Inward Register",
         docNo: "TGLLP/STR/F/IR/01",
-        description: "Stock receipts — supplier, GRN, lot, test certificate & vehicle details",
+        description: "",
         icon: ArrowDownToLine,
         color: "text-violet-600",
         bgColor: "bg-violet-50 dark:bg-violet-950/30",
@@ -174,7 +174,7 @@ const REPORTS: ReportConfig[] = [
         id: "customer-list",
         label: "List of Customers",
         docNo: "TGLLP/MRK/F/CL/01",
-        description: "Sales & marketing — master customer list with contact details",
+        description: "",
         icon: Users,
         color: "text-amber-600",
         bgColor: "bg-amber-50 dark:bg-amber-950/30",
@@ -186,32 +186,32 @@ const REPORTS: ReportConfig[] = [
         id: "sales",
         label: "Sales Report",
         docNo: "",
-        description: "Revenue, invoices & client-wise sales breakdown",
+        description: "",
         icon: ShoppingBag,
         color: "text-emerald-600",
         bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
         borderColor: "border-emerald-200 dark:border-emerald-800",
     },
-    {
-        id: "orders-outward",
-        label: "Orders Outward",
-        docNo: "",
-        description: "Dispatched orders, picking status & delivery details",
-        icon: PackageCheck,
-        color: "text-sky-600",
-        bgColor: "bg-sky-50 dark:bg-sky-950/30",
-        borderColor: "border-sky-200 dark:border-sky-800",
-    },
-    {
-        id: "inventory-inward",
-        label: "Inventory Inward",
-        docNo: "",
-        description: "Stock receipts, vendor deliveries & inward quantities",
-        icon: BarChart3,
-        color: "text-indigo-600",
-        bgColor: "bg-indigo-50 dark:bg-indigo-950/30",
-        borderColor: "border-indigo-200 dark:border-indigo-800",
-    },
+    // {
+    //     id: "orders-outward",
+    //     label: "Orders Outward",
+    //     docNo: "",
+    //     description: "Dispatched orders, picking status & delivery details",
+    //     icon: PackageCheck,
+    //     color: "text-sky-600",
+    //     bgColor: "bg-sky-50 dark:bg-sky-950/30",
+    //     borderColor: "border-sky-200 dark:border-sky-800",
+    // },
+    // {
+    //     id: "inventory-inward",
+    //     label: "Inventory Inward",
+    //     docNo: "",
+    //     description: "Stock receipts, vendor deliveries & inward quantities",
+    //     icon: BarChart3,
+    //     color: "text-indigo-600",
+    //     bgColor: "bg-indigo-50 dark:bg-indigo-950/30",
+    //     borderColor: "border-indigo-200 dark:border-indigo-800",
+    // },
 ]
 
 // ---------------------------------------------------------------------------
@@ -455,7 +455,7 @@ export default function ReportsPage() {
     const today = new Date()
     const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
 
-    const [selectedReport, setSelectedReport] = React.useState<ReportType>("inward-material-rejection")
+    const [selectedReport, setSelectedReport] = React.useState<ReportType>("outward-register")
     const [startDate, setStartDate] = React.useState<string>(toIsoDate(firstOfMonth))
     const [endDate, setEndDate] = React.useState<string>(toIsoDate(today))
 
@@ -465,7 +465,7 @@ export default function ReportsPage() {
     const [error, setError] = React.useState<string | null>(null)
     const [lastGenerated, setLastGenerated] = React.useState<string | null>(null)
 
-    const selectedConfig = REPORTS.find((r) => r.id === selectedReport)!
+    const selectedConfig = REPORTS.find((r) => r.id === selectedReport) ?? REPORTS[0]
 
     async function generateReport() {
         setLoading(true)
@@ -602,15 +602,6 @@ export default function ReportsPage() {
                             }}
                         />
                     ))}
-                </div>
-            </div>
-
-            {/* Report type selector — existing reports */}
-            <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
-                    Business Reports
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {existingReports.map((r) => (
                         <ReportTypeCard
                             key={r.id}
@@ -624,7 +615,16 @@ export default function ReportsPage() {
                             }}
                         />
                     ))}
+
                 </div>
+            </div>
+
+            {/* Report type selector — existing reports */}
+            <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2">
+                    Business Reports
+                </p>
+
             </div>
 
             {/* Filter bar */}
@@ -806,13 +806,12 @@ export default function ReportsPage() {
                                                     minWidth: col.minWidth ?? (col.wrap ? "150px" : "110px"),
                                                     maxWidth: col.maxWidth,
                                                 }}
-                                                className={`text-xs font-semibold uppercase tracking-wide text-muted-foreground py-3 px-4 border-b border-slate-200 dark:border-slate-800 ${
-                                                    col.align === "right"
-                                                        ? "text-right"
-                                                        : col.align === "center"
-                                                            ? "text-center"
-                                                            : "text-left"
-                                                } ${col.wrap ? "whitespace-normal break-words" : "whitespace-nowrap"}`}
+                                                className={`text-xs font-semibold uppercase tracking-wide text-muted-foreground py-3 px-4 border-b border-slate-200 dark:border-slate-800 ${col.align === "right"
+                                                    ? "text-right"
+                                                    : col.align === "center"
+                                                        ? "text-center"
+                                                        : "text-left"
+                                                    } ${col.wrap ? "whitespace-normal break-words" : "whitespace-nowrap"}`}
                                             >
                                                 {col.label}
                                             </TableHead>
@@ -832,13 +831,12 @@ export default function ReportsPage() {
                                                         minWidth: col.minWidth ?? (col.wrap ? "150px" : "110px"),
                                                         maxWidth: col.maxWidth,
                                                     }}
-                                                    className={`py-2.5 px-4 text-sm align-top ${
-                                                        col.align === "right"
-                                                            ? "text-right"
-                                                            : col.align === "center"
-                                                                ? "text-center"
-                                                                : "text-left"
-                                                    } ${col.wrap ? "whitespace-normal break-words leading-relaxed" : "whitespace-nowrap"}`}
+                                                    className={`py-2.5 px-4 text-sm align-top ${col.align === "right"
+                                                        ? "text-right"
+                                                        : col.align === "center"
+                                                            ? "text-center"
+                                                            : "text-left"
+                                                        } ${col.wrap ? "whitespace-normal break-words leading-relaxed" : "whitespace-nowrap"}`}
                                                 >
                                                     {formatCell(row[col.key])}
                                                 </TableCell>

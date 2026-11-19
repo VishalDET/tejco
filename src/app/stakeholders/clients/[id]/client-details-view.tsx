@@ -338,6 +338,12 @@ export function ClientDetailsView({ client }: Props) {
                   {localClient.doctorSpeciality}
                 </Badge>
               )}
+              {localClient?.leadSource && (
+                <Badge variant="secondary" className="text-[10px] font-semibold h-5 px-2 bg-blue-50 text-blue-700 border-blue-200 border flex items-center gap-1">
+                  <Globe className="h-3 w-3" />
+                  Lead: {localClient.leadSource}
+                </Badge>
+              )}
               {localClient?.company && localClient.company !== localClient.name && (
                 <span className="text-sm text-muted-foreground font-medium">({localClient.company})</span>
               )}
@@ -379,6 +385,17 @@ export function ClientDetailsView({ client }: Props) {
                   <div>
                     <p className="text-[10px] uppercase font-bold text-muted-foreground">Doctor Speciality</p>
                     <p className="text-sm font-semibold text-foreground">{localClient.doctorSpeciality}</p>
+                  </div>
+                </div>
+              )}
+              {localClient?.leadSource && (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 shrink-0 text-blue-600">
+                    <Globe className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground">Source of Lead</p>
+                    <p className="text-sm font-semibold text-foreground">{localClient.leadSource}</p>
                   </div>
                 </div>
               )}

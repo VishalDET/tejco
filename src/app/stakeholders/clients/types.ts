@@ -31,19 +31,37 @@ export interface CreateClientPayload {
   phone: string
   status: string
   clientType: string
-  doctorSpeciality: string
+  doctorSpeciality: string[]
   hasBranches: boolean
   gstin: string
   joinedDate: string
   instagramUrl: string
   dateOfBirth: string | null
+  leadSource?: string
   billingAddress: Address
   shippingAddress: Address
   contacts: ClientContact[]
   branches: ClientBranch[]
 }
 
-export type ClientType = "Clinic" | "Doctor" | "Hospital" | "Retail" | "Others"
+export type ClientType =
+  | "Doctor"
+  | "Reseller india"
+  | "Reseller international"
+  | "Technician"
+  | "Hospital"
+  | "Pharmaceutical company"
+  | "Chain clinic"
+  | "Doctor india"
+  | "Doctor international"
+  | "Salon"
+  | "Magnifier"
+  | "FMCG"
+  | "Distributor"
+  | "Clinic"
+  | "Retail"
+  | "Others"
+  | string
 
 export interface Client {
   id: string
@@ -55,6 +73,7 @@ export interface Client {
   status: "Active" | "Inactive" | "Lead"
   clientType: ClientType
   doctorSpeciality?: string
+  leadSource?: string
   hasBranches: boolean
   branches: ClientBranch[]
   joinedDate: string

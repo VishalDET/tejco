@@ -1067,179 +1067,178 @@ export default function ViewProductPage() {
 
                                                 {/* Lot-wise Stocks Breakdown */}
                                                 {!isSalesPerson && (
-                                                <div className="border-t bg-muted/10">
-                                                    <div
-                                                        className="px-4 py-2.5 flex items-center justify-between cursor-pointer select-none hover:bg-muted/30 transition-colors"
-                                                        onClick={() => toggleExpandLots(v.variantId)}
-                                                    >
-                                                        <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                                                <Boxes className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                                                                Lot Stocks
-                                                            </span>
-                                                            {isLotsLoading ? (
-                                                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                                                    <Loader2 className="h-3 w-3 animate-spin text-indigo-600" /> Loading...
+                                                    <div className="border-t bg-muted/10">
+                                                        <div
+                                                            className="px-4 py-2.5 flex items-center justify-between cursor-pointer select-none hover:bg-muted/30 transition-colors"
+                                                            onClick={() => toggleExpandLots(v.variantId)}
+                                                        >
+                                                            <div className="flex items-center gap-2 flex-wrap text-white">
+                                                                <span className="flex items-center gap-1.5 text-xs font-normal text-gray-600">
+                                                                    <Boxes className="h-3.5 w-3.5 text-gray-600 shrink-0" />
+                                                                    Lot Stocks
                                                                 </span>
-                                                            ) : lots && lots.length > 0 ? (
-                                                                <div className="flex items-center gap-1.5">
-                                                                    <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-semibold bg-indigo-50/80 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
-                                                                        {lots.length} {lots.length === 1 ? "Lot" : "Lots"}
-                                                                    </Badge>
-                                                                    <span className="text-[11px] text-muted-foreground font-medium">
-                                                                        • {lots.reduce((acc, l) => acc + (Number(l.availableQuantity ?? l.currentQuantity) || 0), 0)} PCS available
+                                                                {isLotsLoading ? (
+                                                                    <span className="flex items-center gap-1 text-[11px] text-white">
+                                                                        <Loader2 className="h-3 w-3 animate-spin text-white" /> Loading...
                                                                     </span>
-                                                                </div>
-                                                            ) : (
-                                                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal text-muted-foreground">
-                                                                    No Lots Recorded
-                                                                </Badge>
-                                                            )}
+                                                                ) : lots && lots.length > 0 ? (
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-semibold bg-indigo-50/80 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800">
+                                                                            {lots.length} {lots.length === 1 ? "Lot" : "Lots"}
+                                                                        </Badge>
+                                                                        <span className="text-[11px] text-white font-medium">
+                                                                            • {lots.reduce((acc, l) => acc + (Number(l.availableQuantity ?? l.currentQuantity) || 0), 0)} PCS available
+                                                                        </span>
+                                                                    </div>
+                                                                ) : (
+                                                                    <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal text-white">
+                                                                        No Lots Recorded
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
+                                                                <span>{isExpanded ? "Hide Lots" : "View Lots"}</span>
+                                                                {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                                            </div>
                                                         </div>
 
-                                                        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
-                                                            <span>{isExpanded ? "Hide Lots" : "View Lots"}</span>
-                                                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                                                        </div>
-                                                    </div>
+                                                        {/* Expanded Lots Content */}
+                                                        {isExpanded && (
+                                                            <div className="px-4 pb-4 pt-1 border-t bg-background/50 dark:bg-card/50">
+                                                                {isLotsLoading ? (
+                                                                    <div className="py-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                                                        <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
+                                                                        <span>Fetching lot breakdown...</span>
+                                                                    </div>
+                                                                ) : !lots || lots.length === 0 ? (
+                                                                    <div className="py-4 text-center text-xs text-muted-foreground bg-muted/20 rounded-lg border border-dashed p-3">
+                                                                        No specific lot or batch inward records found for this variation.
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5 mt-1.5">
+                                                                        {lots.map((lot, lIdx) => {
+                                                                            const expiry = formatExpiryDate(lot.expiryDate)
+                                                                            const wName = lot.warehouseName || warehousesMap[lot.warehouseId] || "Main Warehouse"
+                                                                            const lotAvail = Number(lot.availableQuantity ?? lot.currentQuantity) || 0
+                                                                            const lotCurrent = Number(lot.currentQuantity) || 0
 
-                                                    {/* Expanded Lots Content */}
-                                                    {isExpanded && (
-                                                        <div className="px-4 pb-4 pt-1 border-t bg-background/50 dark:bg-card/50">
-                                                            {isLotsLoading ? (
-                                                                <div className="py-6 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                                                                    <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />
-                                                                    <span>Fetching lot breakdown...</span>
-                                                                </div>
-                                                            ) : !lots || lots.length === 0 ? (
-                                                                <div className="py-4 text-center text-xs text-muted-foreground bg-muted/20 rounded-lg border border-dashed p-3">
-                                                                    No specific lot or batch inward records found for this variation.
-                                                                </div>
-                                                            ) : (
-                                                                <div className="space-y-2 max-h-60 overflow-y-auto pr-0.5 mt-1.5">
-                                                                    {lots.map((lot, lIdx) => {
-                                                                        const expiry = formatExpiryDate(lot.expiryDate)
-                                                                        const wName = lot.warehouseName || warehousesMap[lot.warehouseId] || "Main Warehouse"
-                                                                        const lotAvail = Number(lot.availableQuantity ?? lot.currentQuantity) || 0
-                                                                        const lotCurrent = Number(lot.currentQuantity) || 0
-
-                                                                        return (
-                                                                            <div
-                                                                                key={lot.lotId || lIdx}
-                                                                                className="p-2.5 rounded-lg border bg-card/90 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all text-xs shadow-2xs space-y-2"
-                                                                            >
-                                                                                {/* Row 1: Lot Number, Status & Action Buttons */}
-                                                                                <div className="flex items-center justify-between gap-2">
-                                                                                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                                                                                        <span className="font-mono font-bold text-foreground text-xs tracking-tight">
-                                                                                            {lot.lotNumber}
-                                                                                        </span>
-                                                                                        <button
-                                                                                            type="button"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation()
-                                                                                                handleCopy(lot.lotNumber, `lot-${lot.lotId}`, "Lot number")
-                                                                                            }}
-                                                                                            className="text-muted-foreground hover:text-foreground transition-colors p-0.5 cursor-pointer shrink-0"
-                                                                                            title="Copy Lot Number"
-                                                                                        >
-                                                                                            {copiedKey === `lot-${lot.lotId}` ? (
-                                                                                                <Check className="h-3 w-3 text-emerald-600" />
-                                                                                            ) : (
-                                                                                                <Copy className="h-3 w-3" />
-                                                                                            )}
-                                                                                        </button>
-                                                                                        {lot.status && (
-                                                                                            <Badge
-                                                                                                variant={lot.status === "Active" ? "default" : "secondary"}
-                                                                                                className={`text-[9px] h-4 px-1.5 font-medium shrink-0 ${
-                                                                                                    lot.status === "Active" ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""
-                                                                                                }`}
-                                                                                            >
-                                                                                                {lot.status}
-                                                                                            </Badge>
-                                                                                        )}
-                                                                                    </div>
-
-                                                                                    {/* Actions */}
-                                                                                    <div className="flex items-center gap-1 shrink-0">
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            variant="outline"
-                                                                                            size="sm"
-                                                                                            className="h-6.5 text-[11px] px-2 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 dark:border-indigo-800 dark:hover:bg-indigo-950/40 font-medium cursor-pointer"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation()
-                                                                                                handleOpenLotBarcodePrint(lot, v)
-                                                                                            }}
-                                                                                            title="Print Lot Barcode Label"
-                                                                                        >
-                                                                                            <Printer className="h-3 w-3" />
-                                                                                            <span>Print Label</span>
-                                                                                        </Button>
-                                                                                        <Button
-                                                                                            type="button"
-                                                                                            variant="ghost"
-                                                                                            size="sm"
-                                                                                            className="h-6.5 w-6.5 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
-                                                                                            onClick={(e) => {
-                                                                                                e.stopPropagation()
-                                                                                                setBarcodeModal({
-                                                                                                    code: lot.lotBarcode || lot.lotNumber,
-                                                                                                    name: `${v.variantName} (Lot ${lot.lotNumber})`,
-                                                                                                    sku: fullSku,
-                                                                                                    lotNumber: lot.lotNumber,
-                                                                                                    expiryDate: lot.expiryDate
-                                                                                                })
-                                                                                            }}
-                                                                                            title="View Barcode"
-                                                                                        >
-                                                                                            <Eye className="h-3.5 w-3.5" />
-                                                                                        </Button>
-                                                                                    </div>
-                                                                                </div>
-
-                                                                                {/* Row 2: Location & Quantity / Expiry Metrics */}
-                                                                                <div className="flex items-center justify-between gap-2 pt-1.5 border-t text-[11px] text-muted-foreground flex-wrap sm:flex-nowrap">
-                                                                                    {/* Warehouse & Rack */}
-                                                                                    <div className="flex items-center gap-1.5 min-w-0 truncate">
-                                                                                        <Warehouse className="h-3 w-3 shrink-0 text-slate-400" />
-                                                                                        <span className="truncate">{wName}</span>
-                                                                                        {lot.rackLocation && (
-                                                                                            <span className="font-medium text-foreground bg-muted px-1.5 py-0.2 rounded text-[10px] shrink-0">
-                                                                                                Rack: {lot.rackLocation}
+                                                                            return (
+                                                                                <div
+                                                                                    key={lot.lotId || lIdx}
+                                                                                    className="p-2.5 rounded-lg border bg-card/90 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all text-xs shadow-2xs space-y-2"
+                                                                                >
+                                                                                    {/* Row 1: Lot Number, Status & Action Buttons */}
+                                                                                    <div className="flex items-center justify-between gap-2">
+                                                                                        <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                                                                                            <span className="font-mono font-bold text-foreground text-xs tracking-tight">
+                                                                                                {lot.lotNumber}
                                                                                             </span>
-                                                                                        )}
-                                                                                    </div>
-
-                                                                                    {/* Metrics: Available PCS & Expiry */}
-                                                                                    <div className="flex items-center gap-2.5 shrink-0 ml-auto">
-                                                                                        <div className="flex items-baseline gap-1">
-                                                                                            <span className="text-[10px] text-muted-foreground uppercase font-semibold">Avail:</span>
-                                                                                            <span className="font-bold text-xs text-foreground">{lotAvail}</span>
-                                                                                            <span className="text-[10px] text-muted-foreground">PCS</span>
-                                                                                            {lotCurrent !== lotAvail && (
-                                                                                                <span className="text-[9px] text-muted-foreground font-normal ml-0.5">({lotCurrent})</span>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation()
+                                                                                                    handleCopy(lot.lotNumber, `lot-${lot.lotId}`, "Lot number")
+                                                                                                }}
+                                                                                                className="text-muted-foreground hover:text-foreground transition-colors p-0.5 cursor-pointer shrink-0"
+                                                                                                title="Copy Lot Number"
+                                                                                            >
+                                                                                                {copiedKey === `lot-${lot.lotId}` ? (
+                                                                                                    <Check className="h-3 w-3 text-emerald-600" />
+                                                                                                ) : (
+                                                                                                    <Copy className="h-3 w-3" />
+                                                                                                )}
+                                                                                            </button>
+                                                                                            {lot.status && (
+                                                                                                <Badge
+                                                                                                    variant={lot.status === "Active" ? "default" : "secondary"}
+                                                                                                    className={`text-[9px] h-4 px-1.5 font-medium shrink-0 ${lot.status === "Active" ? "bg-emerald-600 text-white hover:bg-emerald-600" : ""
+                                                                                                        }`}
+                                                                                                >
+                                                                                                    {lot.status}
+                                                                                                </Badge>
                                                                                             )}
                                                                                         </div>
 
-                                                                                        <Badge
-                                                                                            variant="outline"
-                                                                                            className={`text-[10px] h-4.5 px-1.5 font-medium shrink-0 ${expiry.badgeClass}`}
-                                                                                        >
-                                                                                            <Calendar className="h-2.5 w-2.5 mr-1 shrink-0" />
-                                                                                            <span>{expiry.label}</span>
-                                                                                        </Badge>
+                                                                                        {/* Actions */}
+                                                                                        <div className="flex items-center gap-1 shrink-0">
+                                                                                            <Button
+                                                                                                type="button"
+                                                                                                variant="outline"
+                                                                                                size="sm"
+                                                                                                className="h-6.5 text-[11px] px-2 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 dark:border-indigo-800 dark:hover:bg-indigo-950/40 font-medium cursor-pointer"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation()
+                                                                                                    handleOpenLotBarcodePrint(lot, v)
+                                                                                                }}
+                                                                                                title="Print Lot Barcode Label"
+                                                                                            >
+                                                                                                <Printer className="h-3 w-3" />
+                                                                                                <span>Print Label</span>
+                                                                                            </Button>
+                                                                                            <Button
+                                                                                                type="button"
+                                                                                                variant="ghost"
+                                                                                                size="sm"
+                                                                                                className="h-6.5 w-6.5 p-0 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                                                                                                onClick={(e) => {
+                                                                                                    e.stopPropagation()
+                                                                                                    setBarcodeModal({
+                                                                                                        code: lot.lotBarcode || lot.lotNumber,
+                                                                                                        name: `${v.variantName} (Lot ${lot.lotNumber})`,
+                                                                                                        sku: fullSku,
+                                                                                                        lotNumber: lot.lotNumber,
+                                                                                                        expiryDate: lot.expiryDate
+                                                                                                    })
+                                                                                                }}
+                                                                                                title="View Barcode"
+                                                                                            >
+                                                                                                <Eye className="h-3.5 w-3.5" />
+                                                                                            </Button>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {/* Row 2: Location & Quantity / Expiry Metrics */}
+                                                                                    <div className="flex items-center justify-between gap-2 pt-1.5 border-t text-[11px] text-muted-foreground flex-wrap sm:flex-nowrap">
+                                                                                        {/* Warehouse & Rack */}
+                                                                                        <div className="flex items-center gap-1.5 min-w-0 truncate">
+                                                                                            <Warehouse className="h-3 w-3 shrink-0 text-slate-400" />
+                                                                                            <span className="truncate">{wName}</span>
+                                                                                            {lot.rackLocation && (
+                                                                                                <span className="font-medium text-foreground bg-muted px-1.5 py-0.2 rounded text-[10px] shrink-0">
+                                                                                                    Rack: {lot.rackLocation}
+                                                                                                </span>
+                                                                                            )}
+                                                                                        </div>
+
+                                                                                        {/* Metrics: Available PCS & Expiry */}
+                                                                                        <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+                                                                                            <div className="flex items-baseline gap-1">
+                                                                                                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Avail:</span>
+                                                                                                <span className="font-bold text-xs text-foreground">{lotAvail}</span>
+                                                                                                <span className="text-[10px] text-muted-foreground">PCS</span>
+                                                                                                {lotCurrent !== lotAvail && (
+                                                                                                    <span className="text-[9px] text-muted-foreground font-normal ml-0.5">({lotCurrent})</span>
+                                                                                                )}
+                                                                                            </div>
+
+                                                                                            <Badge
+                                                                                                variant="outline"
+                                                                                                className={`text-[10px] h-4.5 px-1.5 font-medium shrink-0 ${expiry.badgeClass}`}
+                                                                                            >
+                                                                                                <Calendar className="h-2.5 w-2.5 mr-1 shrink-0" />
+                                                                                                <span>{expiry.label}</span>
+                                                                                            </Badge>
+                                                                                        </div>
                                                                                     </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        )
-                                                                    })}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                                            )
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 )}
 
                                                 {/* Card Footer with Barcode Strip & Print Options */}

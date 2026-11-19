@@ -38,6 +38,7 @@ interface NavSubItem {
     title: string
     url: string
     permission?: string | string[]
+    superAdminOnly?: boolean
 }
 
 interface NavItem {
@@ -45,6 +46,7 @@ interface NavItem {
     url: string
     icon: any
     permission?: string | string[]
+    superAdminOnly?: boolean
     items?: NavSubItem[]
 }
 
@@ -106,7 +108,7 @@ const data: { navMain: NavItem[] } = {
             title: "International Sales",
             url: "/international-sales",
             icon: Globe,
-            permission: "SalesOrders.View",
+            superAdminOnly: true,
         },
         {
             title: "Goods Return",
@@ -158,25 +160,28 @@ const data: { navMain: NavItem[] } = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const location = useLocation()
     const pathname = location.pathname
-    const { hasPermission, permissions, user } = useAuth()
+    const { hasPermission, permissions, user, isSuperAdmin } = useAuth()
 
-    // Filter nav items strictly based on user permissions
+    // Filter nav items strictly based on user permissions & superadmin status
     const visibleNavItems = React.useMemo(() => {
-        // Super-admin / roleId 1 / wildcard bypass
-        if (permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator") {
-            return data.navMain
-        }
-
-        const activePermissions = permissions && permissions.length > 0
-            ? permissions
-            : (user?.permissions && user.permissions.length > 0 ? user.permissions : [])
+        const isSuper = isSuperAdmin || permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator"
 
         return data.navMain
+            .filter((item) => {
+                // If item is restricted to Super Admin only, hide from all others
+                if (item.superAdminOnly && !isSuper) return false
+                return true
+            })
             .map((item) => {
                 // If item has sub-items, filter visible sub-items strictly
                 if (item.items && item.items.length > 0) {
                     const visibleSubItems = item.items.filter((sub) => {
+                        if (sub.superAdminOnly && !isSuper) return false
+                        if (isSuper) return true
                         if (!sub.permission) return true
+                        const activePermissions = permissions && permissions.length > 0
+                            ? permissions
+                            : (user?.permissions && user.permissions.length > 0 ? user.permissions : [])
                         if (activePermissions.length === 0) return false
                         return hasPermission(sub.permission)
                     })
@@ -185,8 +190,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     return { ...item, items: visibleSubItems }
                 }
 
+                // Super-admin bypass for direct items
+                if (isSuper) {
+                    return item
+                }
+
                 // Direct item (e.g. Dashboard)
                 if (item.permission) {
+                    const activePermissions = permissions && permissions.length > 0
+                        ? permissions
+                        : (user?.permissions && user.permissions.length > 0 ? user.permissions : [])
                     if (activePermissions.length === 0) return null
                     if (!hasPermission(item.permission)) {
                         return null
@@ -195,7 +208,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 return item
             })
             .filter((item): item is NavItem => item !== null)
-    }, [hasPermission, permissions, user])
+    }, [hasPermission, permissions, user, isSuperAdmin])
 
     function NavMainItem({ item, pathname }: { item: any; pathname: string | null }) {
         const hasActiveSubItem = item.items?.some((subItem: any) =>

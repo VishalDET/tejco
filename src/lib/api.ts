@@ -44,6 +44,9 @@ export interface ApiClient {
   contactPerson: string
   phone: string
   email?: string
+  clientType?: string
+  doctorSpeciality?: string[] | string
+  leadSource?: string
 }
 
 /** Maps the backend ApiClient shape to the UI Client type */
@@ -57,7 +60,7 @@ export function mapApiClient(raw: ApiClient): Client {
       email: "",
       phone: "",
       status: "Active",
-      clientType: "Clinic",
+      clientType: "Doctor",
       hasBranches: false,
       branches: [],
       joinedDate: "",
@@ -66,6 +69,7 @@ export function mapApiClient(raw: ApiClient): Client {
       shippingAddress: { street1: "", city: "", state: "", pincode: "", country: "" },
       contacts: [],
       instagramUrl: "",
+      leadSource: "",
     }
   }
 
@@ -109,8 +113,11 @@ export function mapApiClient(raw: ApiClient): Client {
     email: String(raw.email || extra.email || ""),
     phone: String(raw.phone || ""),
     status: (r.status || extra.status || "Active") as Client["status"],
-    clientType: (r.clientType || extra.clientType || "") as Client["clientType"],
-    doctorSpeciality: String(r.doctorSpeciality || extra.doctorSpeciality || ""),
+    clientType: (r.clientType || extra.clientType || "Doctor") as Client["clientType"],
+    doctorSpeciality: Array.isArray(r.doctorSpeciality)
+      ? r.doctorSpeciality.join(", ")
+      : String(r.doctorSpeciality || extra.doctorSpeciality || ""),
+    leadSource: String(r.leadSource || extra.leadSource || ""),
     hasBranches: Boolean(r.hasBranches || extra.hasBranches || false),
     branches: Array.isArray(r.branches) ? r.branches : Array.isArray(extra.branches) ? extra.branches : [],
     joinedDate: String(r.joinedDate || extra.joinedDate || ""),
@@ -193,6 +200,11 @@ export const clientsApi = {
 
   /** POST /api/Client/Create — create a new client */
   create: (data: Partial<CreateClientPayload> | Partial<Client>) => {
+    const spec = data.doctorSpeciality
+    const doctorSpeciality = Array.isArray(spec)
+      ? spec.map(String).map((s) => s.trim()).filter(Boolean)
+      : (spec && typeof spec === "string" && spec.trim() ? [spec.trim()] : [])
+
     const payload: CreateClientPayload = {
       clientId: 0,
       name: (data.name || "").trim(),
@@ -201,8 +213,8 @@ export const clientsApi = {
       email: (data.email || "").trim(),
       phone: (data.phone || "").trim(),
       status: data.status || "Active",
-      clientType: data.clientType || "Clinic",
-      doctorSpeciality: (data.doctorSpeciality || "").trim(),
+      clientType: data.clientType || "Doctor",
+      doctorSpeciality,
       hasBranches: (data.branches && data.branches.length > 0) || Boolean(data.hasBranches),
       gstin: (data.gstin || "").trim(),
       joinedDate: data.joinedDate
@@ -212,6 +224,7 @@ export const clientsApi = {
       dateOfBirth: data.dateOfBirth
         ? (data.dateOfBirth.includes("T") ? data.dateOfBirth : new Date(data.dateOfBirth).toISOString())
         : new Date().toISOString(),
+      leadSource: (data.leadSource || "").trim(),
       billingAddress: {
         street1: (data.billingAddress?.street1 || "").trim(),
         street2: (data.billingAddress?.street2 || "").trim(),
@@ -260,6 +273,11 @@ export const clientsApi = {
 
   /** PUT /api/Client/Update/{id} — update an existing client */
   update: (id: string | number, data: Partial<CreateClientPayload> | Partial<Client>) => {
+    const spec = data.doctorSpeciality
+    const doctorSpeciality = Array.isArray(spec)
+      ? spec.map(String).map((s) => s.trim()).filter(Boolean)
+      : (spec && typeof spec === "string" && spec.trim() ? [spec.trim()] : [])
+
     const payload: CreateClientPayload = {
       clientId: Number(id) || 0,
       name: (data.name || "").trim(),
@@ -268,8 +286,8 @@ export const clientsApi = {
       email: (data.email || "").trim(),
       phone: (data.phone || "").trim(),
       status: data.status || "Active",
-      clientType: data.clientType || "Clinic",
-      doctorSpeciality: (data.doctorSpeciality || "").trim(),
+      clientType: data.clientType || "Doctor",
+      doctorSpeciality,
       hasBranches: (data.branches && data.branches.length > 0) || Boolean(data.hasBranches),
       gstin: (data.gstin || "").trim(),
       joinedDate: data.joinedDate
@@ -279,6 +297,7 @@ export const clientsApi = {
       dateOfBirth: data.dateOfBirth
         ? (data.dateOfBirth.includes("T") ? data.dateOfBirth : new Date(data.dateOfBirth).toISOString())
         : new Date().toISOString(),
+      leadSource: (data.leadSource || "").trim(),
       billingAddress: {
         street1: (data.billingAddress?.street1 || "").trim(),
         street2: (data.billingAddress?.street2 || "").trim(),

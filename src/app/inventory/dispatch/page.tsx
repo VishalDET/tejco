@@ -159,8 +159,8 @@ export default function DispatchPage() {
             Record delivery partners, tracking numbers, package details, and delivery progress.
           </p>
         </div>
-        <Button 
-          className="gap-2" 
+        <Button
+          className="gap-2"
           onClick={() => navigate(`/inventory/dispatch/${nextReadyDispatchId}`)}
           disabled={!nextReadyDispatchId}
         >
@@ -226,7 +226,7 @@ export default function DispatchPage() {
                     <TableHead>Warehouse</TableHead>
                     <TableHead>Partner / Tracking</TableHead>
                     <TableHead>Packages</TableHead>
-                    <TableHead>Readiness</TableHead>
+                    {/* <TableHead>Readiness</TableHead> */}
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
@@ -285,12 +285,12 @@ export default function DispatchPage() {
                                 {dispatch.grossWeightKg ? `${dispatch.grossWeightKg} kg` : "Weight pending"}
                               </div>
                             </TableCell>
-                            <TableCell>
+                            {/* <TableCell>
                               <Progress value={readiness.percent} className="w-[160px]">
                                 <ProgressLabel>{readiness.complete}/{readiness.total} fields</ProgressLabel>
                                 <span className="ml-auto text-sm text-muted-foreground tabular-nums">{readiness.percent}%</span>
                               </Progress>
-                            </TableCell>
+                            </TableCell> */}
                             <TableCell>{getStatusBadge(dispatch.status)}</TableCell>
                             <TableCell className="text-right">
                               <Button

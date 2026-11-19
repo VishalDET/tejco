@@ -365,6 +365,16 @@ export default function ClientsPage() {
                         <Badge variant="outline" className="w-fit text-[10px] font-bold py-0 h-5 border-slate-200">
                           {client.clientType ? client.clientType : "N/A"}
                         </Badge>
+                        {client.doctorSpeciality && (
+                          <span className="text-[10px] text-emerald-700 font-medium line-clamp-1">
+                            {client.doctorSpeciality}
+                          </span>
+                        )}
+                        {client.leadSource && (
+                          <span className="text-[9px] text-muted-foreground">
+                            Lead: {client.leadSource}
+                          </span>
+                        )}
                         {client.hasBranches && (
                           <span className="text-[9px] font-black text-primary/70 uppercase">
                             {client.branches?.length || 0} Branches Found

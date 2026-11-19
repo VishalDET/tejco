@@ -23,6 +23,7 @@ import {
   TrendingUp,
   PackageCheck,
   Plane,
+  ShieldAlert,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -135,7 +136,7 @@ export default function InternationalSalesPage() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  const { user } = useAuth()
+  const { user, isSuperAdmin } = useAuth()
   const isSalesPerson =
     Number(user?.roleId) === 3 ||
     String(user?.role || "").toLowerCase().includes("sales person") ||
@@ -360,6 +361,39 @@ export default function InternationalSalesPage() {
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1
 
+  if (!isSuperAdmin) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh] p-4">
+        <Card className="max-w-md w-full text-center border-border shadow-md">
+          <CardHeader className="flex flex-col items-center gap-3">
+            <div className="h-14 w-14 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center">
+              <ShieldAlert className="h-7 w-7" />
+            </div>
+            <CardTitle className="text-xl font-bold">Access Restricted</CardTitle>
+            <CardDescription className="text-xs">
+              International Sales is restricted to Super Admin only.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-3 bg-muted/40 rounded-lg text-xs font-mono text-muted-foreground border">
+              Role Required: Super Admin
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                size="sm"
+                variant="default"
+                className="text-xs bg-indigo-600 hover:bg-indigo-700"
+                onClick={() => navigate("/sales/orders")}
+              >
+                Go to Domestic Orders
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6 p-4 md:p-6 lg:p-8 animate-in fade-in duration-500">
       {/* Header */}
@@ -389,13 +423,13 @@ export default function InternationalSalesPage() {
           >
             <RefreshCw className={`h-4 w-4 text-slate-600 ${isRefreshing ? "animate-spin" : ""}`} />
           </Button>
-          <Button
+          {/* <Button
             onClick={handleCreateOrder}
             className="shadow-md gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
           >
             <Plus className="h-4 w-4" />
             New International Order
-          </Button>
+          </Button> */}
         </div>
       </div>
 
@@ -419,7 +453,7 @@ export default function InternationalSalesPage() {
           </CardContent>
         </Card>
 
-        {/* Total Export Orders */}
+        {/* Total Export Orders 
         <Card className="border-slate-200 shadow-xs bg-gradient-to-br from-white to-indigo-50/30">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -435,9 +469,9 @@ export default function InternationalSalesPage() {
               <Globe className="h-5 w-5" />
             </div>
           </CardContent>
-        </Card>
+        </Card>*/}
 
-        {/* In Transit */}
+        {/* In Transit 
         <Card className="border-slate-200 shadow-xs bg-gradient-to-br from-white to-purple-50/30">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
@@ -453,7 +487,7 @@ export default function InternationalSalesPage() {
               <Plane className="h-5 w-5" />
             </div>
           </CardContent>
-        </Card>
+        </Card>*/}
 
         {/* Delivered Exports */}
         <Card className="border-slate-200 shadow-xs bg-gradient-to-br from-white to-emerald-50/30">
@@ -898,11 +932,10 @@ export default function InternationalSalesPage() {
                             variant={isSelected ? "default" : "outline"}
                             size="sm"
                             disabled={isLoading}
-                            className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${
-                              isSelected
-                                ? "bg-blue-600 text-white shadow-xs font-semibold"
-                                : "hover:bg-muted border-slate-200"
-                            }`}
+                            className={`h-8 min-w-[32px] px-2 text-xs font-medium transition-all ${isSelected
+                              ? "bg-blue-600 text-white shadow-xs font-semibold"
+                              : "hover:bg-muted border-slate-200"
+                              }`}
                             onClick={() => setPageNumber(pageNum)}
                           >
                             {pageNum}
