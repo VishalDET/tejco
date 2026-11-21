@@ -102,6 +102,13 @@ export function executePrint(
     ? (options?.margin || "0mm")
     : (options?.margin || "6mm 8mm")
 
+  const origin = typeof window !== "undefined" ? window.location.origin : ""
+  const styleElements = typeof document !== "undefined"
+    ? Array.from(document.querySelectorAll("link[rel='stylesheet'], style"))
+        .map(el => el.outerHTML)
+        .join("\n")
+    : ""
+
   printWindow.document.open()
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -110,7 +117,9 @@ export function executePrint(
         <title>${title}</title>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <base href="${origin}/" />
         <link rel="stylesheet" href="/src/app/globals.css" />
+        ${styleElements}
         <style>
           * {
             box-sizing: border-box;
@@ -162,13 +171,55 @@ export function executePrint(
           ${contents}
         </div>
         <script>
-          window.onload = function() {
-            setTimeout(function() {
+          function triggerPrint() {
+            var imgs = Array.from(document.querySelectorAll('img'));
+            // Remove any crossorigin attribute that could cause CORS rejection
+            imgs.forEach(function(img) {
+              img.removeAttribute('crossorigin');
+              img.addEventListener('error', function() {
+                var src = img.getAttribute('src') || '';
+                var dMatch = src.match(/\/d\/([a-zA-Z0-9_-]+)/) || src.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+                if (dMatch && dMatch[1] && !img.dataset.triedFallback) {
+                  img.dataset.triedFallback = 'true';
+                  img.src = 'https://drive.google.com/thumbnail?id=' + dMatch[1] + '&sz=w400';
+                  return;
+                }
+                // If it fails completely, hide container so broken image icon is never printed
+                if (img.parentElement) {
+                  img.parentElement.style.display = 'none';
+                }
+              });
+            });
+
+            var pending = imgs.filter(function(img) { return !img.complete; });
+            if (pending.length === 0) {
+              setTimeout(doPrint, Math.max(150, ${delay}));
+              return;
+            }
+            var count = pending.length;
+            var timer = setTimeout(doPrint, 2500);
+            pending.forEach(function(img) {
+              function onDone() {
+                count--;
+                if (count <= 0) {
+                  clearTimeout(timer);
+                  setTimeout(doPrint, 150);
+                }
+              }
+              img.addEventListener('load', onDone);
+              img.addEventListener('error', onDone);
+            });
+            function doPrint() {
               window.focus();
               window.print();
               window.close();
-            }, ${delay});
-          };
+            }
+          }
+          if (document.readyState === 'complete') {
+            triggerPrint();
+          } else {
+            window.addEventListener('load', triggerPrint);
+          }
         </script>
       </body>
     </html>

@@ -16,7 +16,7 @@ import {
   FileSpreadsheet
 } from "lucide-react"
 import { Order, OrderStatus, salesOrderClientCache } from "@/app/sales/orders/types"
-import { clientsApi, productsApi } from "@/lib/api"
+import { clientsApi, productsApi, serializeAddress } from "@/lib/api"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 
 const productDetailsCache = new Map<string, any>()
@@ -88,8 +88,9 @@ const formatDateWithDots = (dateStr: string) => {
 }
 
 const renderAddressLines = (address?: string) => {
-  if (!address) return "N/A"
-  const lines = address.split(/[\n,]+/).map((l) => l.trim()).filter(Boolean)
+  if (!address || !address.trim() || address === "N/A" || address === "—") return "N/A"
+  const clean = address.replace(/\|/g, ", ")
+  const lines = clean.split(/[\n,]+/).map((l) => l.trim()).filter(Boolean)
   if (lines.length === 0) return address
   return lines.map((line, idx) => (
     <span key={idx} className="block">
@@ -98,19 +99,19 @@ const renderAddressLines = (address?: string) => {
   ))
 }
 
-const renderAddressLinesPrint = (address?: string) => {
-  if (!address) return <span>N/A</span>
-  const lines = address.split(/[\n,]+/).map((l) => l.trim()).filter(Boolean)
-  if (lines.length === 0) return <span>{address}</span>
-  return (
-    <>
-      {lines.map((line, idx) => (
-        <span key={idx} style={{ display: "block" }}>
-          {line}{idx < lines.length - 1 ? "," : ""}
-        </span>
-      ))}
-    </>
-  )
+const renderAddressCompactPrint = (address?: string) => {
+  if (!address || !address.trim() || address === "N/A" || address === "—") {
+    return <span className="text-slate-400 italic text-[10px]">Not Specified</span>
+  }
+  const clean = address
+    .replace(/\|+/g, ", ")
+    .replace(/\n+/g, ", ")
+    .replace(/\s*,\s*/g, ", ")
+    .replace(/,\s*,/g, ", ")
+    .trim()
+    .replace(/^,|,$/g, "")
+
+  return <span className="text-[10px] leading-tight text-slate-700 block">{clean}</span>
 }
 
 export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps) {
@@ -120,14 +121,17 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
 
   React.useEffect(() => {
     setOrder(initialOrder)
-    if (initialOrder.clientId && initialOrder.clientId !== "0" && (!initialOrder.clientName || initialOrder.clientName.startsWith("Client #"))) {
+    if (initialOrder.clientId && initialOrder.clientId !== "0") {
       const cached = salesOrderClientCache.get(initialOrder.clientId)
       if (cached && cached.name) {
         setOrder(prev => ({
           ...prev,
-          clientName: cached.name,
+          clientName: (!prev.clientName || prev.clientName.startsWith("Client #")) ? cached.name : prev.clientName,
           doctorSpeciality: prev.doctorSpeciality || cached.doctorSpeciality || "",
           clientGSTIN: prev.clientGSTIN || cached.gstin || "",
+          clientMobileNo: prev.clientMobileNo || (cached as any).mobile || cached.phone || undefined,
+          billingAddress: prev.billingAddress || (cached.billingAddress ? serializeAddress(cached.billingAddress) : (cached.address || "")) || "",
+          shippingAddress: prev.shippingAddress || (cached.shippingAddress ? serializeAddress(cached.shippingAddress) : (prev.billingAddress || "")) || "",
         }))
       } else {
         clientsApi.getById(initialOrder.clientId)
@@ -136,9 +140,12 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
               salesOrderClientCache.set(initialOrder.clientId, c)
               setOrder(prev => ({
                 ...prev,
-                clientName: c.name,
+                clientName: (!prev.clientName || prev.clientName.startsWith("Client #")) ? c.name : prev.clientName,
                 doctorSpeciality: prev.doctorSpeciality || c.doctorSpeciality || "",
                 clientGSTIN: prev.clientGSTIN || c.gstin || "",
+                clientMobileNo: prev.clientMobileNo || (c as any).mobile || c.phone || undefined,
+                billingAddress: prev.billingAddress || (c.billingAddress ? serializeAddress(c.billingAddress) : (c.address || "")) || "",
+                shippingAddress: prev.shippingAddress || (c.shippingAddress ? serializeAddress(c.shippingAddress) : (prev.billingAddress || "")) || "",
               }))
             }
           })
@@ -146,18 +153,16 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
       }
     }
 
-    // Fetch product details for items where variationId is null/missing/0
+    // Fetch product details for items where imageUrl or productName is missing
     if (initialOrder.items && initialOrder.items.length > 0) {
       const itemsToEnrich = initialOrder.items.filter(
-        item => (!item.variantId || item.variantId === 0) && item.productId && item.productId !== "0"
+        item => (!item.imageUrl || !item.productName || item.productName === "No product found") && item.productId && item.productId !== "0"
       )
 
       if (itemsToEnrich.length > 0) {
         Promise.all(
           initialOrder.items.map(async (item) => {
-            const hasVariant = !!item.variantId && item.variantId !== 0
-            if (hasVariant || !item.productId || item.productId === "0") {
-              // If item doesn't have a valid product or variant, check if productName is empty
+            if (!item.productId || item.productId === "0") {
               if (!item.productName && !item.name && !item.sku) {
                 return { ...item, productName: "No product found" }
               }
@@ -175,12 +180,23 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                 }
               }
 
-              if (prod && (prod.productName || prod.name)) {
-                const prodName = prod.productName || prod.name || "No product found"
-                const defaultVariant = Array.isArray(prod.variants) && prod.variants.length > 0 ? prod.variants[0] : null
-                const variantName = defaultVariant?.variantName || prod.variantName || ""
-                const sku = item.sku || (defaultVariant ? `${prod.baseSKU || ""}${defaultVariant.skuSuffix || ""}` : prod.baseSKU) || ""
-                const imageUrl = item.imageUrl || defaultVariant?.variantImage || prod.imageUrl || prod.image || ""
+              if (prod) {
+                const variants = Array.isArray(prod.variants) ? prod.variants : []
+                const matchedVariant = item.variantId
+                  ? variants.find((v: any) => Number(v.variantId || v.id) === Number(item.variantId))
+                  : variants[0]
+
+                const prodName = prod.productName || prod.name || item.productName || "Product"
+                const variantName = matchedVariant?.variantName || prod.variantName || ""
+                const sku = item.sku || (matchedVariant ? `${prod.baseSKU || ""}${matchedVariant.skuSuffix || ""}` : prod.baseSKU) || ""
+                const imageUrl = item.imageUrl ||
+                  matchedVariant?.variantImage ||
+                  matchedVariant?.imageUrl ||
+                  matchedVariant?.image ||
+                  prod.imageUrl ||
+                  prod.image ||
+                  (Array.isArray(prod.images) && prod.images[0]) ||
+                  ""
 
                 return {
                   ...item,
@@ -189,18 +205,11 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                   sku: sku,
                   imageUrl: imageUrl || item.imageUrl,
                 }
-              } else {
-                return {
-                  ...item,
-                  productName: item.productName || "No product found",
-                }
               }
+              return item
             } catch (err) {
               console.error(`Failed to fetch product details for productId ${item.productId}:`, err)
-              return {
-                ...item,
-                productName: item.productName || "No product found",
-              }
+              return item
             }
           })
         ).then((enrichedItems) => {
@@ -566,6 +575,11 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                       GSTIN: {(order as any).clientGSTIN || (order as any).gstinNo}
                     </div>
                   )}
+                  {order.clientMobileNo && (
+                    <div className="text-xs text-slate-600 mt-0.5">
+                      Mobile: {order.clientMobileNo}
+                    </div>
+                  )}
                 </div>
                 <Separator />
                 <div>
@@ -599,8 +613,21 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
         </div>
       </div>
 
-      {/* ── Hidden Print Area using Common PrintLayout ── */}
-      <div id="order-print-area" className="hidden">
+      {/* ── Print Area using Common PrintLayout (positioned offscreen so images preload and decode) ── */}
+      <div
+        id="order-print-area"
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          top: "-99999px",
+          left: "-99999px",
+          width: "210mm",
+          height: "auto",
+          opacity: 0,
+          pointerEvents: "none",
+          zIndex: -9999,
+        }}
+      >
         <PrintLayout
           containerRef={printRef}
           documentTitle="SALES ORDER"
@@ -641,85 +668,94 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
             ),
           }}
         >
-          {/* Customer & Document Information Box */}
-          <div className="mb-4 text-xs font-sans border border-slate-300 rounded-md overflow-hidden">
-            <div className="grid grid-cols-2 divide-x divide-slate-300 bg-white">
-              {/* Left Column: Customer Details */}
-              <div className="p-3 space-y-1">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  Billing Name &amp; Address:
+          {/* Customer & Document Information Box - Compact Height */}
+          <div className="mb-2.5 text-xs font-sans border border-slate-300 rounded-md overflow-hidden">
+            <div className="grid grid-cols-3 divide-x divide-slate-300 bg-white">
+              {/* Column 1: Billed To (Buyer) */}
+              <div className="p-2 space-y-0.5">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                  Billed To (Buyer):
                 </div>
-                <div className="font-bold text-sm text-slate-900">{order.clientName}</div>
+                <div className="font-bold text-xs text-slate-900 leading-tight">{order.clientName}</div>
                 {order.doctorSpeciality && (
-                  <div className="text-xs text-slate-600 font-medium">{order.doctorSpeciality}</div>
+                  <div className="text-[10px] text-slate-500 font-medium leading-tight">{order.doctorSpeciality}</div>
                 )}
-                {order.billingAddress && (
-                  <div className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
-                    {order.billingAddress.replace(/\|/g, ", ")}
-                  </div>
-                )}
-                {order.shippingAddress && order.shippingAddress !== order.billingAddress && (
-                  <div className="pt-1.5 border-t border-slate-100 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-700">Shipping: </span>
-                    {order.shippingAddress.replace(/\|/g, ", ")}
-                  </div>
-                )}
-                <div className="text-xs text-slate-800 pt-1">
-                  <span className="font-bold text-slate-900">Client GSTIN / UIN:</span>{" "}
-                  <span className="font-mono font-bold text-slate-950 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                    {order.clientGSTIN?.trim() ? order.clientGSTIN : "URP / Unregistered"}
+                {renderAddressCompactPrint(order.billingAddress)}
+                <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-700 pt-0.5">
+                  {order.clientMobileNo && (
+                    <span><span className="font-semibold text-slate-800">Mob:</span> {order.clientMobileNo}</span>
+                  )}
+                  <span>
+                    <span className="font-semibold text-slate-800">GSTIN:</span>{" "}
+                    <span className="font-mono font-bold text-slate-900">
+                      {order.clientGSTIN?.trim() ? order.clientGSTIN : "URP"}
+                    </span>
                   </span>
                 </div>
               </div>
 
-              {/* Right Column: Order Metadata */}
-              <div className="p-3 space-y-1.5 bg-slate-50/60">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-600 font-medium">Order No:</span>
-                  <span className="font-mono font-bold text-slate-900">
-                    {order.orderNumber}
-                  </span>
+              {/* Column 2: Shipped To (Consignee) */}
+              <div className="p-2 space-y-0.5">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+                  Shipped To (Consignee):
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-600 font-medium">Date:</span>
+                <div className="font-bold text-xs text-slate-900 leading-tight">{order.clientName}</div>
+                {order.doctorSpeciality && (
+                  <div className="text-[10px] text-slate-500 font-medium leading-tight">{order.doctorSpeciality}</div>
+                )}
+                {renderAddressCompactPrint(order.shippingAddress || order.billingAddress)}
+                <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-700 pt-0.5">
+                  {order.clientMobileNo && (
+                    <span><span className="font-semibold text-slate-800">Mob:</span> {order.clientMobileNo}</span>
+                  )}
+                  {order.shippingAddress && order.billingAddress && order.shippingAddress.trim() === order.billingAddress.trim() && (
+                    <span className="text-slate-400 italic text-[9px]">(Same as billing)</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 3: Order Metadata */}
+              <div className="p-2 space-y-0.5 bg-slate-50/70 text-[10px]">
+                <div className="flex justify-between items-center leading-tight">
+                  <span className="text-slate-500 font-medium">Order No:</span>
+                  <span className="font-mono font-bold text-slate-900">{order.orderNumber}</span>
+                </div>
+                <div className="flex justify-between items-center leading-tight">
+                  <span className="text-slate-500 font-medium">Date:</span>
                   <span className="font-bold text-slate-900">{formatDateWithDots(order.date)}</span>
                 </div>
                 {order.deliveryDate && (
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-600 font-medium">Target Delivery:</span>
-                    <span className="font-bold text-slate-900">{formatDateWithDots(order.deliveryDate)}</span>
+                  <div className="flex justify-between items-center leading-tight">
+                    <span className="text-slate-500 font-medium">Target:</span>
+                    <span className="font-semibold text-slate-900">{formatDateWithDots(order.deliveryDate)}</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-600 font-medium">Order Status:</span>
-                  <span className="font-semibold text-slate-900">{order.status}</span>
+                <div className="flex justify-between items-center leading-tight">
+                  <span className="text-slate-500 font-medium">Status:</span>
+                  <span className="font-semibold text-slate-900">{order.status} ({order.paymentStatus})</span>
                 </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-600 font-medium">Payment Status:</span>
-                  <span className="font-semibold text-slate-900">{order.paymentStatus}</span>
-                </div>
-                {order.sourceLead && (
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-600 font-medium">Source Lead:</span>
-                    <span className="font-semibold text-slate-900">{order.sourceLead}</span>
+                {order.salesPersonName && (
+                  <div className="flex justify-between items-center leading-tight">
+                    <span className="text-slate-500 font-medium">Sales Rep:</span>
+                    <span className="font-semibold text-slate-900">{order.salesPersonName}</span>
                   </div>
                 )}
                 {order.quotationId && (
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-600 font-medium">Linked Quote:</span>
+                  <div className="flex justify-between items-center leading-tight">
+                    <span className="text-slate-500 font-medium">Quote:</span>
                     <span className="font-mono font-semibold text-slate-800">#{order.quotationId}</span>
                   </div>
                 )}
                 {order.proformaId && (
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-slate-600 font-medium">Linked PI:</span>
+                  <div className="flex justify-between items-center leading-tight">
+                    <span className="text-slate-500 font-medium">PI:</span>
                     <span className="font-mono font-semibold text-slate-800">#{order.proformaId}</span>
                   </div>
                 )}
-                {order.salesPersonName && (
-                  <div className="flex justify-between items-center text-xs pt-1 border-t border-slate-200">
-                    <span className="text-slate-600 font-medium">Sales Rep:</span>
-                    <span className="font-semibold text-slate-900">{order.salesPersonName}</span>
+                {order.sourceLead && (
+                  <div className="flex justify-between items-center leading-tight">
+                    <span className="text-slate-500 font-medium">Source:</span>
+                    <span className="font-semibold text-slate-900">{order.sourceLead}</span>
                   </div>
                 )}
               </div>
@@ -777,23 +813,27 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
                         {idx + 1}
                       </td>
                       <td className="py-2 px-3 border-r border-slate-100 align-top">
-                        <div className="flex items-start gap-2">
-                          {(item as any).imageUrl && !isNoProduct && (
-                            <div className="h-10 w-10 rounded border border-slate-200 bg-white p-0.5 shrink-0 overflow-hidden">
+                        <div className="flex items-start gap-2.5">
+                          {(item as any).imageUrl && (
+                            <div className="h-10 w-10 min-w-10 rounded border border-slate-200 bg-white p-0.5 shrink-0 overflow-hidden">
                               <img
-                                src={getGoogleDrivePreviewUrl((item as any).imageUrl) || ""}
+                                src={getGoogleDrivePreviewUrl((item as any).imageUrl) || (item as any).imageUrl}
                                 alt={displayName}
                                 className="h-full w-full object-contain"
                                 referrerPolicy="no-referrer"
+                                onError={(e) => {
+                                  const parent = (e.currentTarget as HTMLElement).parentElement
+                                  if (parent) parent.style.display = "none"
+                                }}
                               />
                             </div>
                           )}
-                          <div>
+                          <div className="min-w-0">
                             <div className={`text-xs ${isNoProduct ? "font-normal italic text-slate-400" : "font-bold text-slate-900"}`}>
                               {displayName}
                             </div>
                             {!isNoProduct && (item as any).name && (item as any).name !== item.productName && (
-                              <div className="text-[10px] text-slate-500">{(item as any).name}</div>
+                              <div className="text-[10px] text-slate-500 leading-tight">{(item as any).name}</div>
                             )}
                             {!isNoProduct && item.sku && (
                               <div className="text-[10px] font-mono text-slate-400 mt-0.5">SKU: {item.sku}</div>

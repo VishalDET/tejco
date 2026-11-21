@@ -1,3 +1,5 @@
+import { serializeAddress } from "@/lib/api"
+
 export type OrderStatus = "Pending" | "Approved" | "Packed" | "Dispatched" | "Delivered" | "Cancelled"
 export type PaymentStatus = "Paid" | "Unpaid" | "Partial"
 
@@ -36,6 +38,7 @@ export interface Order {
   totalAmount: number
   billingAddress: string
   shippingAddress: string
+  clientMobileNo?: string
   notes?: string
   doctorSpeciality?: string
   clientGSTIN?: string
@@ -151,7 +154,7 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
       discountAmount,
       total: itemTotal,
       gstRate: item.gstPercentage || item.gstRate || 18,
-      imageUrl: item.imageUrl || ""
+      imageUrl: item.imageUrl || item.image || item.productImage || item.variantImage || ""
     }
   })
 
@@ -213,6 +216,8 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
 
   const doctorSpeciality = raw.doctorSpeciality || cachedClient?.doctorSpeciality || ""
   const clientGSTIN = raw.clientGSTIN || raw.gstinNo || cachedClient?.gstin || ""
+  const cachedBilling = cachedClient ? (cachedClient.billingAddress ? serializeAddress(cachedClient.billingAddress) : (cachedClient.address || "")) : ""
+  const cachedShipping = cachedClient ? (cachedClient.shippingAddress ? serializeAddress(cachedClient.shippingAddress) : (cachedBilling || "")) : ""
 
   return {
     id: String(raw.orderId || raw.id),
@@ -232,8 +237,9 @@ export function mapApiSalesOrder(raw: any, clientMap?: Map<string, any>): Order 
     taxAmount,
     freight: Number(raw.freight || 0),
     totalAmount,
-    billingAddress: raw.billingAddress || raw.clientAddress || "",
-    shippingAddress: raw.shippingAddress || raw.billingAddress || raw.clientAddress || "",
+    billingAddress: raw.billingAddress || raw.clientAddress || cachedBilling || "",
+    shippingAddress: raw.shippingAddress || raw.billingAddress || raw.clientAddress || cachedShipping || cachedBilling || "",
+    clientMobileNo: raw.clientMobileNo || raw.mobileNo || raw.mobile || cachedClient?.mobile || cachedClient?.phone || undefined,
     notes: raw.orderNotes || raw.notes || raw.subject || "",
     doctorSpeciality,
     clientGSTIN,

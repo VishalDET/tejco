@@ -2,7 +2,7 @@ import * as React from "react"
 import { useParams } from "react-router-dom"
 import { OrderDetailsView } from "@/app/sales/orders/[id]/order-details-view"
 import { Order, mapApiSalesOrder, salesOrderClientCache } from "@/app/sales/orders/types"
-import { salesOrderApi, clientsApi } from "@/lib/api"
+import { salesOrderApi, clientsApi, serializeAddress } from "@/lib/api"
 import { Loader } from "@/components/ui/loader"
 
 export default function OrderDetailsPage() {
@@ -22,14 +22,23 @@ export default function OrderDetailsPage() {
         const data = raw?.data || raw
         if (data) {
           const mapped = mapApiSalesOrder(data, salesOrderClientCache)
-          if (mapped.clientId && mapped.clientId !== "0" && (!mapped.clientName || mapped.clientName.startsWith("Client #"))) {
+          if (mapped.clientId && mapped.clientId !== "0") {
             try {
               const client = salesOrderClientCache.get(mapped.clientId) || await clientsApi.getById(mapped.clientId)
               if (client && client.name) {
                 salesOrderClientCache.set(mapped.clientId, client)
-                mapped.clientName = client.name
+                if (!mapped.clientName || mapped.clientName.startsWith("Client #")) {
+                  mapped.clientName = client.name
+                }
                 mapped.doctorSpeciality = mapped.doctorSpeciality || client.doctorSpeciality || ""
                 mapped.clientGSTIN = mapped.clientGSTIN || client.gstin || ""
+                mapped.clientMobileNo = mapped.clientMobileNo || (client as any).mobile || client.phone || undefined
+                if (!mapped.billingAddress) {
+                  mapped.billingAddress = client.billingAddress ? serializeAddress(client.billingAddress) : (client.address || "")
+                }
+                if (!mapped.shippingAddress) {
+                  mapped.shippingAddress = client.shippingAddress ? serializeAddress(client.shippingAddress) : (mapped.billingAddress || "")
+                }
               }
             } catch {}
           }
