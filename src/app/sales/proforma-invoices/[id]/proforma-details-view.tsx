@@ -47,12 +47,15 @@ const COMPANY = {
   gst: "27AAUFT6646F1ZJ",
   forLine: "FOR TEJCO GLOBAL LLP",
   bankDetails: [
-    "INR BANK DETAILS",
+    "IOB BANK DETAILS",
     "Name of the Company: TEJCO GLOBAL LLP",
-    "Branch Name : Bandra (West), Mumbai \u2013 400 050.",
-    "Bank Account No : 012800000002727",
+    "Bank Name : Indian Overseas Bank",
+    "Branch Name : Bandra (West), Mumbai – 400 050.",
+    "Bank Account No : 012802000002727",
     "Type of Account : Current Account",
     "IFSC Code : IOBA0000128",
+    "BIC Code (Swift) : IOBAINBB128",
+    "MICR Code : 400020006",
   ],
 }
 

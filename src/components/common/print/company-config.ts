@@ -6,7 +6,13 @@ export interface BankDetailsInfo {
   accountType?: string
   ifscCode?: string
   swiftCode?: string
+  bicCode?: string
+  micrCode?: string
   branch?: string
+  address?: string
+  city?: string
+  state?: string
+  country?: string
   lines?: string[]
 }
 
@@ -36,40 +42,64 @@ export interface CompanyPrintInfo {
 }
 
 export const DOMESTIC_BANK_DETAILS: BankDetailsInfo = {
-  title: "DOMESTIC BANK DETAILS (INR)",
+  title: "IOB BANK DETAILS (DOMESTIC / INR)",
   accountName: "TEJCO GLOBAL LLP",
   bankName: "Indian Overseas Bank",
-  branch: "Bandra (West), Mumbai – 400 050",
-  accountNumber: "012800000002727",
+  branch: "Bandra (West), Mumbai – 400 050.",
+  accountNumber: "012802000002727",
   accountType: "Current Account",
   ifscCode: "IOBA0000128",
+  swiftCode: "IOBAINBB128",
+  bicCode: "IOBAINBB128",
+  micrCode: "400020006",
+  address: "Indian Overseas Bank, Radhaswami Apts. 36th Road, Bandra West, Mumbai, Maharashtra – 400050.",
+  city: "Greater Mumbai",
+  state: "Maharashtra",
+  country: "India",
   lines: [
-    "Name of Company: TEJCO GLOBAL LLP",
-    "Bank: Indian Overseas Bank",
-    "Branch Name: Bandra (West), Mumbai – 400 050",
-    "Bank Account No: 012800000002727",
+    "Name of the Company: TEJCO GLOBAL LLP",
+    "Bank Name: Indian Overseas Bank",
+    "Branch Name: Bandra (West), Mumbai – 400 050.",
+    "Bank Account No: 012802000002727",
     "Type of Account: Current Account",
     "IFSC Code: IOBA0000128",
+    "BIC Code (Swift): IOBAINBB128",
+    "MICR Code: 400020006",
+    "Address: Indian Overseas Bank, Radhaswami Apts. 36th Road, Bandra West, Mumbai, Maharashtra – 400050.",
+    "City: Greater Mumbai",
+    "State: Maharashtra",
+    "Country: India",
   ],
 }
 
 export const INTERNATIONAL_BANK_DETAILS: BankDetailsInfo = {
-  title: "INTERNATIONAL BANK DETAILS (USD / FOREX)",
+  title: "IOB BANK DETAILS (INTERNATIONAL / EEFC)",
   accountName: "TEJCO GLOBAL LLP",
   bankName: "Indian Overseas Bank",
-  branch: "Bandra (West), Mumbai – 400 050, India",
-  accountNumber: "012800000002727",
-  accountType: "Current / EEFC Account",
+  branch: "Bandra (West), Mumbai – 400 050.",
+  accountNumber: "012802000043734",
+  accountType: "EEFC Account",
   ifscCode: "IOBA0000128",
   swiftCode: "IOBAINBB128",
+  bicCode: "IOBAINBB128",
+  micrCode: "400020006",
+  address: "Indian Overseas Bank, Radhaswami Apts. 36th Road, Bandra West, Mumbai, Maharashtra – 400050.",
+  city: "Greater Mumbai",
+  state: "Maharashtra",
+  country: "India",
   lines: [
-    "Beneficiary Name: TEJCO GLOBAL LLP",
-    "Bank: Indian Overseas Bank",
-    "Branch Name: Bandra (West), Mumbai – 400 050, India",
-    "Bank Account No: 012800000002727",
-    "Type of Account: Current / EEFC Account",
-    "SWIFT / BIC Code: IOBAINBB128",
+    "Name of the Company: TEJCO GLOBAL LLP",
+    "Bank Name: Indian Overseas Bank",
+    "Branch Name: Bandra (West), Mumbai – 400 050.",
+    "Bank Account No: 012802000043734",
+    "Type of Account: EEFC Account",
     "IFSC Code: IOBA0000128",
+    "BIC Code (Swift): IOBAINBB128",
+    "MICR Code: 400020006",
+    "Address: Indian Overseas Bank, Radhaswami Apts. 36th Road, Bandra West, Mumbai, Maharashtra – 400050.",
+    "City: Greater Mumbai",
+    "State: Maharashtra",
+    "Country: India",
   ],
 }
 
