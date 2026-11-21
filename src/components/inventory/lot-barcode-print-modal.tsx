@@ -89,7 +89,7 @@ export function LotBarcodePrintModal({
   lots = [],
   initialSelectedLotId = "all"
 }: LotBarcodePrintModalProps) {
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("thermal_40x15")
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("thermal_38x15")
   const currentPreset = LABEL_PRESETS.find(p => p.id === selectedPresetId) || LABEL_PRESETS[0]
 
   // Thermal Printer (.PRN) Configuration
@@ -104,7 +104,7 @@ export function LotBarcodePrintModal({
   const [includeCompany, setIncludeCompany] = useState<boolean>(true)
   const [includeProductName, setIncludeProductName] = useState<boolean>(true)
   const [includeVariantName, setIncludeVariantName] = useState<boolean>(true)
-  const [includeSku, setIncludeSku] = useState<boolean>(true)
+  const [includeSku, setIncludeSku] = useState<boolean>(false)
   const [includeLotNumber, setIncludeLotNumber] = useState<boolean>(true)
   const [includeExpiry, setIncludeExpiry] = useState<boolean>(true)
   const [includeLocation, setIncludeLocation] = useState<boolean>(true)
@@ -450,7 +450,8 @@ export function LotBarcodePrintModal({
               .label-card {
                 width: ${labelWidth}mm;
                 height: ${labelHeight}mm;
-                padding: ${labelHeight <= 18 ? "0.6mm 1mm" : "1.5mm 2mm"};
+                padding: 0;
+                margin: 0;
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
@@ -464,7 +465,8 @@ export function LotBarcodePrintModal({
               .label-card {
                 width: ${labelWidth}mm;
                 height: ${labelHeight}mm;
-                padding: ${labelHeight <= 18 ? "0.6mm 1mm" : "1.5mm 2mm"};
+                padding: 0;
+                margin: 0;
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
@@ -514,7 +516,11 @@ export function LotBarcodePrintModal({
             .barcode-box svg {
               width: 100%;
               height: 100%;
-              max-height: ${labelHeight <= 18 ? "6.2mm" : labelHeight <= 25 ? "8mm" : "12mm"};
+              max-height: ${labelHeight <= 18 ? "6.8mm" : labelHeight <= 25 ? "8.5mm" : "12mm"};
+              shape-rendering: crispEdges;
+            }
+            .barcode-box rect {
+              shape-rendering: crispEdges;
             }
             .human-code {
               font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -547,9 +553,9 @@ export function LotBarcodePrintModal({
         .map(lbl => {
           const encoded = encodeCode128B(lbl.barcode)
           const rects = encoded.bars
-            .map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="32" fill="#000" />`)
+            .map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="32" fill="#000" shape-rendering="crispEdges" />`)
             .join("")
-          const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${encoded.totalWidth} 32" preserveAspectRatio="none">${rects}</svg>`
+          const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${encoded.totalWidth} 32" shape-rendering="crispEdges" preserveAspectRatio="none">${rects}</svg>`
 
           return `
                 <div class="label-card">
@@ -660,7 +666,7 @@ export function LotBarcodePrintModal({
                 </div>
                 <span className="text-[11px] text-muted-foreground">{currentPreset.description}</span>
               </div>
-              <Select value={selectedPresetId} onValueChange={(val: any) => setSelectedPresetId(String(val || "thermal_40x15"))}>
+              <Select value={selectedPresetId} onValueChange={(val: any) => setSelectedPresetId(String(val || "thermal_38x15"))}>
                 <SelectTrigger className="h-9 text-xs bg-background">
                   <SelectValue placeholder="Choose label preset" />
                 </SelectTrigger>
@@ -958,6 +964,15 @@ export function LotBarcodePrintModal({
                     className="rounded text-indigo-600 focus:ring-indigo-500"
                   />
                   <span>Warehouse / Rack</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeHumanBarcode}
+                    onChange={e => setIncludeHumanBarcode(e.target.checked)}
+                    className="rounded text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>Barcode Number</span>
                 </label>
               </div>
 

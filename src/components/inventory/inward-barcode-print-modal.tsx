@@ -65,14 +65,14 @@ export function InwardBarcodePrintModal({
   onOpenChange,
   order
 }: InwardBarcodePrintModalProps) {
-  const [selectedPresetId, setSelectedPresetId] = useState<string>("thermal_50x25")
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("thermal_38x15")
   const currentPreset = LABEL_PRESETS.find(p => p.id === selectedPresetId) || LABEL_PRESETS[0]
 
   const [companyName, setCompanyName] = useState<string>("TEJCO GLOBAL LLP")
   const [includeCompany, setIncludeCompany] = useState<boolean>(true)
   const [includeProductName, setIncludeProductName] = useState<boolean>(true)
   const [includeVariantName, setIncludeVariantName] = useState<boolean>(true)
-  const [includeSku, setIncludeSku] = useState<boolean>(true)
+  const [includeBarcodeNumber, setIncludeBarcodeNumber] = useState<boolean>(true)
   const [includeLot, setIncludeLot] = useState<boolean>(true)
   const [includeInvoice, setIncludeInvoice] = useState<boolean>(true)
   const [includeExpiry, setIncludeExpiry] = useState<boolean>(true)
@@ -167,7 +167,8 @@ export function InwardBarcodePrintModal({
               width: ${currentPreset.widthMm}mm;
               height: ${currentPreset.heightMm}mm;
               box-sizing: border-box;
-              padding: 1.5mm 2mm;
+              padding: 0;
+              margin: 0;
               display: flex;
               flex-direction: column;
               justify-content: space-between;
@@ -210,6 +211,10 @@ export function InwardBarcodePrintModal({
               width: 100%;
               height: 100%;
               max-height: 12mm;
+              shape-rendering: crispEdges;
+            }
+            .barcode-svg-container rect {
+              shape-rendering: crispEdges;
             }
             .human-code {
               font-family: monospace;
@@ -234,9 +239,9 @@ export function InwardBarcodePrintModal({
           ${unitLabels.map((lbl) => {
       const encoded = encodeCode128B(lbl.unitBarcode)
       const rects = encoded.bars
-        .map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="35" fill="#000" />`)
+        .map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="35" fill="#000" shape-rendering="crispEdges" />`)
         .join("")
-      const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${encoded.totalWidth} 35" preserveAspectRatio="none">${rects}</svg>`
+      const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${encoded.totalWidth} 35" shape-rendering="crispEdges" preserveAspectRatio="none">${rects}</svg>`
 
       return `
               <div class="label-page">
@@ -246,9 +251,8 @@ export function InwardBarcodePrintModal({
                 <div class="barcode-svg-container">
                   ${svgMarkup}
                 </div>
-                <div class="human-code">${lbl.unitBarcode}</div>
+                ${includeBarcodeNumber ? `<div class="human-code">${lbl.unitBarcode}</div>` : ""}
                 <div class="meta-row">
-                  <span>${includeSku ? lbl.sku : ""}</span>
                   <span>${includeLot ? lbl.lotNumber : ""}</span>
                 </div>
                 ${(includeInvoice && lbl.invoiceNumber) || (includeExpiry && lbl.expiryDate) ? `
@@ -374,6 +378,15 @@ export function InwardBarcodePrintModal({
                     className="rounded text-primary"
                   />
                   <span>Variant Specs</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeBarcodeNumber}
+                    onChange={(e) => setIncludeBarcodeNumber(e.target.checked)}
+                    className="rounded text-primary"
+                  />
+                  <span>Barcode Number</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -504,13 +517,14 @@ export function InwardBarcodePrintModal({
                   {renderPreviewBarcodeSvg(currentLabel.unitBarcode)}
                 </div>
 
-                <div className="text-[10px] font-mono font-bold tracking-wider text-neutral-900">
-                  {currentLabel.unitBarcode}
-                </div>
+                {includeBarcodeNumber && (
+                  <div className="text-[10px] font-mono font-bold tracking-wider text-neutral-900">
+                    {currentLabel.unitBarcode}
+                  </div>
+                )}
 
                 <div className="w-full flex flex-col gap-0.5 text-[9px] font-mono text-neutral-600 pt-1 border-t border-neutral-200 mt-1">
                   <div className="flex items-center justify-between">
-                    <span>{includeSku ? currentLabel.sku : ""}</span>
                     <span>{includeLot ? `Lot: ${currentLabel.lotNumber}` : ""}</span>
                   </div>
                   {((includeInvoice && currentLabel.invoiceNumber) || (includeExpiry && currentLabel.expiryDate)) && (

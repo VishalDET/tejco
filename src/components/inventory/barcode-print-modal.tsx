@@ -70,7 +70,7 @@ export function BarcodePrintModal({
   initialVariantId = "all"
 }: BarcodePrintModalProps) {
   // Label Template Configuration
-  const [selectedPresetId, setSelectedPresetId] = React.useState<string>("thermal_50x25")
+  const [selectedPresetId, setSelectedPresetId] = React.useState<string>("thermal_38x15")
   const currentPreset = LABEL_PRESETS.find(p => p.id === selectedPresetId) || LABEL_PRESETS[0]
 
   // Customization Options
@@ -78,7 +78,7 @@ export function BarcodePrintModal({
   const [includeCompany, setIncludeCompany] = React.useState<boolean>(true)
   const [includeProductName, setIncludeProductName] = React.useState<boolean>(true)
   const [includeVariantName, setIncludeVariantName] = React.useState<boolean>(true)
-  const [includeSku, setIncludeSku] = React.useState<boolean>(true)
+  const [includeSku, setIncludeSku] = React.useState<boolean>(false)
   const [includePrice, setIncludePrice] = React.useState<boolean>(true)
   const [currencyType, setCurrencyType] = React.useState<"INR" | "USD">("INR")
   const [includeHumanText, setIncludeHumanText] = React.useState<boolean>(true)
@@ -207,7 +207,8 @@ export function BarcodePrintModal({
         width: ${preset.widthMm}mm;
         height: ${preset.heightMm}mm;
         box-sizing: border-box;
-        padding: 1.5mm 2mm;
+        padding: 0;
+        margin: 0;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
@@ -218,48 +219,41 @@ export function BarcodePrintModal({
         overflow: hidden;
         page-break-inside: avoid;
       ">
-        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.2mm;">
+        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.1mm; padding: 0.2mm 0.4mm 0;">
           ${includeCompany ? `
-            <div style="font-size: 6.5pt; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; color: #111;">
+            <div style="font-size: 5pt; font-weight: 800; letter-spacing: 0.3px; text-transform: uppercase; line-height: 1.1; color: #111;">
               ${companyName || "TEJCO GLOBAL LLP"}
             </div>
           ` : ""}
           ${includeProductName ? `
-            <div style="font-size: 7pt; font-weight: 700; max-width: 96%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; color: #000;">
+            <div style="font-size: 5.5pt; font-weight: 700; max-width: 98%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; color: #000;">
               ${product?.productName || item.variantName}
             </div>
           ` : ""}
-          <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 6pt; font-weight: 600; padding: 0 0.5mm; line-height: 1;">
+          <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 5pt; font-weight: 600; padding: 0 0.4mm; line-height: 1;">
             ${includeVariantName && item.variantName !== product?.productName ? `
-              <span style="max-width: 55%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+              <span style="max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                 ${item.size ? `Size: ${item.size}` : item.variantName}
               </span>
             ` : `<span></span>`}
             ${includePrice && item.sellingPrice > 0 ? `
-              <span style="font-weight: 800; font-size: 6.5pt; color: #000;">
+              <span style="font-weight: 800; font-size: 5.5pt; color: #000;">
                 MRP: ${priceText}
               </span>
             ` : ""}
           </div>
         </div>
 
-        <div style="width: 95%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0.4mm 0;">
-          <svg viewBox="0 0 ${encoded.totalWidth} ${barHeight}" style="width: 100%; height: ${preset.heightMm <= 25 ? "8mm" : "12mm"}; display: block;" preserveAspectRatio="none">
+        <div style="width: 100%; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 0.5mm;">
+          <svg viewBox="0 0 ${encoded.totalWidth} ${barHeight}" style="width: 100%; height: 100%; display: block;" preserveAspectRatio="none">
             ${svgBars}
           </svg>
           ${includeHumanText ? `
-            <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 6.5pt; font-weight: 700; letter-spacing: 0.6px; line-height: 1; margin-top: 0.5mm;">
+            <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 5.5pt; font-weight: 700; letter-spacing: 0.4px; line-height: 1; padding-bottom: 0.2mm;">
               ${encoded.text}
             </div>
           ` : ""}
         </div>
-
-        ${includeSku ? `
-          <div style="width: 100%; display: flex; justify-content: space-between; font-size: 5.5pt; font-family: ui-monospace, monospace; color: #333; line-height: 1;">
-            <span>SKU: ${item.sku}</span>
-            <span>${product?.hsnCode ? `HSN: ${product.hsnCode}` : ""}</span>
-          </div>
-        ` : ""}
       </div>
     `
   }

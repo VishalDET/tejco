@@ -135,14 +135,24 @@ export interface LabelPreset {
 
 export const LABEL_PRESETS: LabelPreset[] = [
   {
-    id: "thermal_40x15",
-    name: "Thermal Roll 4cm × 1.5cm (40mm × 15mm)",
+    id: "thermal_38x15",
+    name: "Thermal Roll (38mm × 15mm)",
     type: "roll",
-    widthMm: 40,
+    widthMm: 38,
     heightMm: 15,
     columns: 1,
     labelsPerPage: 1,
-    description: "Standard 4cm × 1.5cm (40mm × 15mm) compact item barcode sticker"
+    description: "Standard 38mm × 15mm compact barcode label sticker roll (Zebra, TSC, TVS, Godex)"
+  },
+  {
+    id: "thermal_40x15",
+    name: "Thermal Roll (38mm × 15mm / 40×15)",
+    type: "roll",
+    widthMm: 38,
+    heightMm: 15,
+    columns: 1,
+    labelsPerPage: 1,
+    description: "Standard 38mm × 15mm compact barcode sticker"
   },
   {
     id: "thermal_50x25",
