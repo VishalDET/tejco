@@ -1,8 +1,34 @@
 import React, { useRef } from "react"
 import { executePrint, STANDARD_LABEL_SIZE } from "./print-layout"
 import { encodeCode128B } from "@/lib/barcode-utils"
+import {
+  QrLabel,
+  QrLabelProps,
+  buildThermalQrLabelHtml,
+  executeQrLabelPrint,
+} from "./qr-label"
+import {
+  generateQrMatrix,
+  generateQrPath,
+  generateQrSvgMarkup,
+  generateQrDataUrl,
+  type QrEccLevel,
+  type QrCodeResult,
+} from "@/lib/qr-utils"
 
-export { STANDARD_LABEL_SIZE }
+export {
+  STANDARD_LABEL_SIZE,
+  QrLabel,
+  type QrLabelProps,
+  buildThermalQrLabelHtml,
+  executeQrLabelPrint,
+  generateQrMatrix,
+  generateQrPath,
+  generateQrSvgMarkup,
+  generateQrDataUrl,
+  type QrEccLevel,
+  type QrCodeResult,
+}
 
 export interface LabelPrintLayoutProps {
   /** Width in millimeters, defaults to 38mm */
@@ -29,7 +55,8 @@ export function generateBarcodeDataUrl(
 ): string {
   if (typeof document === "undefined") return ""
   const encoded = encodeCode128B(rawText)
-  const moduleWidth = Math.max(1, Math.round(options?.moduleWidth ?? 2))
+  const defaultModuleWidth = encoded.totalWidth > 180 ? 1 : 2
+  const moduleWidth = Math.max(1, Math.round(options?.moduleWidth ?? defaultModuleWidth))
   const height = Math.max(20, Math.round(options?.height ?? 64))
   const width = encoded.totalWidth * moduleWidth
 
@@ -143,9 +170,10 @@ export function BarcodeLabel({
 
   React.useEffect(() => {
     if (renderMode === "image") {
-      setDataUrl(generateBarcodeDataUrl(barcode || "000000", { moduleWidth: 2, height: 64 }))
+      const defaultModWidth = encoded.totalWidth > 180 ? 1 : 2
+      setDataUrl(generateBarcodeDataUrl(barcode || "000000", { moduleWidth: defaultModWidth, height: 64 }))
     }
-  }, [barcode, renderMode])
+  }, [barcode, renderMode, encoded.totalWidth])
 
   const barHeight = showBarcodeNumber ? 26 : 34
 
@@ -302,6 +330,104 @@ export function BarcodeLabel({
   )
 }
 
+export interface PrintableLabelProps {
+  /** Mode: "barcode" (default), "qr", or "auto" (auto selects QR if length > 16) */
+  type?: "barcode" | "qr" | "auto"
+  /** Barcode text or QR payload */
+  value: string
+  /** Product name */
+  productName?: string
+  /** Variant name */
+  variantName?: string
+  /** Company name header */
+  companyName?: string
+  showCompany?: boolean
+  showProductName?: boolean
+  showVariantName?: boolean
+  /** Option to show or hide the code text / number (default: true) */
+  showCodeText?: boolean
+  /** QR layout: "horizontal" | "vertical" | "auto" (default: "auto") */
+  qrLayout?: "horizontal" | "vertical" | "auto"
+  /** QR Error correction level ('L' | 'M' | 'Q' | 'H') */
+  eccLevel?: QrEccLevel
+  /**
+   * Rendering format:
+   * - "image": High-resolution pixel-perfect PNG image (recommended)
+   * - "svg": Pure vector SVG
+   * Defaults to "image".
+   */
+  renderMode?: "image" | "svg"
+  widthMm?: number
+  heightMm?: number
+  className?: string
+}
+
+/**
+ * Universal printable label component that switches seamlessly between 1D Barcode and 2D QR Code.
+ */
+export function PrintableLabel({
+  type = "barcode",
+  value,
+  productName,
+  variantName,
+  companyName = "TEJCO GLOBAL LLP",
+  showCompany = false,
+  showProductName = true,
+  showVariantName = true,
+  showCodeText = true,
+  qrLayout = "auto",
+  eccLevel = "M",
+  renderMode = "image",
+  widthMm = STANDARD_LABEL_SIZE.widthMm,
+  heightMm = STANDARD_LABEL_SIZE.heightMm,
+  className = "",
+}: PrintableLabelProps) {
+  const resolvedType =
+    type === "auto"
+      ? (value || "").length > 16
+        ? "qr"
+        : "barcode"
+      : type
+
+  if (resolvedType === "qr") {
+    return (
+      <QrLabel
+        value={value}
+        productName={productName}
+        variantName={variantName}
+        companyName={companyName}
+        showCompany={showCompany}
+        showProductName={showProductName}
+        showVariantName={showVariantName}
+        showCodeText={showCodeText}
+        layout={qrLayout}
+        eccLevel={eccLevel}
+        renderMode={renderMode}
+        widthMm={widthMm}
+        heightMm={heightMm}
+        className={className}
+      />
+    )
+  }
+
+  return (
+    <BarcodeLabel
+      barcode={value}
+      productName={productName}
+      variantName={variantName}
+      companyName={companyName}
+      showCompany={showCompany}
+      showProductName={showProductName}
+      showVariantName={showVariantName}
+      showBarcodeNumber={showCodeText}
+      renderMode={renderMode}
+      widthMm={widthMm}
+      heightMm={heightMm}
+      className={className}
+    />
+  )
+}
+
 /**
  * Generates raw HTML for a 38mm × 15mm label without SKU, with zero padding,
  * and high-contrast scannable barcode (image or proportional SVG).
@@ -336,7 +462,8 @@ export function buildThermalLabelHtml(options: {
   const encoded = encodeCode128B(barcode || "000000")
   const barHeight = showBarcodeNumber ? 26 : 34
 
-  const pngDataUrl = renderMode === "image" ? generateBarcodeDataUrl(barcode || "000000", { moduleWidth: 2, height: 64 }) : ""
+  const defaultModWidth = encoded.totalWidth > 180 ? 1 : 2
+  const pngDataUrl = renderMode === "image" ? generateBarcodeDataUrl(barcode || "000000", { moduleWidth: defaultModWidth, height: 64 }) : ""
 
   const barcodeElementHtml =
     renderMode === "image" && pngDataUrl
@@ -531,7 +658,9 @@ export function executeLabelPrint(
           }
           .print-label-layout,
           .barcode-label-container,
-          .barcode-label {
+          .barcode-label,
+          .qr-label-container,
+          .qr-label {
             width: ${widthMm}mm !important;
             height: ${heightMm}mm !important;
             max-width: ${widthMm}mm !important;
@@ -544,13 +673,20 @@ export function executeLabelPrint(
             page-break-after: always !important;
             break-after: page !important;
             display: flex !important;
-            flex-direction: column !important;
             justify-content: space-between !important;
             align-items: center !important;
           }
+          .qr-label-container, .qr-label {
+            flex-direction: row !important;
+          }
+          .qr-label-vertical {
+            flex-direction: column !important;
+          }
           .print-label-layout:last-child,
           .barcode-label-container:last-child,
-          .barcode-label:last-child {
+          .barcode-label:last-child,
+          .qr-label-container:last-child,
+          .qr-label:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
           }

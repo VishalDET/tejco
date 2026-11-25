@@ -27,6 +27,7 @@ import {
   Printer,
   Receipt,
   Barcode,
+  QrCode,
   Calendar,
   Split,
   RefreshCw,
@@ -36,7 +37,8 @@ import {
   AlertTriangle,
   SlidersHorizontal,
   ChevronDown,
-  Loader2
+  Loader2,
+  Lock,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -70,6 +72,7 @@ export default function StockInwardFormPage() {
   const [copiedLotIdx, setCopiedLotIdx] = useState<number | null>(null)
   const [copiedBarcodeIdx, setCopiedBarcodeIdx] = useState<number | null>(null)
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false)
+  const [printCodeType, setPrintCodeType] = useState<"barcode" | "qr">("barcode")
   const [printTargetOrder, setPrintTargetOrder] = useState<InwardOrder | null>(null)
   const [fetchingLotIdx, setFetchingLotIdx] = useState<number | null>(null)
   const [fetchingAllLots, setFetchingAllLots] = useState(false)
@@ -495,8 +498,12 @@ export default function StockInwardFormPage() {
     }))
   }
 
-  // Handle printing barcode for a single item once generated
-  const handlePrintItemBarcode = (item: InwardOrderItem, idx: number) => {
+  // Handle printing barcode or QR for a single item once generated
+  const handlePrintItemBarcode = (
+    item: InwardOrderItem,
+    idx: number,
+    targetCodeType: "barcode" | "qr" = "barcode"
+  ) => {
     const code = item.lotBarcode || item.barcode || item.lotNumber
     if (!code) {
       toast.error("Please generate or input a barcode/lot number first")
@@ -519,14 +526,15 @@ export default function StockInwardFormPage() {
         }
       ]
     }
+    setPrintCodeType(targetCodeType)
     setPrintTargetOrder(singleItemOrder)
     setIsBarcodeModalOpen(true)
   }
 
-  // Handle printing barcodes for all items in this inward order
-  const handlePrintAllBarcodes = () => {
+  // Handle printing barcode or QR labels for all items in this inward order
+  const handlePrintAllBarcodes = (targetCodeType: "barcode" | "qr" = "barcode") => {
     if (!form.items || form.items.length === 0) {
-      toast.info("Add line items first to print barcode labels")
+      toast.info("Add line items first to print labels")
       return
     }
     const fullOrder: InwardOrder = {
@@ -543,6 +551,7 @@ export default function StockInwardFormPage() {
         acceptedQty: item.expectedQty || 1,
       }))
     }
+    setPrintCodeType(targetCodeType)
     setPrintTargetOrder(fullOrder)
     setIsBarcodeModalOpen(true)
   }
@@ -744,6 +753,12 @@ export default function StockInwardFormPage() {
   const handleItemChange = (index: number, field: keyof InwardOrderItem, val: any) => {
     setForm(prev => {
       const updated = [...(prev.items || [])]
+
+      if ((field === "productId" || field === "variantId" || field === "variantName") && updated[index]?.lotNumber?.trim()) {
+        toast.warning("Cannot change product or variant after Lot Number is generated. Clear the Lot Number first.")
+        return prev
+      }
+
       const current = { ...updated[index], [field]: val }
 
       if (field === "warehouseId") {
@@ -1035,9 +1050,9 @@ export default function StockInwardFormPage() {
               <h1 className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-foreground">
                 {isEdit ? `Edit Inward Order: ${form.orderNumber}` : "Create Stock Inward Receipt"}
               </h1>
-              <Badge variant="outline" className="font-mono text-xs bg-primary/10 text-primary border-primary/30">
+              {/* <Badge variant="outline" className="font-mono text-xs bg-primary/10 text-primary border-primary/30">
                 Multi-Lot Engine
-              </Badge>
+              </Badge> */}
             </div>
             <p className="text-xs text-muted-foreground font-mono">
               Inbound Goods Receipt with Vendor Invoice linkage, per-product lot barcodes & expiry dates.
@@ -1344,18 +1359,30 @@ export default function StockInwardFormPage() {
                 Import from PO
               </Button>
               <ProductSelector onSelect={handleProductSelect} />
+              {/* <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!form.items || form.items.length === 0}
+                onClick={() => handlePrintAllBarcodes("barcode")}
+                className="font-mono text-xs cursor-pointer h-8"
+                title="Print Barcode Labels for all items"
+              >
+                <Barcode className="mr-1 h-3.5 w-3.5 text-primary" />
+                Print Barcodes
+              </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
                 disabled={!form.items || form.items.length === 0}
-                onClick={handlePrintAllBarcodes}
-                className="font-mono text-xs cursor-pointer h-8"
-                title="Print Barcode Labels for all items"
+                onClick={() => handlePrintAllBarcodes("qr")}
+                className="font-mono text-xs cursor-pointer h-8 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                title="Print QR Code Labels for all items"
               >
-                <Printer className="mr-1 h-3.5 w-3.5 text-primary" />
-                Print Labels
-              </Button>
+                <QrCode className="mr-1 h-3.5 w-3.5" />
+                Print QR
+              </Button> */}
               <Button
                 type="button"
                 size="sm"
@@ -1401,8 +1428,8 @@ export default function StockInwardFormPage() {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs font-mono">
+              <div className="overflow-x-auto mb-0">
+                <table className="w-full text-left text-xs font-mono mt-0">
                   <thead className="bg-muted/50 border-b border-border text-muted-foreground uppercase text-[10px]">
                     <tr>
                       <th className="py-2.5 px-3 w-56">Product Master & Variant</th>
@@ -1428,6 +1455,7 @@ export default function StockInwardFormPage() {
                       const lineTotal = (item.expectedQty || 0) * (item.purchasePrice || item.unitPrice || 0)
                       const isProductSelected = Boolean(item.productId && Number(item.productId) > 0)
                       const isInvoiceEntered = Boolean(form.invoiceNumber && form.invoiceNumber.trim().length > 0)
+                      const isLotGenerated = Boolean(item.lotNumber && item.lotNumber.trim().length > 0)
 
                       return (
                         <tr key={idx} className="hover:bg-muted/20 transition-colors">
@@ -1441,8 +1469,9 @@ export default function StockInwardFormPage() {
                                 placeholder="Select Product..."
                                 searchPlaceholder="Search product by name, SKU..."
                                 size="sm"
+                                disabled={isLotGenerated}
                                 popoverWidth={380}
-                                triggerClassName="h-8 font-semibold text-xs font-mono"
+                                triggerClassName={`h-8 font-semibold text-xs font-mono ${isLotGenerated ? "bg-muted/50 opacity-75 cursor-not-allowed border-dashed" : ""}`}
                               />
 
                               {availableVariants.length > 0 ? (
@@ -1464,19 +1493,29 @@ export default function StockInwardFormPage() {
                                   placeholder="Select Variant Spec..."
                                   searchPlaceholder="Search variant..."
                                   size="sm"
+                                  disabled={isLotGenerated}
                                   popoverWidth={320}
-                                  triggerClassName="h-7 text-[11px] font-mono text-primary font-medium"
+                                  triggerClassName={`h-7 text-[11px] font-mono text-primary font-medium ${isLotGenerated ? "bg-muted/50 opacity-75 cursor-not-allowed border-dashed" : ""}`}
                                 />
                               ) : (
                                 <Input
                                   value={item.variantName || "Default"}
                                   onChange={(e) => handleItemChange(idx, "variantName", e.target.value)}
                                   placeholder="Default Spec"
-                                  className="h-7 text-[11px] font-mono bg-background"
+                                  disabled={isLotGenerated}
+                                  className={`h-7 text-[11px] font-mono bg-background ${isLotGenerated ? "bg-muted/50 opacity-75 cursor-not-allowed border-dashed" : ""}`}
                                 />
                               )}
 
                               <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+                                {isLotGenerated && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 font-mono text-[9px] font-semibold border border-amber-300 dark:border-amber-700/50"
+                                    title="Product is locked because a Lot Number has already been generated."
+                                  >
+                                    <Lock className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" /> Locked (Lot Active)
+                                  </span>
+                                )}
                                 <span>{item.sku || "—"}</span>
                                 {Array.isArray(matchedVar?.lots) && matchedVar.lots.length > 0 && (
                                   <span
@@ -1491,7 +1530,7 @@ export default function StockInwardFormPage() {
                           </td>
 
                           {/* Expected Qty */}
-                          <td className="py-2.5 px-3 align-top">
+                          <td className="py-2 px-1 align-top">
                             <Input
                               type="number"
                               min="1"
@@ -1504,7 +1543,7 @@ export default function StockInwardFormPage() {
                           </td>
 
                           {/* Unit Rate & Line Total */}
-                          <td className="py-2.5 px-3 align-top text-right">
+                          <td className="py-2 px-1 align-top text-right">
                             <Input
                               type="number"
                               min="0"
@@ -1532,31 +1571,33 @@ export default function StockInwardFormPage() {
                                   placeholder="LOT-..."
                                   className="h-8 text-xs font-mono font-semibold bg-background"
                                 />
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={fetchingLotIdx === idx || !isProductSelected || !isInvoiceEntered}
-                                  onClick={() => handleFetchLotNumber(idx)}
-                                  title={
-                                    !isInvoiceEntered
-                                      ? "Please enter the Vendor Invoice / Bill Number first"
-                                      : !isProductSelected
-                                        ? "Please select a product before generating a lot number"
-                                        : "Fetch lot and barcode from endpoint"
-                                  }
-                                  className={`h-8 px-2 text-[11px] font-mono font-medium shrink-0 flex items-center gap-1 whitespace-nowrap transition-all ${!isProductSelected || !isInvoiceEntered
-                                    ? "border-muted bg-muted/40 text-muted-foreground opacity-50 cursor-not-allowed"
-                                    : "border-amber-400/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer"
-                                    }`}
-                                >
-                                  {fetchingLotIdx === idx ? (
-                                    <Loader2 className="h-3 w-3 animate-spin" />
-                                  ) : (
-                                    <Sparkles className={`h-3 w-3 ${!isProductSelected ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`} />
-                                  )}
-                                  <span>Get Lot No</span>
-                                </Button>
+                                {!item.lotNumber?.trim() && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={fetchingLotIdx === idx || !isProductSelected || !isInvoiceEntered}
+                                    onClick={() => handleFetchLotNumber(idx)}
+                                    title={
+                                      !isInvoiceEntered
+                                        ? "Please enter the Vendor Invoice / Bill Number first"
+                                        : !isProductSelected
+                                          ? "Please select a product before generating a lot number"
+                                          : "Fetch lot and barcode from endpoint"
+                                    }
+                                    className={`h-8 px-2 text-[11px] font-mono font-medium shrink-0 flex items-center gap-1 whitespace-nowrap transition-all ${!isProductSelected || !isInvoiceEntered
+                                      ? "border-muted bg-muted/40 text-muted-foreground opacity-50 cursor-not-allowed"
+                                      : "border-amber-400/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer"
+                                      }`}
+                                  >
+                                    {fetchingLotIdx === idx ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <Sparkles className={`h-3 w-3 ${!isProductSelected ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`} />
+                                    )}
+                                    <span>Get Lot No</span>
+                                  </Button>
+                                )}
                               </div>
 
                               {item.lotNumber ? (
@@ -1589,7 +1630,7 @@ export default function StockInwardFormPage() {
                           </td>
 
                           {/* Barcode */}
-                          <td className="py-2.5 px-3 align-top">
+                          <td className="py-2 px-1 align-top">
                             <div className="space-y-1.5">
                               <div className="flex items-center gap-1">
                                 <Input
@@ -1602,7 +1643,7 @@ export default function StockInwardFormPage() {
                                   placeholder="Barcode..."
                                   className="h-8 text-xs font-mono bg-background"
                                 />
-                                <Button
+                                {/* <Button
                                   type="button"
                                   variant="outline"
                                   size="icon"
@@ -1617,7 +1658,7 @@ export default function StockInwardFormPage() {
                                   className="h-8 w-8 shrink-0 cursor-pointer disabled:opacity-40"
                                 >
                                   <Barcode className="h-3.5 w-3.5 text-muted-foreground" />
-                                </Button>
+                                </Button> */}
                               </div>
 
                               {(item.lotBarcode || item.barcode) ? (
@@ -1739,12 +1780,12 @@ export default function StockInwardFormPage() {
                           {/* Actions: Print Barcode & Remove */}
                           <td className="py-2.5 px-3 align-top text-center">
                             <div className="flex items-center justify-center gap-1 mt-0.5">
-                              <Button
+                              {/* <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
                                 disabled={!item.lotBarcode && !item.barcode && !item.lotNumber}
-                                onClick={() => handlePrintItemBarcode(item, idx)}
+                                onClick={() => handlePrintItemBarcode(item, idx, "barcode")}
                                 title={
                                   item.lotBarcode || item.barcode || item.lotNumber
                                     ? "Print Barcode Labels for this item"
@@ -1752,8 +1793,23 @@ export default function StockInwardFormPage() {
                                 }
                                 className="h-7 w-7 text-primary hover:bg-primary/10 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                               >
-                                <Printer className="h-3.5 w-3.5" />
+                                <Barcode className="h-3.5 w-3.5" />
                               </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                disabled={!item.lotBarcode && !item.barcode && !item.lotNumber}
+                                onClick={() => handlePrintItemBarcode(item, idx, "qr")}
+                                title={
+                                  item.lotBarcode || item.barcode || item.lotNumber
+                                    ? "Print QR Code Labels for this item"
+                                    : "Generate barcode first to print"
+                                }
+                                className="h-7 w-7 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                <QrCode className="h-3.5 w-3.5" />
+                              </Button> */}
                               <Button
                                 type="button"
                                 variant="ghost"
@@ -1804,12 +1860,13 @@ export default function StockInwardFormPage() {
         onSelectPo={handleSelectPo}
       />
 
-      {/* Inward Barcode Print Modal */}
+      {/* Inward Barcode & QR Print Modal */}
       {printTargetOrder && (
         <InwardBarcodePrintModal
           open={isBarcodeModalOpen}
           onOpenChange={setIsBarcodeModalOpen}
           order={printTargetOrder}
+          initialCodeType={printCodeType}
         />
       )}
     </div>

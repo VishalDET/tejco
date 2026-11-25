@@ -102,6 +102,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
+import { QrDisplay } from "@/components/ui/qr-display"
 import { toast } from "sonner"
 import { getGoogleDrivePreviewUrl } from "@/lib/utils"
 import { warehousesApi, categoriesApi } from "@/lib/api"
@@ -309,6 +310,7 @@ function ProductVariantsExpandedRow({
     const [localViewMode, setLocalViewMode] = React.useState<"cards" | "table">("cards")
     const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string } | null>(null)
     const [barcodeModal, setBarcodeModal] = React.useState<{ code: string; name: string; sku: string } | null>(null)
+    const [codeDisplayType, setCodeDisplayType] = React.useState<"barcode" | "qr">("barcode")
 
     const currentViewMode = viewMode || localViewMode
 
@@ -727,18 +729,52 @@ function ProductVariantsExpandedRow({
                 </DialogContent>
             </Dialog>
 
-            {/* Barcode Display Modal */}
+            {/* Barcode & QR Display Modal */}
             <Dialog open={!!barcodeModal} onOpenChange={(open) => !open && setBarcodeModal(null)}>
                 <DialogContent className="max-w-md p-6">
                     <DialogHeader>
-                        <DialogTitle className="text-base font-semibold">Product Barcode</DialogTitle>
+                        <div className="flex items-center justify-between gap-3 pr-6">
+                            <DialogTitle className="text-base font-semibold">Product Code</DialogTitle>
+                            <div className="inline-flex items-center rounded-lg bg-muted p-1 text-xs font-medium">
+                                <button
+                                    type="button"
+                                    onClick={() => setCodeDisplayType("barcode")}
+                                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                                        codeDisplayType === "barcode"
+                                            ? "bg-background shadow-xs text-foreground font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    Barcode
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCodeDisplayType("qr")}
+                                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                                        codeDisplayType === "qr"
+                                            ? "bg-background shadow-xs text-foreground font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    QR Code
+                                </button>
+                            </div>
+                        </div>
                         <DialogDescription className="text-xs">
                             {barcodeModal?.name} ({barcodeModal?.sku})
                         </DialogDescription>
                     </DialogHeader>
                     {barcodeModal?.code && (
                         <div className="mt-4 flex flex-col items-center">
-                            <BarcodeDisplay value={barcodeModal.code} label={barcodeModal.sku} />
+                            {codeDisplayType === "qr" ? (
+                                <QrDisplay
+                                    value={barcodeModal.code}
+                                    label={barcodeModal.name}
+                                    sublabel={barcodeModal.sku}
+                                />
+                            ) : (
+                                <BarcodeDisplay value={barcodeModal.code} label={barcodeModal.sku} />
+                            )}
                         </div>
                     )}
                 </DialogContent>

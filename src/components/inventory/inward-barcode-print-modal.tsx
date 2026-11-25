@@ -3,6 +3,7 @@ import { useState, useMemo, useRef } from "react"
 import {
   Printer,
   Barcode as BarcodeIcon,
+  QrCode,
   Check,
   Package,
   Layers,
@@ -11,7 +12,8 @@ import {
   RefreshCw,
   Copy,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
 } from "lucide-react"
 import {
   Dialog,
@@ -38,12 +40,14 @@ import {
   LABEL_PRESETS,
   LabelPreset
 } from "@/lib/barcode-utils"
+import { QrLabel, buildThermalQrLabelHtml } from "@/components/common/print/qr-label"
 import type { InwardOrder, InwardOrderItem } from "@/app/inventory/stock-inward/types"
 
-interface InwardBarcodePrintModalProps {
+export interface InwardBarcodePrintModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   order: InwardOrder
+  initialCodeType?: "barcode" | "qr"
 }
 
 interface GeneratedUnitLabel {
@@ -63,8 +67,12 @@ interface GeneratedUnitLabel {
 export function InwardBarcodePrintModal({
   open,
   onOpenChange,
-  order
+  order,
+  initialCodeType = "barcode",
 }: InwardBarcodePrintModalProps) {
+  const [codeType, setCodeType] = useState<"barcode" | "qr">(initialCodeType)
+  const [qrLayout, setQrLayout] = useState<"horizontal" | "vertical" | "auto">("auto")
+
   const [selectedPresetId, setSelectedPresetId] = useState<string>("thermal_38x15")
   const currentPreset = LABEL_PRESETS.find(p => p.id === selectedPresetId) || LABEL_PRESETS[0]
 
@@ -123,6 +131,18 @@ export function InwardBarcodePrintModal({
     return labels
   }, [order])
 
+  React.useEffect(() => {
+    if (open) {
+      // If barcodes are long (>16 chars), recommend QR Code automatically for guaranteed scannability
+      const hasLongBarcodes = unitLabels.some((l) => (l.unitBarcode || "").length > 16)
+      if (hasLongBarcodes) {
+        setCodeType("qr")
+      } else if (initialCodeType) {
+        setCodeType(initialCodeType)
+      }
+    }
+  }, [open, initialCodeType, unitLabels])
+
   const currentLabel = unitLabels[previewIndex] || unitLabels[0]
 
   const handleCopyBarcode = (code: string, idx: number) => {
@@ -141,6 +161,102 @@ export function InwardBarcodePrintModal({
     const printWindow = window.open("", "_blank")
     if (!printWindow) {
       toast.error("Popup blocked! Please allow popups to print thermal labels.")
+      return
+    }
+
+    if (codeType === "qr") {
+      const resolvedLayout =
+        qrLayout === "auto"
+          ? currentPreset.widthMm >= currentPreset.heightMm * 1.5
+            ? "horizontal"
+            : "vertical"
+          : qrLayout
+
+      const qrLabelsHtml = unitLabels
+        .map((lbl) =>
+          buildThermalQrLabelHtml({
+            value: lbl.unitBarcode,
+            productName: lbl.productName,
+            variantName: lbl.variantName,
+            companyName,
+            showCompany: includeCompany,
+            showProductName: includeProductName,
+            showVariantName: includeVariantName,
+            showCodeText: includeBarcodeNumber,
+            lotNumber: lbl.lotNumber,
+            showLotNumber: includeLot,
+            invoiceNumber: lbl.invoiceNumber,
+            showInvoiceNumber: includeInvoice,
+            expiryDate: lbl.expiryDate,
+            showExpiryDate: includeExpiry,
+            layout: resolvedLayout,
+            renderMode: "image",
+            widthMm: currentPreset.widthMm,
+            heightMm: currentPreset.heightMm,
+          })
+        )
+        .join("")
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Inward Unit QR Labels - ${order.orderNumber || "INW"}</title>
+            <style>
+              @page {
+                size: ${currentPreset.widthMm}mm ${currentPreset.heightMm}mm;
+                margin: 0;
+              }
+              *, *::before, *::after {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+              }
+              body {
+                margin: 0;
+                padding: 0;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                background: #fff;
+                color: #000;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              .qr-label {
+                width: ${currentPreset.widthMm}mm !important;
+                height: ${currentPreset.heightMm}mm !important;
+                page-break-after: always !important;
+                break-after: page !important;
+              }
+              .qr-label:last-child {
+                page-break-after: auto !important;
+                break-after: auto !important;
+              }
+              img {
+                image-rendering: pixelated !important;
+                image-rendering: -webkit-optimize-contrast !important;
+              }
+              svg {
+                shape-rendering: crispEdges !important;
+              }
+            </style>
+          </head>
+          <body>
+            ${qrLabelsHtml}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.focus();
+                  window.print();
+                  setTimeout(function() { window.close(); }, 500);
+                }, 150);
+              };
+            </script>
+          </body>
+        </html>
+      `
+      printWindow.document.open()
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
       return
     }
 
@@ -300,19 +416,51 @@ export function InwardBarcodePrintModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[96vw] sm:max-w-5xl lg:max-w-6xl xl:max-w-7xl 2xl:max-w-[1500px] h-[92vh] max-h-[94vh] flex flex-col p-6 font-mono">
         <DialogHeader className="border-b border-border pb-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-primary">
-              <BarcodeIcon className="h-5 w-5" />
+              {codeType === "qr" ? (
+                <QrCode className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <BarcodeIcon className="h-5 w-5" />
+              )}
               <DialogTitle className="text-base font-bold font-mono">
-                Print Inward Physical Unit Barcodes ({unitLabels.length} Labels)
+                Print Inward Physical Unit {codeType === "qr" ? "QR" : "Barcode"} Labels ({unitLabels.length} Labels)
               </DialogTitle>
             </div>
-            <Badge variant="outline" className="font-mono text-xs">
-              Receipt #{order.orderNumber || order.inwardNumber}
-            </Badge>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex items-center rounded-lg bg-muted p-1 text-xs font-mono font-medium border border-border">
+                <button
+                  type="button"
+                  onClick={() => setCodeType("barcode")}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all cursor-pointer ${
+                    codeType === "barcode"
+                      ? "bg-background text-foreground shadow-xs font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <BarcodeIcon className="h-3.5 w-3.5" />
+                  <span>Barcode (1D)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCodeType("qr")}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-all cursor-pointer ${
+                    codeType === "qr"
+                      ? "bg-background text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <QrCode className="h-3.5 w-3.5" />
+                  <span>QR Code (2D)</span>
+                </button>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs hidden sm:inline-flex">
+                Receipt #{order.orderNumber || order.inwardNumber}
+              </Badge>
+            </div>
           </div>
           <DialogDescription className="text-xs text-muted-foreground font-mono">
-            Automatically generated serialized barcodes for each accepted physical unit in this inward shipment. Ready for thermal roll or sticker sheet printing.
+            Automatically generated serialized {codeType === "qr" ? "QR codes" : "barcodes"} for each accepted physical unit in this inward shipment. Ready for thermal roll or sticker sheet printing.
           </DialogDescription>
         </DialogHeader>
 
@@ -337,6 +485,35 @@ export function InwardBarcodePrintModal({
                 {currentPreset.description}
               </p>
             </div>
+
+            {codeType === "qr" && (
+              <div className="space-y-1.5 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/30 dark:bg-indigo-950/20">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                    <QrCode className="h-3.5 w-3.5 text-indigo-600" />
+                    QR Sticker Layout
+                  </Label>
+                  <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400">
+                    {currentPreset.widthMm}mm × {currentPreset.heightMm}mm
+                  </span>
+                </div>
+                <Select value={qrLayout} onValueChange={(val: any) => setQrLayout(val)}>
+                  <SelectTrigger className="text-xs font-mono h-8 bg-white dark:bg-slate-900">
+                    <SelectValue placeholder="Select layout" />
+                  </SelectTrigger>
+                  <SelectContent className="font-mono text-xs">
+                    <SelectItem value="auto">
+                      Auto ({currentPreset.widthMm >= currentPreset.heightMm * 1.5 ? "Horizontal" : "Vertical"})
+                    </SelectItem>
+                    <SelectItem value="horizontal">Horizontal (Side-by-side: QR Left)</SelectItem>
+                    <SelectItem value="vertical">Vertical (Stacked)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] text-muted-foreground">
+                  Horizontal layout fits QR on left & details on right, perfect for 38x15mm roll stickers.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Header Organization</Label>
@@ -490,51 +667,104 @@ export function InwardBarcodePrintModal({
               </div>
             </div>
 
-            {currentLabel ? (
-              <div
-                className="w-72 bg-white text-black p-3.5 rounded shadow-md border border-neutral-300 flex flex-col justify-between items-center text-center transition-all select-none"
-                style={{
-                  minHeight: "155px"
-                }}
-              >
-                {includeCompany && (
-                  <div className="text-[10px] font-extrabold tracking-wider uppercase text-neutral-900 border-b border-neutral-200 w-full pb-0.5 mb-1">
-                    {companyName}
+            {codeType === "barcode" && currentLabel && (currentLabel.unitBarcode || "").length > 16 && (
+              <div className="w-full max-w-md p-2.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5 mb-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-semibold text-[11px] leading-tight">
+                    Barcode number is {currentLabel.unitBarcode.length} characters long (Too long for 1D)
                   </div>
-                )}
-                {includeProductName && (
-                  <div className="text-[11px] font-bold text-neutral-900 leading-tight">
-                    {currentLabel.productName}
-                  </div>
-                )}
-                {includeVariantName && currentLabel.variantName && (
-                  <div className="text-[10px] font-semibold text-neutral-700 mt-0.5">
-                    [{currentLabel.variantName}]
-                  </div>
-                )}
-
-                <div className="my-1.5 w-full flex items-center justify-center px-1">
-                  {renderPreviewBarcodeSvg(currentLabel.unitBarcode)}
-                </div>
-
-                {includeBarcodeNumber && (
-                  <div className="text-[10px] font-mono font-bold tracking-wider text-neutral-900">
-                    {currentLabel.unitBarcode}
-                  </div>
-                )}
-
-                <div className="w-full flex flex-col gap-0.5 text-[9px] font-mono text-neutral-600 pt-1 border-t border-neutral-200 mt-1">
-                  <div className="flex items-center justify-between">
-                    <span>{includeLot ? `Lot: ${currentLabel.lotNumber}` : ""}</span>
-                  </div>
-                  {((includeInvoice && currentLabel.invoiceNumber) || (includeExpiry && currentLabel.expiryDate)) && (
-                    <div className="flex items-center justify-between text-[8px] text-neutral-500">
-                      <span>{includeInvoice && currentLabel.invoiceNumber ? `Inv: ${currentLabel.invoiceNumber}` : ""}</span>
-                      <span>{includeExpiry && currentLabel.expiryDate ? `Exp: ${currentLabel.expiryDate.slice(0, 10)}` : ""}</span>
-                    </div>
-                  )}
+                  <p className="text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
+                    1D barcodes with &gt; 16 characters become too dense (&lt; 4 mils) on small labels, preventing laser scanners and phones from reading them. Switch to <strong>QR Code (2D)</strong> for 100% reliable scanning.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setCodeType("qr")}
+                    className="h-6 text-[10px] font-semibold bg-amber-600 text-white hover:bg-amber-700 border-none cursor-pointer mt-1"
+                  >
+                    Switch to QR Code (Recommended)
+                  </Button>
                 </div>
               </div>
+            )}
+
+            {currentLabel ? (
+              codeType === "qr" ? (
+                <div
+                  className="bg-white text-black rounded-lg shadow-md border border-neutral-300 p-2.5 transition-all select-none overflow-hidden"
+                  style={{
+                    width: qrLayout === "vertical" ? "240px" : "340px",
+                    maxWidth: "100%",
+                  }}
+                >
+                  <QrLabel
+                    value={currentLabel.unitBarcode}
+                    productName={currentLabel.productName}
+                    variantName={currentLabel.variantName}
+                    companyName={companyName}
+                    showCompany={includeCompany}
+                    showProductName={includeProductName}
+                    showVariantName={includeVariantName}
+                    showCodeText={includeBarcodeNumber}
+                    lotNumber={currentLabel.lotNumber}
+                    showLotNumber={includeLot}
+                    invoiceNumber={currentLabel.invoiceNumber}
+                    showInvoiceNumber={includeInvoice}
+                    expiryDate={currentLabel.expiryDate}
+                    showExpiryDate={includeExpiry}
+                    layout={qrLayout}
+                    widthMm={currentPreset.widthMm}
+                    heightMm={currentPreset.heightMm}
+                    className="w-full !max-w-none !h-auto"
+                  />
+                </div>
+              ) : (
+                <div
+                  className="w-72 bg-white text-black p-3.5 rounded shadow-md border border-neutral-300 flex flex-col justify-between items-center text-center transition-all select-none"
+                  style={{
+                    minHeight: "155px"
+                  }}
+                >
+                  {includeCompany && (
+                    <div className="text-[10px] font-extrabold tracking-wider uppercase text-neutral-900 border-b border-neutral-200 w-full pb-0.5 mb-1">
+                      {companyName}
+                    </div>
+                  )}
+                  {includeProductName && (
+                    <div className="text-[11px] font-bold text-neutral-900 leading-tight">
+                      {currentLabel.productName}
+                    </div>
+                  )}
+                  {includeVariantName && currentLabel.variantName && (
+                    <div className="text-[10px] font-semibold text-neutral-700 mt-0.5">
+                      [{currentLabel.variantName}]
+                    </div>
+                  )}
+
+                  <div className="my-1.5 w-full flex items-center justify-center px-1">
+                    {renderPreviewBarcodeSvg(currentLabel.unitBarcode)}
+                  </div>
+
+                  {includeBarcodeNumber && (
+                    <div className="text-[10px] font-mono font-bold tracking-wider text-neutral-900">
+                      {currentLabel.unitBarcode}
+                    </div>
+                  )}
+
+                  <div className="w-full flex flex-col gap-0.5 text-[9px] font-mono text-neutral-600 pt-1 border-t border-neutral-200 mt-1">
+                    <div className="flex items-center justify-between">
+                      <span>{includeLot ? `Lot: ${currentLabel.lotNumber}` : ""}</span>
+                    </div>
+                    {((includeInvoice && currentLabel.invoiceNumber) || (includeExpiry && currentLabel.expiryDate)) && (
+                      <div className="flex items-center justify-between text-[8px] text-neutral-500">
+                        <span>{includeInvoice && currentLabel.invoiceNumber ? `Inv: ${currentLabel.invoiceNumber}` : ""}</span>
+                        <span>{includeExpiry && currentLabel.expiryDate ? `Exp: ${currentLabel.expiryDate.slice(0, 10)}` : ""}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
             ) : (
               <div className="text-xs text-muted-foreground">
                 No items available to generate labels.
@@ -560,10 +790,14 @@ export function InwardBarcodePrintModal({
             size="sm"
             onClick={handlePrint}
             disabled={unitLabels.length === 0}
-            className="text-xs font-mono bg-primary text-primary-foreground cursor-pointer"
+            className={`text-xs font-mono cursor-pointer ${
+              codeType === "qr"
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                : "bg-primary text-primary-foreground"
+            }`}
           >
             <Printer className="mr-1.5 h-3.5 w-3.5" />
-            Print All {unitLabels.length} Barcode Labels
+            Print All {unitLabels.length} {codeType === "qr" ? "QR Code" : "Barcode"} Labels
           </Button>
         </DialogFooter>
       </DialogContent>

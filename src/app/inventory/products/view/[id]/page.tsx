@@ -77,6 +77,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog"
 import { BarcodeDisplay } from "@/components/ui/barcode-display"
+import { QrDisplay } from "@/components/ui/qr-display"
 import { BarcodePrintModal } from "@/components/inventory/barcode-print-modal"
 import { LotBarcodePrintModal } from "@/components/inventory/lot-barcode-print-modal"
 import { useAuth } from "@/hooks/use-auth"
@@ -102,6 +103,7 @@ export default function ViewProductPage() {
     const [copiedKey, setCopiedKey] = React.useState<string | null>(null)
     const [previewImage, setPreviewImage] = React.useState<{ url: string; title: string } | null>(null)
     const [barcodeModal, setBarcodeModal] = React.useState<{ code: string; name: string; sku: string; lotNumber?: string; expiryDate?: string } | null>(null)
+    const [codeDisplayType, setCodeDisplayType] = React.useState<"barcode" | "qr">("barcode")
     const [isBarcodePrintModalOpen, setIsBarcodePrintModalOpen] = React.useState(false)
     const [printTargetVariantId, setPrintTargetVariantId] = React.useState<number | "all">("all")
 
@@ -1815,11 +1817,37 @@ export default function ViewProductPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Barcode Print / View Dialog */}
+            {/* Barcode & QR Print / View Dialog */}
             <Dialog open={!!barcodeModal} onOpenChange={(open) => !open && setBarcodeModal(null)}>
                 <DialogContent className="sm:max-w-md p-6">
                     <DialogHeader>
-                        <DialogTitle className="text-base font-semibold">Barcode Display</DialogTitle>
+                        <div className="flex items-center justify-between gap-3 pr-6">
+                            <DialogTitle className="text-base font-semibold">Product Code</DialogTitle>
+                            <div className="inline-flex items-center rounded-lg bg-muted p-1 text-xs font-medium">
+                                <button
+                                    type="button"
+                                    onClick={() => setCodeDisplayType("barcode")}
+                                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                                        codeDisplayType === "barcode"
+                                            ? "bg-background shadow-xs text-foreground font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    Barcode
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCodeDisplayType("qr")}
+                                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                                        codeDisplayType === "qr"
+                                            ? "bg-background shadow-xs text-foreground font-semibold"
+                                            : "text-muted-foreground hover:text-foreground"
+                                    }`}
+                                >
+                                    QR Code
+                                </button>
+                            </div>
+                        </div>
                         <DialogDescription className="text-xs">
                             {barcodeModal?.name} ({barcodeModal?.sku})
                             {barcodeModal?.lotNumber && (
@@ -1832,7 +1860,15 @@ export default function ViewProductPage() {
                     </DialogHeader>
                     {barcodeModal?.code && (
                         <div className="mt-4 flex flex-col items-center justify-center">
-                            <BarcodeDisplay value={barcodeModal.code} label={`${barcodeModal.sku} - ${barcodeModal.name}`} />
+                            {codeDisplayType === "qr" ? (
+                                <QrDisplay
+                                    value={barcodeModal.code}
+                                    label={barcodeModal.name}
+                                    sublabel={`${barcodeModal.sku}${barcodeModal.lotNumber ? ` • Lot ${barcodeModal.lotNumber}` : ""}`}
+                                />
+                            ) : (
+                                <BarcodeDisplay value={barcodeModal.code} label={`${barcodeModal.sku} - ${barcodeModal.name}`} />
+                            )}
                         </div>
                     )}
                 </DialogContent>

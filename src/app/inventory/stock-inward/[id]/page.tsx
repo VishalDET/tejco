@@ -49,6 +49,7 @@ export default function StockInwardDetailsPage() {
   const [scanning, setScanning] = useState(false)
   const [statusUpdating, setStatusUpdating] = useState(false)
   const [isBarcodeModalOpen, setIsBarcodeModalOpen] = useState(false)
+  const [printCodeType, setPrintCodeType] = useState<"barcode" | "qr">("barcode")
   const [flaggedScans, setFlaggedScans] = useState<Array<{
     barcode: string
     time: string
@@ -429,11 +430,28 @@ export default function StockInwardDetailsPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setIsBarcodeModalOpen(true)}
+            onClick={() => {
+              setPrintCodeType("barcode")
+              setIsBarcodeModalOpen(true)
+            }}
             className="h-9 font-mono text-xs border-primary/40 text-primary hover:bg-primary/10 cursor-pointer shadow-2xs gap-1.5"
           >
-            <Printer className="h-3.5 w-3.5" />
+            <Barcode className="h-3.5 w-3.5" />
             <span>Print Barcodes</span>
+          </Button>
+
+          {/* Print QR Codes Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPrintCodeType("qr")
+              setIsBarcodeModalOpen(true)
+            }}
+            className="h-9 font-mono text-xs border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer shadow-2xs gap-1.5"
+          >
+            <QrCode className="h-3.5 w-3.5" />
+            <span>Print QR Labels</span>
           </Button>
 
           {!isCompleted && (
@@ -761,15 +779,32 @@ export default function StockInwardDetailsPage() {
                 Total Value: ₹{totalOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </Badge>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setIsBarcodeModalOpen(true)}
-              className="text-xs font-mono cursor-pointer"
-            >
-              <Printer className="mr-1.5 h-3.5 w-3.5" />
-              Print Stickers
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPrintCodeType("barcode")
+                  setIsBarcodeModalOpen(true)
+                }}
+                className="text-xs font-mono cursor-pointer gap-1"
+              >
+                <Barcode className="h-3 w-3" />
+                <span>Barcodes</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setPrintCodeType("qr")
+                  setIsBarcodeModalOpen(true)
+                }}
+                className="text-xs font-mono cursor-pointer gap-1 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              >
+                <QrCode className="h-3 w-3" />
+                <span>QR Labels</span>
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -871,10 +906,10 @@ export default function StockInwardDetailsPage() {
                             <Badge
                               variant="outline"
                               className={`text-[9px] font-mono px-1.5 py-0 w-fit ${expiryInfo.status === "valid"
-                                  ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                                  : expiryInfo.status === "expiring-soon"
-                                    ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
-                                    : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
+                                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                : expiryInfo.status === "expiring-soon"
+                                  ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30"
+                                  : "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30"
                                 }`}
                             >
                               {expiryInfo.label}
@@ -1030,12 +1065,15 @@ export default function StockInwardDetailsPage() {
         </CardContent>
       </Card>
 
-      {/* Inward Barcode Print Modal */}
-      <InwardBarcodePrintModal
-        open={isBarcodeModalOpen}
-        onOpenChange={setIsBarcodeModalOpen}
-        order={order}
-      />
+      {/* Inward Barcode & QR Print Modal */}
+      {order && (
+        <InwardBarcodePrintModal
+          open={isBarcodeModalOpen}
+          onOpenChange={setIsBarcodeModalOpen}
+          order={order}
+          initialCodeType={printCodeType}
+        />
+      )}
     </div>
   )
 }
