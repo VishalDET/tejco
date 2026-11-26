@@ -152,7 +152,7 @@ export default function AddProductPage() {
             "Hair & Skin > Consultation Tools",
             "Default",
             "Standard",
-            "-DEF",
+            "",
             "59289",
             "125000",
             "147500",
@@ -329,22 +329,6 @@ export default function AddProductPage() {
         setIsImportOpen(false)
         setPreviewData(null)
         toast.success("Imported details successfully loaded into the form.")
-
-        // Sync batch barcodes with backend API
-        productsApi.generateVariantBarcode({
-            categoryPath: activePath,
-            tempProdId,
-            index: 0,
-            variantCount: mappedVariants.length
-        }).then(res => {
-            const barcodes = res?.data?.barcodes
-            if (Array.isArray(barcodes) && barcodes.length > 0) {
-                setVariants(prev => prev.map((v, i) => ({
-                    ...v,
-                    barcode: barcodes[i] || v.barcode
-                })))
-            }
-        }).catch(() => {})
     }
 
     // Generate a random product ID only on the client to avoid hydration mismatch
@@ -379,7 +363,7 @@ export default function AddProductPage() {
             id: 1,
             name: "Default",
             size: "",
-            sku_suffix: "-DEF",
+            sku_suffix: "",
             hsnCode: "",
             costPrice: "",
             basePrice: "",
@@ -405,36 +389,10 @@ export default function AddProductPage() {
     React.useEffect(() => {
         if (variants.length === 0) return
 
-        let isCancelled = false
-
-        // 1. Optimistic update with local matching format
         setVariants(prev => prev.map((v, i) => ({
             ...v,
             barcode: formatLocalVariantBarcode(selectedCategoryIds, tempProdId, i)
         })))
-
-        // 2. Authoritative backend generation
-        productsApi.generateVariantBarcode({
-            categoryPath: selectedCategoryIds,
-            tempProdId,
-            index: 0,
-            variantCount: variants.length
-        }).then(res => {
-            if (isCancelled) return
-            const barcodes = res?.data?.barcodes
-            if (Array.isArray(barcodes) && barcodes.length > 0) {
-                setVariants(prev => prev.map((v, i) => ({
-                    ...v,
-                    barcode: barcodes[i] || v.barcode
-                })))
-            }
-        }).catch(err => {
-            console.warn("Backend variant barcode generation API unreachable, kept client fallback:", err)
-        })
-
-        return () => {
-            isCancelled = true
-        }
     }, [selectedCategoryIds, tempProdId, variants.length])
 
     const addVariant = () => {
@@ -462,19 +420,6 @@ export default function AddProductPage() {
             rackLocation: "",
             image: null as string | null
         }])
-
-        // Request authoritative barcode from API for the new variant
-        productsApi.generateVariantBarcode({
-            categoryPath: selectedCategoryIds,
-            tempProdId,
-            index: newIndex,
-            variantCount: 1
-        }).then(res => {
-            const confirmedBarcode = res?.data?.barcode || res?.data?.barcodes?.[0]
-            if (confirmedBarcode) {
-                setVariants(prev => prev.map(v => v.id === newVarId ? { ...v, barcode: confirmedBarcode } : v))
-            }
-        }).catch(() => {})
     }
 
     const handleImageChange = (id: number, file: File) => {
@@ -531,13 +476,13 @@ export default function AddProductPage() {
         const payload = {
             productId: 0,
             productName: name,
-            baseSKU: baseSKU,
-            vendorName: vendorName,
-            VendorName: vendorName,
-            hsnCode: hsnCode,
-            HSNCode: hsnCode,
+            baseSKU: baseSKU || "",
+            vendorName: vendorName || "",
+            VendorName: vendorName || "",
+            hsnCode: hsnCode || "",
+            HSNCode: hsnCode || "",
             productTaggingNo: taggingNo,
-            barcodeNumber: tempProdId,
+            barcodeNumber: "",
             categoryId: selectedCategoryIds[0] || 0,
             subcategoryId: selectedCategoryIds[1] || 0,
             subcategoryL2Id: selectedCategoryIds[2] || 0,
@@ -569,7 +514,7 @@ export default function AddProductPage() {
                 gstPercentage: parseInt(v.gstPercentage) || 0,
                 warehouseId: parseInt(v.warehouseId) || 0,
                 rackLocation: v.rackLocation || "",
-                barcodeNumber: v.barcode || "",
+                barcodeNumber: "",
                 variantImage: v.image || "",
                 usdAmount: parseFloat(v.exportSalesPrice) || 0
             }))
@@ -618,7 +563,7 @@ export default function AddProductPage() {
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="grid gap-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 gap-4">
                                     <div className="grid gap-2">
                                         <Label htmlFor="name">Product Name</Label>
                                         <Input
@@ -627,15 +572,6 @@ export default function AddProductPage() {
                                             value={name}
                                             onChange={(e) => setName(e.target.value)}
                                             required
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Input
-                                            id="sku"
-                                            placeholder="e.g., SB-010"
-                                            required
-                                            value={baseSKU}
-                                            onChange={(e) => setBaseSKU(e.target.value)}
                                         />
                                     </div>
                                 </div>
@@ -829,7 +765,7 @@ export default function AddProductPage() {
                                                     />
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">LOT Number  j0987is 6</Label>
+                                                    <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">LOT Number</Label>
                                                     <Input
                                                         placeholder="-LG"
                                                         value={v.sku_suffix}
@@ -1039,46 +975,6 @@ export default function AddProductPage() {
                                                 )}
                                             </div>
 
-                                            {/* Barcode Display */}
-                                            {(() => {
-                                                const encoded = encodeCode128B(v.barcode || "0000000000")
-                                                const segments = parseVariantBarcodeSegments(v.barcode || "")
-                                                return (
-                                                    <div className="flex flex-col items-center justify-center p-2 rounded-lg bg-white border border-slate-200 shadow-sm gap-1">
-                                                        <div className="w-full h-9 flex items-center justify-center overflow-hidden">
-                                                            <svg
-                                                                viewBox={`0 0 ${encoded.totalWidth} 40`}
-                                                                className="w-full h-full max-h-9"
-                                                                preserveAspectRatio="none"
-                                                            >
-                                                                {encoded.bars.map((bar, bIdx) => (
-                                                                    <rect
-                                                                        key={bIdx}
-                                                                        x={bar.x}
-                                                                        y="0"
-                                                                        width={bar.width}
-                                                                        height="40"
-                                                                        fill="#0f172a"
-                                                                    />
-                                                                ))}
-                                                            </svg>
-                                                        </div>
-                                                        <div className="flex items-center justify-between w-full px-0.5 gap-1">
-                                                            <span className="text-[10px] font-mono font-bold tracking-wider text-slate-800 truncate">
-                                                                {v.barcode || "—"}
-                                                            </span>
-                                                            {segments.rootCategoryId && (
-                                                                <span
-                                                                    className="text-[9px] font-mono text-muted-foreground bg-slate-100 px-1 py-0.5 rounded border border-slate-200 shrink-0"
-                                                                    title={`Root: ${segments.rootCategoryId} | Subcat: ${segments.subcategoryId} | Prod: ${segments.productId} | Var: ${segments.variantIndex}`}
-                                                                >
-                                                                    {segments.rootCategoryId}·{segments.subcategoryId}·{segments.productId}·{segments.variantIndex}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                )
-                                            })()}
                                         </div>
                                     </div>
                                 </div>

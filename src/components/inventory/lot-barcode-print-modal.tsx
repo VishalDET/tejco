@@ -103,7 +103,7 @@ export function LotBarcodePrintModal({
   const [companyName, setCompanyName] = useState<string>("TEJCO GLOBAL LLP")
   const [includeCompany, setIncludeCompany] = useState<boolean>(true)
   const [includeProductName, setIncludeProductName] = useState<boolean>(true)
-  const [includeVariantName, setIncludeVariantName] = useState<boolean>(true)
+  const [includeVariantName, setIncludeVariantName] = useState<boolean>(false)
   const [includeSku, setIncludeSku] = useState<boolean>(false)
   const [includeLotNumber, setIncludeLotNumber] = useState<boolean>(true)
   const [includeExpiry, setIncludeExpiry] = useState<boolean>(true)
@@ -218,7 +218,7 @@ export function LotBarcodePrintModal({
   const thermalPrintItems: ThermalPrintItem[] = useMemo(() => {
     return selectedItems.map(item => {
       const lot = item.lot
-      const barcode = lot.lotBarcode || lot.lotNumber
+      const barcode = lot.lotBarcode || (lot as any).barcodeNumber || (lot as any).barcode || lot.lotNumber
       const vName = lot.variantName || variant?.variantName || prodName
       const fullSku = `${baseSku}${lot.skuSuffix || variant?.skuSuffix || ""}`
       const expDate = formatLotExpiry(lot.expiryDate)
@@ -391,7 +391,7 @@ export function LotBarcodePrintModal({
 
     selectedItems.forEach(item => {
       const lot = item.lot
-      const barcode = lot.lotBarcode || lot.lotNumber
+      const barcode = lot.lotBarcode || (lot as any).barcodeNumber || (lot as any).barcode || lot.lotNumber
       const vName = lot.variantName || variant?.variantName || prodName
       const fullSku = `${baseSku}${lot.skuSuffix || variant?.skuSuffix || ""}`
       const expDate = formatLotExpiry(lot.expiryDate)

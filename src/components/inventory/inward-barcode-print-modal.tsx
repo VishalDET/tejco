@@ -79,7 +79,7 @@ export function InwardBarcodePrintModal({
   const [companyName, setCompanyName] = useState<string>("TEJCO GLOBAL LLP")
   const [includeCompany, setIncludeCompany] = useState<boolean>(true)
   const [includeProductName, setIncludeProductName] = useState<boolean>(true)
-  const [includeVariantName, setIncludeVariantName] = useState<boolean>(true)
+  const [includeVariantName, setIncludeVariantName] = useState<boolean>(false)
   const [includeBarcodeNumber, setIncludeBarcodeNumber] = useState<boolean>(true)
   const [includeLot, setIncludeLot] = useState<boolean>(true)
   const [includeInvoice, setIncludeInvoice] = useState<boolean>(true)
@@ -106,7 +106,7 @@ export function InwardBarcodePrintModal({
 
       for (let i = 1; i <= qty; i++) {
         const seq = String(i).padStart(3, "0")
-        const baseBarcode = item.lotBarcode || item.lotNumber || item.barcode
+        const baseBarcode = item.lotBarcode || (item as any).barcodeNumber || item.barcode || item.lotNumber
         const unitBarcode = qty === 1 && baseBarcode
           ? baseBarcode
           : (baseBarcode ? `${baseBarcode}-${seq}` : `${cleanSku}-${cleanInwardNum}-${seq}`)

@@ -561,6 +561,11 @@ export default function StockInwardFormPage() {
     const item = form.items?.[idx]
     if (!item) return
 
+    if (!form.vendorId || Number(form.vendorId) <= 0) {
+      toast.warning("Please select a Vendor Partner before generating a lot number.")
+      return
+    }
+
     if (!item.productId || Number(item.productId) <= 0) {
       toast.warning("Please select a product before generating a lot number.")
       return
@@ -921,6 +926,15 @@ export default function StockInwardFormPage() {
     }
     if (!form.items || form.items.length === 0) {
       toast.error("Please add at least one item to the inward receipt")
+      return
+    }
+
+    // Mandatory Lot Number Validation
+    const missingLotIdx = (form.items || []).findIndex(i => !i.lotNumber || !i.lotNumber.trim())
+    if (missingLotIdx > -1) {
+      const item = form.items![missingLotIdx]
+      const label = item.productName || item.sku || `Item #${missingLotIdx + 1}`
+      toast.error(`Lot number is mandatory for all items! Please generate a lot number for: ${label} (Row ${missingLotIdx + 1})`)
       return
     }
 
@@ -1453,6 +1467,7 @@ export default function StockInwardFormPage() {
                       const rackSuggestions = getWarehouseRacks(currentItemWhId)
                       const expiryInfo = getExpiryStatus(item.expiryDate)
                       const lineTotal = (item.expectedQty || 0) * (item.purchasePrice || item.unitPrice || 0)
+                      const isVendorSelected = Boolean(form.vendorId && Number(form.vendorId) > 0)
                       const isProductSelected = Boolean(item.productId && Number(item.productId) > 0)
                       const isInvoiceEntered = Boolean(form.invoiceNumber && form.invoiceNumber.trim().length > 0)
                       const isLotGenerated = Boolean(item.lotNumber && item.lotNumber.trim().length > 0)
@@ -1576,16 +1591,18 @@ export default function StockInwardFormPage() {
                                     type="button"
                                     variant="outline"
                                     size="sm"
-                                    disabled={fetchingLotIdx === idx || !isProductSelected || !isInvoiceEntered}
+                                    disabled={fetchingLotIdx === idx || !isVendorSelected || !isProductSelected || !isInvoiceEntered}
                                     onClick={() => handleFetchLotNumber(idx)}
                                     title={
-                                      !isInvoiceEntered
-                                        ? "Please enter the Vendor Invoice / Bill Number first"
-                                        : !isProductSelected
-                                          ? "Please select a product before generating a lot number"
-                                          : "Fetch lot and barcode from endpoint"
+                                      !isVendorSelected
+                                        ? "Please select a Vendor Partner first"
+                                        : !isInvoiceEntered
+                                          ? "Please enter the Vendor Invoice / Bill Number first"
+                                          : !isProductSelected
+                                            ? "Please select a product before generating a lot number"
+                                            : "Fetch lot and barcode from endpoint"
                                     }
-                                    className={`h-8 px-2 text-[11px] font-mono font-medium shrink-0 flex items-center gap-1 whitespace-nowrap transition-all ${!isProductSelected || !isInvoiceEntered
+                                    className={`h-8 px-2 text-[11px] font-mono font-medium shrink-0 flex items-center gap-1 whitespace-nowrap transition-all ${!isVendorSelected || !isProductSelected || !isInvoiceEntered
                                       ? "border-muted bg-muted/40 text-muted-foreground opacity-50 cursor-not-allowed"
                                       : "border-amber-400/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer"
                                       }`}
@@ -1593,7 +1610,7 @@ export default function StockInwardFormPage() {
                                     {fetchingLotIdx === idx ? (
                                       <Loader2 className="h-3 w-3 animate-spin" />
                                     ) : (
-                                      <Sparkles className={`h-3 w-3 ${!isProductSelected ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`} />
+                                      <Sparkles className={`h-3 w-3 ${!isVendorSelected || !isProductSelected ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`} />
                                     )}
                                     <span>Get Lot No</span>
                                   </Button>
@@ -1617,7 +1634,9 @@ export default function StockInwardFormPage() {
                                 </div>
                               ) : (
                                 <p className="text-[10px] text-muted-foreground font-mono">
-                                  {!isInvoiceEntered ? (
+                                  {!isVendorSelected ? (
+                                    <span className="text-amber-600/90 dark:text-amber-400/90">Select Vendor Partner above</span>
+                                  ) : !isInvoiceEntered ? (
                                     <span className="text-amber-600/90 dark:text-amber-400/90">Enter Invoice # above</span>
                                   ) : !isProductSelected ? (
                                     <span className="text-amber-600/90 dark:text-amber-400/90">Select product to enable</span>

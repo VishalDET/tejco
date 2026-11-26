@@ -86,6 +86,7 @@ interface AuthContextType {
     permissions: string[]
     isSuperAdmin: boolean
     isSalesPerson: boolean
+    isWarehousePerson: boolean
     canEditMasterPrice: boolean
     hasPermission: (permission: string | string[]) => boolean
     hasAnyPermission: (permissions: string[]) => boolean
@@ -159,6 +160,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [token, user?.roleId, refreshPermissions, permissions])
 
+    const isWarehousePerson = React.useMemo(() => {
+        return (
+            Number(user?.roleId) === 4 ||
+            String(user?.roleId) === "4" ||
+            String(user?.role || "").toLowerCase().includes("warehouse")
+        )
+    }, [user?.roleId, user?.role])
+
     const hasPermission = React.useCallback(
         (required: string | string[]) => {
             if (!required) return true
@@ -166,9 +175,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (permissions.includes("*") || user?.roleId === 1 || user?.role?.toLowerCase() === "administrator") {
                 return true
             }
+            if (isWarehousePerson) {
+                const reqList = Array.isArray(required) ? required : [required]
+                const isBlockedSalesWrite = reqList.some((r) => {
+                    const lower = r.toLowerCase()
+                    const isSalesModule =
+                        lower.startsWith("salesorders.") ||
+                        lower.startsWith("quotations.") ||
+                        lower.startsWith("proformainvoices.") ||
+                        lower.startsWith("sales.commercial.")
+                    return isSalesModule && !lower.endsWith(".view")
+                })
+                if (isBlockedSalesWrite) return false
+            }
             return checkPermission(permissions, required)
         },
-        [permissions, user?.role, user?.roleId]
+        [permissions, user?.role, user?.roleId, isWarehousePerson]
     )
 
     const hasAnyPermission = React.useCallback(
@@ -384,6 +406,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             permissions,
             isSuperAdmin,
             isSalesPerson,
+            isWarehousePerson,
             canEditMasterPrice,
             hasPermission,
             hasAnyPermission,
@@ -392,7 +415,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logout,
             setIsAuthenticated,
         }),
-        [isAuthenticated, user, permissions, isSuperAdmin, isSalesPerson, canEditMasterPrice, hasPermission, hasAnyPermission, refreshPermissions, login, logout, setIsAuthenticated]
+        [isAuthenticated, user, permissions, isSuperAdmin, isSalesPerson, isWarehousePerson, canEditMasterPrice, hasPermission, hasAnyPermission, refreshPermissions, login, logout, setIsAuthenticated]
     )
 
     return (
@@ -433,6 +456,10 @@ export function useAuth(): AuthContextType {
             permissions: storedPerms,
             isSuperAdmin: isSuperAdminFallback,
             isSalesPerson: isSalesPersonFallback,
+            isWarehousePerson:
+                Number(storedUser?.roleId) === 4 ||
+                String(storedUser?.roleId) === "4" ||
+                String(storedUser?.role || "").toLowerCase().includes("warehouse"),
             canEditMasterPrice: isSuperAdminFallback,
             hasPermission: (required: string | string[]) => {
                 if (!required) return true

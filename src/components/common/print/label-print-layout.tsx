@@ -158,7 +158,7 @@ export function BarcodeLabel({
   companyName = "TEJCO GLOBAL LLP",
   showCompany = false,
   showProductName = true,
-  showVariantName = true,
+  showVariantName = false,
   showBarcodeNumber = true,
   renderMode = "image",
   widthMm = STANDARD_LABEL_SIZE.widthMm,
@@ -193,13 +193,13 @@ export function BarcodeLabel({
         printColorAdjust: "exact",
       }}
     >
-      {/* Top Header details (No SKU) */}
-      {(showCompany || showProductName || showVariantName) && (
+      {/* Top Header details (No SKU, No Variant Specs) */}
+      {(showCompany || showProductName) && (
         <div
           style={{
             width: "100%",
-            lineHeight: 1.1,
-            padding: "0.2mm 0.8mm 0",
+            lineHeight: 1.05,
+            padding: "0.1mm 0.8mm 0",
             overflow: "hidden",
             flexShrink: 0,
           }}
@@ -207,10 +207,10 @@ export function BarcodeLabel({
           {showCompany && (
             <div
               style={{
-                fontSize: "4.8pt",
+                fontSize: "4pt",
                 fontWeight: 800,
                 textTransform: "uppercase",
-                letterSpacing: "0.3px",
+                letterSpacing: "0.2px",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -223,7 +223,7 @@ export function BarcodeLabel({
           {showProductName && productName && (
             <div
               style={{
-                fontSize: "5.5pt",
+                fontSize: "4.5pt",
                 fontWeight: 700,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -234,34 +234,23 @@ export function BarcodeLabel({
               {productName}
             </div>
           )}
-          {showVariantName && variantName && variantName !== productName && (
-            <div
-              style={{
-                fontSize: "5pt",
-                fontWeight: 600,
-                color: "#333",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {variantName}
-            </div>
-          )}
         </div>
       )}
 
-      {/* Barcode Graphic: High-resolution PNG or Proportional SVG (never stretched) */}
+      {/* Barcode Graphic: 36mm × 13mm max */}
       <div
         style={{
-          width: "100%",
+          width: "36mm",
+          maxWidth: "36mm",
+          height: "13mm",
+          maxHeight: "13mm",
           flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
-          padding: "0 0.8mm",
-          minHeight: showBarcodeNumber ? "6.8mm" : "9.2mm",
+          padding: 0,
+          margin: "0 auto",
         }}
       >
         {renderMode === "image" && dataUrl ? (
@@ -269,9 +258,10 @@ export function BarcodeLabel({
             src={dataUrl}
             alt={barcode}
             style={{
-              maxHeight: "100%",
-              maxWidth: "96%",
-              height: "auto",
+              maxHeight: "13mm",
+              maxWidth: "36mm",
+              width: "auto",
+              height: "100%",
               display: "block",
               margin: "0 auto",
               imageRendering: "pixelated",
@@ -284,9 +274,10 @@ export function BarcodeLabel({
             viewBox={`0 0 ${encoded.totalWidth} ${barHeight}`}
             shapeRendering="crispEdges"
             style={{
-              maxHeight: "100%",
-              maxWidth: "96%",
-              height: "auto",
+              maxHeight: "13mm",
+              maxWidth: "36mm",
+              width: "auto",
+              height: "100%",
               display: "block",
               margin: "0 auto",
               shapeRendering: "crispEdges",
@@ -452,7 +443,7 @@ export function buildThermalLabelHtml(options: {
     companyName = "TEJCO GLOBAL LLP",
     showCompany = false,
     showProductName = true,
-    showVariantName = true,
+    showVariantName = false,
     showBarcodeNumber = true,
     renderMode = "image",
     widthMm = STANDARD_LABEL_SIZE.widthMm,
@@ -472,9 +463,10 @@ export function buildThermalLabelHtml(options: {
           src="${pngDataUrl}"
           alt="${barcode}"
           style="
-            max-height: 100%;
-            max-width: 96%;
-            height: auto;
+            max-height: 13mm;
+            max-width: 36mm;
+            width: auto;
+            height: 100%;
             display: block;
             margin: 0 auto;
             image-rendering: pixelated;
@@ -488,7 +480,7 @@ export function buildThermalLabelHtml(options: {
         <svg
           viewBox="0 0 ${encoded.totalWidth} ${barHeight}"
           shape-rendering="crispEdges"
-          style="max-height: 100%; max-width: 96%; height: auto; display: block; margin: 0 auto; shape-rendering: crispEdges;"
+          style="max-height: 13mm; max-width: 36mm; width: auto; height: 100%; display: block; margin: 0 auto; shape-rendering: crispEdges;"
           preserveAspectRatio="xMidYMid meet"
         >
           <rect x="0" y="0" width="${encoded.totalWidth}" height="${barHeight}" fill="#ffffff" />
@@ -526,13 +518,13 @@ export function buildThermalLabelHtml(options: {
       print-color-adjust: exact !important;
     ">
       ${
-        showCompany || showProductName || showVariantName
+        showCompany || showProductName
           ? `
-        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.1mm; padding: 0.2mm 0.8mm 0; flex-shrink: 0; line-height: 1.1;">
+        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.1mm; padding: 0.1mm 0.8mm 0; flex-shrink: 0; line-height: 1.05;">
           ${
             showCompany
               ? `
-            <div style="font-size: 4.8pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; color: #111;">
+            <div style="font-size: 4pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2px; color: #111;">
               ${companyName}
             </div>
           `
@@ -541,17 +533,8 @@ export function buildThermalLabelHtml(options: {
           ${
             showProductName && productName
               ? `
-            <div style="font-size: 5.5pt; font-weight: 700; max-width: 98%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000;">
+            <div style="font-size: 4.5pt; font-weight: 700; max-width: 98%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000;">
               ${productName}
-            </div>
-          `
-              : ""
-          }
-          ${
-            showVariantName && variantName && variantName !== productName
-              ? `
-            <div style="font-size: 5pt; font-weight: 600; max-width: 98%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333;">
-              ${variantName}
             </div>
           `
               : ""
@@ -561,16 +544,14 @@ export function buildThermalLabelHtml(options: {
           : ""
       }
 
-      <div style="width: 100%; flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 0.8mm; min-height: ${
-        showBarcodeNumber ? "6.8mm" : "9.2mm"
-      };">
+      <div style="width: 36mm; max-width: 36mm; height: 13mm; max-height: 13mm; flex: 1; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0 auto; overflow: hidden;">
         ${barcodeElementHtml}
       </div>
 
       ${
         showBarcodeNumber
           ? `
-        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 5pt; font-weight: 700; letter-spacing: 0.5px; line-height: 1; padding-bottom: 0.2mm; flex-shrink: 0; color: #000000;">
+        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 4.5pt; font-weight: 700; letter-spacing: 0.4px; line-height: 1; padding-bottom: 0.1mm; flex-shrink: 0; color: #000000;">
           ${encoded.text}
         </div>
       `

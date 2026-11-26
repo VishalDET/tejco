@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { OrderFormDialog } from "@/app/sales/orders/order-form-dialog"
 import { PrintLayout, executePrint } from "@/components/common/print"
+import { useAuth } from "@/hooks/use-auth"
 import * as XLSX from "xlsx"
 import { toast } from "sonner"
 
@@ -116,6 +117,8 @@ const renderAddressCompactPrint = (address?: string) => {
 
 export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps) {
   const navigate = useNavigate()
+  const { hasPermission } = useAuth()
+  const canEditOrder = hasPermission("SalesOrders.Edit")
   const [order, setOrder] = React.useState<Order>(initialOrder)
   const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false)
 
@@ -365,9 +368,11 @@ export function OrderDetailsView({ order: initialOrder }: OrderDetailsViewProps)
               </DropdownMenuContent>
             </DropdownMenu> */}
 
-            <Button className="gap-2 bg-primary hover:bg-primary/90 shadow-md" onClick={() => setIsEditDialogOpen(true)}>
-              <Edit className="h-4 w-4" /> Edit Order
-            </Button>
+            {canEditOrder && (
+              <Button className="gap-2 bg-primary hover:bg-primary/90 shadow-md" onClick={() => setIsEditDialogOpen(true)}>
+                <Edit className="h-4 w-4" /> Edit Order
+              </Button>
+            )}
           </div>
         </div>
 
