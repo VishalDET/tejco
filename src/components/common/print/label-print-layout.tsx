@@ -179,7 +179,7 @@ export function BarcodeLabel({
 
   return (
     <div
-      className={`barcode-label-container flex flex-col justify-between items-center text-center bg-white text-black overflow-hidden ${className}`}
+      className={`barcode-label-container flex flex-col justify-center items-center text-center bg-white text-black overflow-hidden ${className}`}
       style={{
         width: `${widthMm}mm`,
         height: `${heightMm}mm`,
@@ -187,6 +187,7 @@ export function BarcodeLabel({
         maxHeight: `${heightMm}mm`,
         padding: 0,
         margin: 0,
+        gap: "0.2mm",
         boxSizing: "border-box",
         pageBreakInside: "avoid",
         WebkitPrintColorAdjust: "exact",
@@ -242,9 +243,7 @@ export function BarcodeLabel({
         style={{
           width: "36mm",
           maxWidth: "36mm",
-          height: "13mm",
           maxHeight: "13mm",
-          flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -305,11 +304,11 @@ export function BarcodeLabel({
         <div
           style={{
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            fontSize: "5pt",
+            fontSize: "4.5pt",
             fontWeight: 700,
-            letterSpacing: "0.5px",
+            letterSpacing: "0.4px",
             lineHeight: 1,
-            paddingBottom: "0.2mm",
+            paddingBottom: 0,
             flexShrink: 0,
             color: "#000000",
           }}
@@ -504,8 +503,9 @@ export function buildThermalLabelHtml(options: {
       margin: 0;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
+      gap: 0.2mm;
       background: #ffffff;
       color: #000000;
       text-align: center;
@@ -544,7 +544,7 @@ export function buildThermalLabelHtml(options: {
           : ""
       }
 
-      <div style="width: 36mm; max-width: 36mm; height: 13mm; max-height: 13mm; flex: 1; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0 auto; overflow: hidden;">
+      <div style="width: 36mm; max-width: 36mm; max-height: 13mm; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0 auto; overflow: hidden;">
         ${barcodeElementHtml}
       </div>
 
