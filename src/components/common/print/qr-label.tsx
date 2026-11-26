@@ -1,5 +1,5 @@
 import React, { useRef } from "react"
-import { STANDARD_LABEL_SIZE, executePrint } from "./print-layout"
+import { STANDARD_LABEL_SIZE, printHtmlViaIframe } from "./print-layout"
 import {
   generateQrMatrix,
   generateQrPath,
@@ -63,12 +63,12 @@ export function QrLabel({
   productName,
   variantName,
   companyName = "TEJCO GLOBAL LLP",
-  showCompany = false,
-  showProductName = true,
-  showVariantName = true,
+  showCompany = true,
+  showProductName = false,
+  showVariantName = false,
   showCodeText = true,
   lotNumber,
-  showLotNumber = true,
+  showLotNumber = false,
   invoiceNumber,
   showInvoiceNumber = false,
   expiryDate,
@@ -439,12 +439,12 @@ export function buildThermalQrLabelHtml(options: {
     productName,
     variantName,
     companyName = "TEJCO GLOBAL LLP",
-    showCompany = false,
-    showProductName = true,
-    showVariantName = true,
+    showCompany = true,
+    showProductName = false,
+    showVariantName = false,
     showCodeText = true,
     lotNumber,
-    showLotNumber = true,
+    showLotNumber = false,
     invoiceNumber,
     showInvoiceNumber = false,
     expiryDate,
@@ -668,24 +668,12 @@ export function executeQrLabelPrint(
 
   const widthMm = options?.widthMm ?? STANDARD_LABEL_SIZE.widthMm
   const heightMm = options?.heightMm ?? STANDARD_LABEL_SIZE.heightMm
+  const safeWidthMm = Math.max(10, widthMm - 0.5)
+  const safeHeightMm = Math.max(10, heightMm - 0.5)
   const title = options?.documentTitle || `QR Label - ${widthMm}mm x ${heightMm}mm`
-  const delay = options?.delayMs ?? 150
   const contents = targetElement.innerHTML
 
-  const printWindow = window.open("", "_blank", "width=600,height=500")
-  if (!printWindow) {
-    return executePrint(targetElement, {
-      documentTitle: title,
-      widthMm,
-      heightMm,
-      pageSize: `${widthMm}mm ${heightMm}mm`,
-      margin: "0mm",
-      delayMs: delay,
-    })
-  }
-
-  printWindow.document.open()
-  printWindow.document.write(`
+  printHtmlViaIframe(`
     <!DOCTYPE html>
     <html>
       <head>
@@ -703,8 +691,8 @@ export function executeQrLabelPrint(
             padding: 0;
           }
           html, body {
-            width: ${widthMm}mm;
-            height: ${heightMm}mm;
+            width: ${safeWidthMm}mm;
+            height: ${safeHeightMm}mm;
             margin: 0;
             padding: 0;
             background: #ffffff;
@@ -714,10 +702,10 @@ export function executeQrLabelPrint(
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
           }
           .qr-label-container {
-            width: ${widthMm}mm !important;
-            height: ${heightMm}mm !important;
-            max-width: ${widthMm}mm !important;
-            max-height: ${heightMm}mm !important;
+            width: ${safeWidthMm}mm !important;
+            height: ${safeHeightMm}mm !important;
+            max-width: ${safeWidthMm}mm !important;
+            max-height: ${safeHeightMm}mm !important;
             overflow: hidden !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -733,20 +721,8 @@ export function executeQrLabelPrint(
       </head>
       <body>
         ${contents}
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.focus();
-              window.print();
-              setTimeout(function() {
-                try { window.close(); } catch(e) {}
-              }, 400);
-            }, ${delay});
-          };
-        </script>
       </body>
     </html>
   `)
-  printWindow.document.close()
 }
 

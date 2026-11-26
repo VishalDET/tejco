@@ -1,6 +1,6 @@
 import React, { useRef } from "react"
-import { executePrint, STANDARD_LABEL_SIZE } from "./print-layout"
-import { encodeCode128B } from "@/lib/barcode-utils"
+import { printHtmlViaIframe, STANDARD_LABEL_SIZE } from "./print-layout"
+import { encodeCode128Auto } from "@/lib/barcode-utils"
 import {
   QrLabel,
   QrLabelProps,
@@ -54,7 +54,7 @@ export function generateBarcodeDataUrl(
   }
 ): string {
   if (typeof document === "undefined") return ""
-  const encoded = encodeCode128B(rawText)
+  const encoded = encodeCode128Auto(rawText)
   const defaultModuleWidth = encoded.totalWidth > 180 ? 1 : 2
   const moduleWidth = Math.max(1, Math.round(options?.moduleWidth ?? defaultModuleWidth))
   const height = Math.max(20, Math.round(options?.height ?? 64))
@@ -156,8 +156,8 @@ export function BarcodeLabel({
   productName,
   variantName,
   companyName = "TEJCO GLOBAL LLP",
-  showCompany = false,
-  showProductName = true,
+  showCompany = true,
+  showProductName = false,
   showVariantName = false,
   showBarcodeNumber = true,
   renderMode = "image",
@@ -165,7 +165,7 @@ export function BarcodeLabel({
   heightMm = STANDARD_LABEL_SIZE.heightMm,
   className = "",
 }: BarcodeLabelProps) {
-  const encoded = React.useMemo(() => encodeCode128B(barcode || "000000"), [barcode])
+  const encoded = React.useMemo(() => encodeCode128Auto(barcode || "000000"), [barcode])
   const [dataUrl, setDataUrl] = React.useState<string>("")
 
   React.useEffect(() => {
@@ -185,22 +185,22 @@ export function BarcodeLabel({
         height: `${heightMm}mm`,
         maxWidth: `${widthMm}mm`,
         maxHeight: `${heightMm}mm`,
-        padding: 0,
+        padding: "0.8mm 2mm",
         margin: 0,
-        gap: "0.2mm",
+        gap: "0.4mm",
         boxSizing: "border-box",
         pageBreakInside: "avoid",
         WebkitPrintColorAdjust: "exact",
         printColorAdjust: "exact",
       }}
     >
-      {/* Top Header details (No SKU, No Variant Specs) */}
-      {(showCompany || showProductName) && (
+      {/* Top Header details (Company Name by default, Product Name optionally hidden) */}
+      {(showCompany || (showProductName && productName)) && (
         <div
           style={{
             width: "100%",
-            lineHeight: 1.05,
-            padding: "0.1mm 0.8mm 0",
+            lineHeight: 1.1,
+            padding: 0,
             overflow: "hidden",
             flexShrink: 0,
           }}
@@ -208,14 +208,14 @@ export function BarcodeLabel({
           {showCompany && (
             <div
               style={{
-                fontSize: "4pt",
-                fontWeight: 800,
+                fontSize: "5.2pt",
+                fontWeight: 500,
                 textTransform: "uppercase",
-                letterSpacing: "0.2px",
+                letterSpacing: "0.3px",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                color: "#111",
+                color: "#000",
               }}
             >
               {companyName}
@@ -224,8 +224,8 @@ export function BarcodeLabel({
           {showProductName && productName && (
             <div
               style={{
-                fontSize: "4.5pt",
-                fontWeight: 700,
+                fontSize: "4.8pt",
+                fontWeight: 500,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -238,12 +238,12 @@ export function BarcodeLabel({
         </div>
       )}
 
-      {/* Barcode Graphic: 36mm × 13mm max */}
+      {/* Barcode Graphic: Fills remaining vertical space cleanly within safe margins */}
       <div
         style={{
-          width: "36mm",
-          maxWidth: "36mm",
-          maxHeight: "13mm",
+          width: "100%",
+          flex: 1,
+          minHeight: 0,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -257,10 +257,11 @@ export function BarcodeLabel({
             src={dataUrl}
             alt={barcode}
             style={{
-              maxHeight: "13mm",
-              maxWidth: "36mm",
+              maxHeight: "100%",
+              maxWidth: "100%",
               width: "auto",
               height: "100%",
+              objectFit: "contain",
               display: "block",
               margin: "0 auto",
               imageRendering: "pixelated",
@@ -273,8 +274,8 @@ export function BarcodeLabel({
             viewBox={`0 0 ${encoded.totalWidth} ${barHeight}`}
             shapeRendering="crispEdges"
             style={{
-              maxHeight: "13mm",
-              maxWidth: "36mm",
+              maxHeight: "100%",
+              maxWidth: "100%",
               width: "auto",
               height: "100%",
               display: "block",
@@ -304,13 +305,17 @@ export function BarcodeLabel({
         <div
           style={{
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-            fontSize: "4.5pt",
-            fontWeight: 700,
-            letterSpacing: "0.4px",
-            lineHeight: 1,
+            fontSize: "5pt",
+            fontWeight: 500,
+            letterSpacing: "0.3px",
+            lineHeight: 1.1,
             paddingBottom: 0,
             flexShrink: 0,
             color: "#000000",
+            maxWidth: "100%",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {encoded.text}
@@ -361,9 +366,9 @@ export function PrintableLabel({
   productName,
   variantName,
   companyName = "TEJCO GLOBAL LLP",
-  showCompany = false,
-  showProductName = true,
-  showVariantName = true,
+  showCompany = true,
+  showProductName = false,
+  showVariantName = false,
   showCodeText = true,
   qrLayout = "auto",
   eccLevel = "M",
@@ -431,6 +436,12 @@ export function buildThermalLabelHtml(options: {
   showProductName?: boolean
   showVariantName?: boolean
   showBarcodeNumber?: boolean
+  lotNumber?: string
+  showLotNumber?: boolean
+  invoiceNumber?: string
+  showInvoiceNumber?: boolean
+  expiryDate?: string
+  showExpiryDate?: boolean
   renderMode?: "image" | "svg"
   widthMm?: number
   heightMm?: number
@@ -440,17 +451,38 @@ export function buildThermalLabelHtml(options: {
     productName,
     variantName,
     companyName = "TEJCO GLOBAL LLP",
-    showCompany = false,
-    showProductName = true,
+    showCompany = true,
+    showProductName = false,
     showVariantName = false,
     showBarcodeNumber = true,
+    lotNumber,
+    showLotNumber = false,
+    invoiceNumber,
+    showInvoiceNumber = false,
+    expiryDate,
+    showExpiryDate = false,
     renderMode = "image",
     widthMm = STANDARD_LABEL_SIZE.widthMm,
     heightMm = STANDARD_LABEL_SIZE.heightMm,
   } = options
 
-  const encoded = encodeCode128B(barcode || "000000")
+  const encoded = encodeCode128Auto(barcode || "000000")
   const barHeight = showBarcodeNumber ? 26 : 34
+
+  // Target up to ~30mm bar width on 38mm labels so both left and right sides keep generous (~3.5-4mm) quiet zones.
+  const quietZoneModules = 10
+  const barModules = Math.max(1, encoded.totalWidth - quietZoneModules * 2)
+  const maxContentWidthMm = Math.max(10, widthMm - 7.5)
+  const availableWidthMm = widthMm <= 40 ? Math.min(maxContentWidthMm, 30) : maxContentWidthMm
+  const dotMm = 0.125
+  const twoDotWidthMm = barModules * (dotMm * 2)
+  const oneDotWidthMm = barModules * dotMm
+  const exactBarcodeWidthMm =
+    twoDotWidthMm <= availableWidthMm
+      ? twoDotWidthMm
+      : oneDotWidthMm <= availableWidthMm
+        ? Math.min(availableWidthMm, Math.max(oneDotWidthMm, availableWidthMm))
+        : availableWidthMm
 
   const defaultModWidth = encoded.totalWidth > 180 ? 1 : 2
   const pngDataUrl = renderMode === "image" ? generateBarcodeDataUrl(barcode || "000000", { moduleWidth: defaultModWidth, height: 64 }) : ""
@@ -462,9 +494,9 @@ export function buildThermalLabelHtml(options: {
           src="${pngDataUrl}"
           alt="${barcode}"
           style="
-            max-height: 13mm;
-            max-width: 36mm;
-            width: auto;
+            max-height: 100%;
+            max-width: 100%;
+            width: ${exactBarcodeWidthMm.toFixed(3)}mm;
             height: 100%;
             display: block;
             margin: 0 auto;
@@ -477,20 +509,22 @@ export function buildThermalLabelHtml(options: {
       `
       : `
         <svg
-          viewBox="0 0 ${encoded.totalWidth} ${barHeight}"
+          viewBox="${quietZoneModules} 0 ${barModules} ${barHeight}"
           shape-rendering="crispEdges"
-          style="max-height: 13mm; max-width: 36mm; width: auto; height: 100%; display: block; margin: 0 auto; shape-rendering: crispEdges;"
-          preserveAspectRatio="xMidYMid meet"
+          style="max-height: 100%; max-width: 100%; width: ${exactBarcodeWidthMm.toFixed(3)}mm; height: 100%; display: block; margin: 0 auto; shape-rendering: crispEdges;"
+          preserveAspectRatio="none"
         >
-          <rect x="0" y="0" width="${encoded.totalWidth}" height="${barHeight}" fill="#ffffff" />
+          <rect x="${quietZoneModules}" y="0" width="${barModules}" height="${barHeight}" fill="#ffffff" />
           ${encoded.bars
-            .map(
-              (b) =>
-                `<rect x="${b.x}" y="0" width="${b.width}" height="${barHeight}" fill="#000000" shape-rendering="crispEdges" />`
-            )
-            .join("")}
+        .map(
+          (b) =>
+            `<rect x="${b.x}" y="0" width="${b.width}" height="${barHeight}" fill="#000000" shape-rendering="crispEdges" />`
+        )
+        .join("")}
         </svg>
       `
+
+  const showMeta = (showLotNumber && lotNumber) || (showInvoiceNumber && invoiceNumber) || (showExpiryDate && expiryDate)
 
   return `
     <div class="barcode-label" style="
@@ -499,13 +533,13 @@ export function buildThermalLabelHtml(options: {
       max-width: ${widthMm}mm;
       max-height: ${heightMm}mm;
       box-sizing: border-box;
-      padding: 0;
+      padding: 1.5mm 4.5mm 0.3mm 3mm;
       margin: 0;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      gap: 0.2mm;
+      gap: 0.4mm;
       background: #ffffff;
       color: #000000;
       text-align: center;
@@ -517,46 +551,60 @@ export function buildThermalLabelHtml(options: {
       -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     ">
-      ${
-        showCompany || showProductName
-          ? `
-        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.1mm; padding: 0.1mm 0.8mm 0; flex-shrink: 0; line-height: 1.05;">
-          ${
-            showCompany
-              ? `
-            <div style="font-size: 4pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2px; color: #111;">
+      ${showCompany || (showProductName && productName) || (showVariantName && variantName)
+      ? `
+        <div style="width: 100%; display: flex; flex-direction: column; align-items: center; gap: 0.1mm; padding: 0; flex-shrink: 0; line-height: 1.1;">
+          ${showCompany
+        ? `
+            <div style="font-size: 5.2pt; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px; color: #000; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               ${companyName}
             </div>
           `
-              : ""
-          }
-          ${
-            showProductName && productName
-              ? `
-            <div style="font-size: 4.5pt; font-weight: 700; max-width: 98%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000;">
+        : ""
+      }
+          ${showProductName && productName
+        ? `
+            <div style="font-size: 4.8pt; font-weight: 500; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #000;">
               ${productName}
             </div>
           `
-              : ""
-          }
+        : ""
+      }
+          ${showVariantName && variantName && variantName !== productName
+        ? `
+            <div style="font-size: 4.2pt; font-weight: 400; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333;">
+              ${variantName}
+            </div>
+          `
+        : ""
+      }
         </div>
       `
-          : ""
-      }
+      : ""
+    }
 
-      <div style="width: 36mm; max-width: 36mm; max-height: 13mm; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0 auto; overflow: hidden;">
+      <div style="width: 100%; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0 auto; overflow: hidden;">
         ${barcodeElementHtml}
       </div>
 
-      ${
-        showBarcodeNumber
-          ? `
-        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 4.5pt; font-weight: 700; letter-spacing: 0.4px; line-height: 1; padding-bottom: 0.1mm; flex-shrink: 0; color: #000000;">
+      ${showBarcodeNumber
+      ? `
+        <div style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 5pt; font-weight: 500; letter-spacing: 0.3px; line-height: 1.1; padding: 0; flex-shrink: 0; color: #000000; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
           ${encoded.text}
         </div>
       `
-          : ""
-      }
+      : ""
+    }
+
+      ${showMeta
+      ? `
+        <div style="width: 100%; display: flex; justify-content: space-between; font-family: ui-monospace, monospace; font-size: 4pt; font-weight: 400; color: #333; line-height: 1; flex-shrink: 0;">
+          <span>${showLotNumber && lotNumber ? lotNumber : ""}${showInvoiceNumber && invoiceNumber ? ` ${invoiceNumber}` : ""}</span>
+          <span>${showExpiryDate && expiryDate ? `Exp: ${expiryDate.slice(0, 10)}` : ""}</span>
+        </div>
+      `
+      : ""
+    }
     </div>
   `
 }
@@ -581,25 +629,12 @@ export function executeLabelPrint(
 
   const widthMm = options?.widthMm ?? STANDARD_LABEL_SIZE.widthMm
   const heightMm = options?.heightMm ?? STANDARD_LABEL_SIZE.heightMm
+  const safeWidthMm = Math.max(10, widthMm - 0.5)
+  const safeHeightMm = Math.max(10, heightMm - 0.5)
   const title = options?.documentTitle || "Barcode Label - 38mm x 15mm"
-  const delay = options?.delayMs ?? 150
   const contents = targetElement.innerHTML
 
-  const printWindow = window.open("", "_blank", "width=600,height=500")
-  if (!printWindow) {
-    // Fallback if popup blocker intercepts
-    return executePrint(targetElement, {
-      documentTitle: title,
-      widthMm,
-      heightMm,
-      pageSize: `${widthMm}mm ${heightMm}mm`,
-      margin: "0mm",
-      delayMs: delay,
-    })
-  }
-
-  printWindow.document.open()
-  printWindow.document.write(`
+  printHtmlViaIframe(`
     <!DOCTYPE html>
     <html>
       <head>
@@ -619,8 +654,8 @@ export function executeLabelPrint(
             margin: 0mm !important;
           }
           html, body {
-            width: ${widthMm}mm !important;
-            height: ${heightMm}mm !important;
+            width: ${safeWidthMm}mm !important;
+            height: ${safeHeightMm}mm !important;
             margin: 0 !important;
             padding: 0 !important;
             background: #ffffff !important;
@@ -629,12 +664,11 @@ export function executeLabelPrint(
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
           }
           #print-root {
-            width: ${widthMm}mm !important;
-            height: ${heightMm}mm !important;
-            max-width: ${widthMm}mm !important;
-            max-height: ${heightMm}mm !important;
+            width: ${safeWidthMm}mm !important;
+            height: ${safeHeightMm}mm !important;
+            max-width: ${safeWidthMm}mm !important;
+            max-height: ${safeHeightMm}mm !important;
             margin: 0 !important;
-            padding: 0 !important;
             overflow: hidden !important;
           }
           .print-label-layout,
@@ -642,23 +676,24 @@ export function executeLabelPrint(
           .barcode-label,
           .qr-label-container,
           .qr-label {
-            width: ${widthMm}mm !important;
-            height: ${heightMm}mm !important;
-            max-width: ${widthMm}mm !important;
-            max-height: ${heightMm}mm !important;
+            width: ${safeWidthMm}mm !important;
+            height: ${safeHeightMm}mm !important;
+            max-width: ${safeWidthMm}mm !important;
+            max-height: ${safeHeightMm}mm !important;
             margin: 0 !important;
-            padding: 0 !important;
             overflow: hidden !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
             page-break-after: always !important;
             break-after: page !important;
             display: flex !important;
-            justify-content: space-between !important;
             align-items: center !important;
           }
           .qr-label-container, .qr-label {
             flex-direction: row !important;
+          }
+          .barcode-label-container, .barcode-label {
+            padding: 1.5mm 4mm 0.3mm 0mm !important;
           }
           .qr-label-vertical {
             flex-direction: column !important;
@@ -689,22 +724,7 @@ export function executeLabelPrint(
         <div id="print-root">
           ${contents}
         </div>
-        <script>
-          function triggerPrint() {
-            setTimeout(function() {
-              window.focus();
-              window.print();
-              window.close();
-            }, ${delay});
-          }
-          if (document.readyState === "complete" || document.readyState === "interactive") {
-            triggerPrint();
-          } else {
-            window.addEventListener("DOMContentLoaded", triggerPrint);
-          }
-        </script>
       </body>
     </html>
   `)
-  printWindow.document.close()
 }

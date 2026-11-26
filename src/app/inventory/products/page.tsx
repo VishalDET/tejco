@@ -84,17 +84,6 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
     Dialog,
     DialogContent,
     DialogHeader,
@@ -185,99 +174,42 @@ export type Product = {
 }
 
 const ActionsCell = ({ row, onNavigate }: { row: any; onNavigate: (path: string) => void }) => {
-    const [isDeleting, setIsDeleting] = React.useState(false)
-
-    const handleDelete = async () => {
-        try {
-            setIsDeleting(true)
-            const res = await apiClient.delete<any>(`/api/Product/Delete/${row.original.id}`)
-            if (res.success) {
-                toast.success("Product deleted successfully")
-                window.location.reload()
-            } else {
-                toast.error(res.message || "Failed to delete")
-                setIsDeleting(false)
-            }
-        } catch (e: any) {
-            toast.error(e.message || "Error deleting product")
-            setIsDeleting(false)
-        }
-    }
-
     return (
-        <AlertDialog>
-            <DropdownMenu>
-                <DropdownMenuTrigger className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                    <span className="sr-only">Open menu</span>
-                    <MoreHorizontal className="h-4 w-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => {
-                        navigator.clipboard.writeText(row.original.id)
-                        toast.success("Product ID copied")
-                    }}>
-                        Copy product ID
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => onNavigate(`/inventory/products/view/${row.original.id}`)}>
-                        <Eye className="mr-2 h-4 w-4 text-muted-foreground" /> View details
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onNavigate(`/inventory/products/${row.original.id}`)}>
-                        Edit product
-                    </DropdownMenuItem>
-                    {/* Restock PO — only for low / out-of-stock products */}
-                    {(row.original.status === "Low Stock" || row.original.stock === 0) && (
-                        <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                                onClick={() => onNavigate(`/purchase/create?restock=${row.original.id}`)}
-                                className="text-amber-700 dark:text-amber-400 focus:bg-amber-50 dark:focus:bg-amber-950/40 focus:text-amber-800"
-                            >
-                                <ShoppingCart className="mr-2 h-4 w-4" />
-                                Create Restock PO
-                            </DropdownMenuItem>
-                        </>
-                    )}
-                    <DropdownMenuSeparator />
-                    <AlertDialogTrigger
-                        // @ts-ignore
-                        nativeButton={false}
-                        render={
-                            <DropdownMenuItem
-                                onSelect={(e) => e.preventDefault()}
-                                className="text-destructive focus:bg-destructive/10 focus:text-destructive"
-                            >
-                                Delete product
-                            </DropdownMenuItem>
-                        }
-                    />
-                </DropdownMenuContent>
-            </DropdownMenu>
-
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the product
-                        "{row.original.name}" and all its linked variations.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                        onClick={(e) => {
-                            e.preventDefault()
-                            handleDelete()
-                        }}
-                        disabled={isDeleting}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                        {isDeleting ? "Deleting..." : "Delete"}
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
+        <DropdownMenu>
+            <DropdownMenuTrigger className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                <span className="sr-only">Open menu</span>
+                <MoreHorizontal className="h-4 w-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => {
+                    navigator.clipboard.writeText(row.original.id)
+                    toast.success("Product ID copied")
+                }}>
+                    Copy product ID
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onNavigate(`/inventory/products/view/${row.original.id}`)}>
+                    <Eye className="mr-2 h-4 w-4 text-muted-foreground" /> View details
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onNavigate(`/inventory/products/${row.original.id}`)}>
+                    Edit product
+                </DropdownMenuItem>
+                {/* Restock PO — only for low / out-of-stock products */}
+                {(row.original.status === "Low Stock" || row.original.stock === 0) && (
+                    <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                            onClick={() => onNavigate(`/purchase/create?restock=${row.original.id}`)}
+                            className="text-amber-700 dark:text-amber-400 focus:bg-amber-50 dark:focus:bg-amber-950/40 focus:text-amber-800"
+                        >
+                            <ShoppingCart className="mr-2 h-4 w-4" />
+                            Create Restock PO
+                        </DropdownMenuItem>
+                    </>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
     )
 }
 

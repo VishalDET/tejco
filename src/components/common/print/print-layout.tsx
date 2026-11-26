@@ -105,8 +105,8 @@ export function executePrint(
   const origin = typeof window !== "undefined" ? window.location.origin : ""
   const styleElements = typeof document !== "undefined"
     ? Array.from(document.querySelectorAll("link[rel='stylesheet'], style"))
-        .map(el => el.outerHTML)
-        .join("\n")
+      .map(el => el.outerHTML)
+      .join("\n")
     : ""
 
   printWindow.document.open()
@@ -304,4 +304,75 @@ export function PrintLayout({
       </div>
     </div>
   )
+}
+
+/**
+ * Prints complete HTML reliably using a hidden off-screen iframe.
+ * Avoids popup-tab freezes and waits for any images to decode before triggering print.
+ */
+export function printHtmlViaIframe(htmlContent: string) {
+  if (typeof document === "undefined") return
+
+  const existing = document.getElementById("tejco-print-iframe")
+  if (existing) existing.remove()
+
+  const iframe = document.createElement("iframe")
+  iframe.id = "tejco-print-iframe"
+  iframe.style.position = "fixed"
+  iframe.style.right = "0"
+  iframe.style.bottom = "0"
+  iframe.style.width = "0"
+  iframe.style.height = "0"
+  iframe.style.border = "0"
+  iframe.style.opacity = "0"
+  iframe.style.pointerEvents = "none"
+  document.body.appendChild(iframe)
+
+  const doc = iframe.contentDocument || iframe.contentWindow?.document
+  if (!doc || !iframe.contentWindow) {
+    iframe.remove()
+    return
+  }
+
+  doc.open()
+  doc.write(htmlContent)
+  doc.close()
+
+  const win = iframe.contentWindow
+  const cleanup = () => {
+    setTimeout(() => {
+      try {
+        iframe.remove()
+      } catch {
+        // ignore
+      }
+    }, 500)
+  }
+
+  win.onafterprint = cleanup
+
+  const imgs = Array.from(doc.images || [])
+  const waitForImages = Promise.all(
+    imgs.map((img) =>
+      img.complete
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+          img.onload = () => resolve()
+          img.onerror = () => resolve()
+        })
+    )
+  )
+
+  waitForImages.then(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        try {
+          win.focus()
+          win.print()
+        } catch {
+          window.print()
+        }
+      }, 60)
+    })
+  })
 }

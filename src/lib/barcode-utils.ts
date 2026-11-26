@@ -22,6 +22,9 @@ const CODE128_PATTERNS: string[] = [
 ]
 
 const START_B = 104
+const START_C = 105
+const CODE_C = 99
+const CODE_B = 100
 const STOP_CODE = 106
 const QUIET_ZONE_MODULES = 10
 
@@ -81,6 +84,90 @@ export function encodeCode128B(rawText: string): EncodedBarcode {
     bars,
     totalWidth,
     text
+  }
+}
+
+/**
+ * Optimal Code 128 encoder (Auto-switches between Subset B and Subset C for double-density digit pairs).
+ * Dramatically reduces bar count for numeric/mixed serials like SM000100001 so modules stay crisp.
+ */
+export function encodeCode128Auto(rawText: string): EncodedBarcode {
+  const text = (rawText || "00000000")
+    .replace(/[^\x20-\x7E]/g, "-")
+    .trim() || "00000000"
+
+  const countDigitsAt = (str: string, pos: number): number => {
+    let count = 0
+    while (pos + count < str.length) {
+      const code = str.charCodeAt(pos + count)
+      if (code < 48 || code > 57) break
+      count++
+    }
+    return count
+  }
+
+  const symbols: number[] = []
+  let i = 0
+  let mode: "B" | "C"
+
+  const initialDigits = countDigitsAt(text, 0)
+  if (initialDigits >= 4 || (text.length === 2 && initialDigits === 2)) {
+    symbols.push(START_C)
+    mode = "C"
+  } else {
+    symbols.push(START_B)
+    mode = "B"
+  }
+
+  while (i < text.length) {
+    if (mode === "C") {
+      if (countDigitsAt(text, i) >= 2) {
+        symbols.push(parseInt(text.slice(i, i + 2), 10))
+        i += 2
+      } else {
+        symbols.push(CODE_B)
+        mode = "B"
+      }
+    } else {
+      const digits = countDigitsAt(text, i)
+      const atEnd = i + digits === text.length
+      if ((atEnd && digits >= 4) || digits >= 6) {
+        symbols.push(CODE_C)
+        mode = "C"
+      } else {
+        symbols.push(text.charCodeAt(i) - 32)
+        i += 1
+      }
+    }
+  }
+
+  let checksumTotal = symbols[0]
+  for (let k = 1; k < symbols.length; k++) {
+    checksumTotal += symbols[k] * k
+  }
+  symbols.push(checksumTotal % 103)
+  symbols.push(STOP_CODE)
+
+  const bars: BarcodeModule[] = []
+  let currentX = QUIET_ZONE_MODULES
+
+  for (const sym of symbols) {
+    const pattern = CODE128_PATTERNS[sym] || "212222"
+    for (let j = 0; j < pattern.length; j++) {
+      const width = parseInt(pattern[j], 10)
+      if (j % 2 === 0) {
+        bars.push({ x: currentX, width })
+      }
+      currentX += width
+    }
+  }
+
+  const totalWidth = currentX + QUIET_ZONE_MODULES
+
+  return {
+    bars,
+    totalWidth,
+    text,
   }
 }
 

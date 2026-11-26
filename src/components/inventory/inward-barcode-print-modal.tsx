@@ -41,6 +41,8 @@ import {
   LabelPreset
 } from "@/lib/barcode-utils"
 import { QrLabel, buildThermalQrLabelHtml } from "@/components/common/print/qr-label"
+import { buildThermalLabelHtml } from "@/components/common/print/label-print-layout"
+import { printHtmlViaIframe } from "@/components/common/print/print-layout"
 import type { InwardOrder, InwardOrderItem } from "@/app/inventory/stock-inward/types"
 
 export interface InwardBarcodePrintModalProps {
@@ -78,12 +80,12 @@ export function InwardBarcodePrintModal({
 
   const [companyName, setCompanyName] = useState<string>("TEJCO GLOBAL LLP")
   const [includeCompany, setIncludeCompany] = useState<boolean>(true)
-  const [includeProductName, setIncludeProductName] = useState<boolean>(true)
+  const [includeProductName, setIncludeProductName] = useState<boolean>(false)
   const [includeVariantName, setIncludeVariantName] = useState<boolean>(false)
   const [includeBarcodeNumber, setIncludeBarcodeNumber] = useState<boolean>(true)
-  const [includeLot, setIncludeLot] = useState<boolean>(true)
-  const [includeInvoice, setIncludeInvoice] = useState<boolean>(true)
-  const [includeExpiry, setIncludeExpiry] = useState<boolean>(true)
+  const [includeLot, setIncludeLot] = useState<boolean>(false)
+  const [includeInvoice, setIncludeInvoice] = useState<boolean>(false)
+  const [includeExpiry, setIncludeExpiry] = useState<boolean>(false)
   const [previewIndex, setPreviewIndex] = useState<number>(0)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
@@ -158,11 +160,8 @@ export function InwardBarcodePrintModal({
       return
     }
 
-    const printWindow = window.open("", "_blank")
-    if (!printWindow) {
-      toast.error("Popup blocked! Please allow popups to print thermal labels.")
-      return
-    }
+    const safeWidthMm = Math.max(10, currentPreset.widthMm - 0.5)
+    const safeHeightMm = Math.max(10, currentPreset.heightMm - 0.5)
 
     if (codeType === "qr") {
       const resolvedLayout =
@@ -190,9 +189,9 @@ export function InwardBarcodePrintModal({
             expiryDate: lbl.expiryDate,
             showExpiryDate: includeExpiry,
             layout: resolvedLayout,
-            renderMode: "image",
-            widthMm: currentPreset.widthMm,
-            heightMm: currentPreset.heightMm,
+            renderMode: "svg",
+            widthMm: safeWidthMm,
+            heightMm: safeHeightMm,
           })
         )
         .join("")
@@ -212,7 +211,7 @@ export function InwardBarcodePrintModal({
                 margin: 0;
                 padding: 0;
               }
-              body {
+              html, body {
                 margin: 0;
                 padding: 0;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -222,18 +221,14 @@ export function InwardBarcodePrintModal({
                 print-color-adjust: exact !important;
               }
               .qr-label {
-                width: ${currentPreset.widthMm}mm !important;
-                height: ${currentPreset.heightMm}mm !important;
+                width: ${safeWidthMm}mm !important;
+                height: ${safeHeightMm}mm !important;
                 page-break-after: always !important;
                 break-after: page !important;
               }
               .qr-label:last-child {
                 page-break-after: auto !important;
                 break-after: auto !important;
-              }
-              img {
-                image-rendering: pixelated !important;
-                image-rendering: -webkit-optimize-contrast !important;
               }
               svg {
                 shape-rendering: crispEdges !important;
@@ -242,23 +237,36 @@ export function InwardBarcodePrintModal({
           </head>
           <body>
             ${qrLabelsHtml}
-            <script>
-              window.onload = function() {
-                setTimeout(function() {
-                  window.focus();
-                  window.print();
-                  setTimeout(function() { window.close(); }, 500);
-                }, 150);
-              };
-            </script>
           </body>
         </html>
       `
-      printWindow.document.open()
-      printWindow.document.write(htmlContent)
-      printWindow.document.close()
+      printHtmlViaIframe(htmlContent)
       return
     }
+
+    const barcodeLabelsHtml = unitLabels
+      .map((lbl) =>
+        buildThermalLabelHtml({
+          barcode: lbl.unitBarcode,
+          productName: lbl.productName,
+          variantName: lbl.variantName,
+          companyName,
+          showCompany: includeCompany,
+          showProductName: includeProductName,
+          showVariantName: includeVariantName,
+          showBarcodeNumber: includeBarcodeNumber,
+          lotNumber: lbl.lotNumber,
+          showLotNumber: includeLot,
+          invoiceNumber: lbl.invoiceNumber,
+          showInvoiceNumber: includeInvoice,
+          expiryDate: lbl.expiryDate,
+          showExpiryDate: includeExpiry,
+          renderMode: "svg",
+          widthMm: safeWidthMm,
+          heightMm: safeHeightMm,
+        })
+      )
+      .join("")
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -270,129 +278,42 @@ export function InwardBarcodePrintModal({
               size: ${currentPreset.widthMm}mm ${currentPreset.heightMm}mm;
               margin: 0;
             }
-            body {
+            *, *::before, *::after {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
+            html, body {
               margin: 0;
               padding: 0;
               font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
               background: #fff;
               color: #000;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
-            .label-page {
-              width: ${currentPreset.widthMm}mm;
-              height: ${currentPreset.heightMm}mm;
-              box-sizing: border-box;
-              padding: 0;
-              margin: 0;
-              display: flex;
-              flex-direction: column;
-              justify-content: space-between;
-              align-items: center;
-              text-align: center;
-              page-break-after: always;
-              overflow: hidden;
+            .barcode-label {
+              width: ${safeWidthMm}mm !important;
+              height: ${safeHeightMm}mm !important;
+              page-break-after: always !important;
+              break-after: page !important;
             }
-            .comp-name {
-              font-size: 7pt;
-              font-weight: 800;
-              letter-spacing: 0.5px;
-              text-transform: uppercase;
-              line-height: 1;
-              margin-bottom: 1px;
+            .barcode-label:last-child {
+              page-break-after: auto !important;
+              break-after: auto !important;
             }
-            .prod-title {
-              font-size: 7pt;
-              font-weight: 700;
-              line-height: 1.1;
-              max-height: 14pt;
-              overflow: hidden;
-            }
-            .variant-title {
-              font-size: 6.5pt;
-              font-weight: 600;
-              color: #222;
-              line-height: 1;
-              margin-top: 1px;
-            }
-            .barcode-svg-container {
-              width: 96%;
-              flex: 1;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              margin: 1px 0;
-            }
-            .barcode-svg-container svg {
-              width: 100%;
-              height: 100%;
-              max-height: 12mm;
-              shape-rendering: crispEdges;
-            }
-            .barcode-svg-container rect {
-              shape-rendering: crispEdges;
-            }
-            .human-code {
-              font-family: monospace;
-              font-size: 6.5pt;
-              font-weight: 700;
-              letter-spacing: 0.5px;
-              line-height: 1;
-            }
-            .meta-row {
-              width: 100%;
-              display: flex;
-              justify-content: space-between;
-              font-size: 5.5pt;
-              font-family: monospace;
-              color: #333;
-              line-height: 1;
-              margin-top: 1px;
+            svg {
+              shape-rendering: crispEdges !important;
             }
           </style>
         </head>
         <body>
-          ${unitLabels.map((lbl) => {
-      const encoded = encodeCode128B(lbl.unitBarcode)
-      const rects = encoded.bars
-        .map(b => `<rect x="${b.x}" y="0" width="${b.width}" height="35" fill="#000" shape-rendering="crispEdges" />`)
-        .join("")
-      const svgMarkup = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${encoded.totalWidth} 35" shape-rendering="crispEdges" preserveAspectRatio="none">${rects}</svg>`
-
-      return `
-              <div class="label-page">
-                ${includeCompany ? `<div class="comp-name">${companyName}</div>` : ""}
-                ${includeProductName ? `<div class="prod-title">${lbl.productName}</div>` : ""}
-                ${includeVariantName && lbl.variantName ? `<div class="variant-title">${lbl.variantName}</div>` : ""}
-                <div class="barcode-svg-container">
-                  ${svgMarkup}
-                </div>
-                ${includeBarcodeNumber ? `<div class="human-code">${lbl.unitBarcode}</div>` : ""}
-                <div class="meta-row">
-                  <span>${includeLot ? lbl.lotNumber : ""}</span>
-                </div>
-                ${(includeInvoice && lbl.invoiceNumber) || (includeExpiry && lbl.expiryDate) ? `
-                <div class="meta-row" style="font-size: 5pt; color: #444; margin-top: 0.5px;">
-                  <span>${includeInvoice && lbl.invoiceNumber ? `Inv: ${lbl.invoiceNumber}` : ""}</span>
-                  <span>${includeExpiry && lbl.expiryDate ? `Exp: ${lbl.expiryDate.slice(0, 10)}` : ""}</span>
-                </div>
-                ` : ""}
-              </div>
-            `
-    }).join("")}
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
+          ${barcodeLabelsHtml}
         </body>
       </html>
     `
 
-    printWindow.document.open()
-    printWindow.document.write(htmlContent)
-    printWindow.document.close()
+    printHtmlViaIframe(htmlContent)
   }
 
   // Render barcode for the current preview label

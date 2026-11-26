@@ -472,45 +472,9 @@ export default function ViewProductPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        className="gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/60 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
-                        onClick={() => handleOpenBarcodePrint("all")}
-                    >
-                        <Printer className="h-4 w-4 text-indigo-600" />
-                        Print Barcodes
-                    </Button>
                     <Button variant="outline" onClick={() => navigate(`/inventory/products/${params.id}`)}>
                         <Edit className="mr-2 h-4 w-4" /> Edit Product
                     </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger
-                            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-9 px-4 py-2"
-                            disabled={isDeleting || isLoading}
-                        >
-                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                            Delete
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete the product
-                                    and all its variations.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                    disabled={isDeleting}
-                                    onClick={(e) => { e.preventDefault(); handleDelete(); }}
-                                    className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                                >
-                                    {isDeleting ? "Deleting..." : "Delete"}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
                 </div>
             </div>
 
@@ -618,30 +582,6 @@ export default function ViewProductPage() {
                                     <div>
                                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Default Unit</p>
                                         <p className="text-sm font-medium mt-1"> PCS </p>
-                                    </div>
-                                </div>
-                                <div className="pt-2 border-t flex items-center justify-between">
-                                    <div>
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tagging Number</p>
-                                        <p className="text-sm font-medium mt-0.5">{product.productTaggingNo || "—"}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Primary Barcode</p>
-                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                            <p className="text-sm font-medium">{product.barcodeNumber || "—"}</p>
-                                            {product.barcodeNumber && (
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-6 w-6 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                                                    onClick={() => setBarcodeModal({ code: product.barcodeNumber, name: product.productName, sku: product.baseSKU || "" })}
-                                                    title="View Primary Barcode"
-                                                >
-                                                    <Barcode className="h-3.5 w-3.5" />
-                                                </Button>
-                                            )}
-                                        </div>
                                     </div>
                                 </div>
                             </CardContent>
@@ -1332,17 +1272,6 @@ export default function ViewProductPage() {
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="sm"
-                                                                    className="h-7 text-xs px-2 gap-1 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 cursor-pointer"
-                                                                    onClick={() => handleOpenBarcodePrint(v.variantId)}
-                                                                    title="Print Barcode Label"
-                                                                >
-                                                                    <Printer className="h-3 w-3" />
-                                                                    <span>Print Label</span>
-                                                                </Button>
                                                                 {v.barcodeNumber && (
                                                                     <Button
                                                                         type="button"
